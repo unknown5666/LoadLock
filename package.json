@@ -1,0 +1,24 @@
+{
+  "name": "fhe-lift-planner",
+  "version": "6.0.0",
+  "private": true,
+  "description": "FHE A1 crane lifting-plan studio — single-file HTML app",
+  "scripts": {
+    "build": "python3 build.py",
+    "test:render": "node render_test.js",
+    "test:e2e": "node e2e5.js",
+    "test:mobile": "node e2e_mobile.js",
+    "test:tour": "node tour_test.js && W=390 H=844 node tour_test.js",
+    "test:a11y": "node a11y_audit.js",
+    "test": "mkdir -p out && python3 build.py && node render_test.js && node e2e5.js && node e2e_mobile.js && node tour_test.js && node a11y_audit.js"
+  },
+  "devDependencies": {
+    "dxf-parser": "^1.1.2",
+    "jspdf": "2.5.2",
+    "jszip": "3.10.1",
+    "pdfjs-dist": "3.11.174",
+    "playwright": "1.56.1",
+    "svg2pdf.js": "2.2.4",
+    "three": "0.147.0"
+  }
+}

@@ -1,0 +1,202 @@
+== AC700_BLOCK.dxf
+    {'name': '*G1123', 'layer': '11', 'rot': 0, 'nkids': 8, 'rots': [], 'bb': [86322, 2242, 100894, 4256], 'depth': 0}
+    {'name': '*G101032', 'layer': '11', 'rot': 0, 'nkids': 8, 'rots': [], 'bb': [86322, 7242, 100894, 9256], 'depth': 0}
+    {'name': '*G191941', 'layer': '11', 'rot': 0, 'nkids': 8, 'rots': [], 'bb': [86322, 12242, 100894, 14256], 'depth': 0}
+    {'name': '*G282850', 'layer': '11', 'rot': 0, 'nkids': 8, 'rots': [], 'bb': [86322, 17242, 100894, 19256], 'depth': 0}
+    {'name': '*G373759', 'layer': '11', 'rot': 0, 'nkids': 8, 'rots': [], 'bb': [86322, 22242, 100894, 24256], 'depth': 0}
+    {'name': '*G464668', 'layer': '11', 'rot': 0, 'nkids': 8, 'rots': [], 'bb': [86322, 27242, 100894, 29256], 'depth': 0}
+    {'name': '*G555577', 'layer': '11', 'rot': 0, 'nkids': 8, 'rots': [], 'bb': [86322, 31859, 100894, 33873], 'depth': 0}
+    {'name': '*G646486', 'layer': '11', 'rot': 0, 'nkids': 8, 'rots': [], 'bb': [86322, 36869, 100894, 38883], 'depth': 0}
+== DEMAG_AC500-2.dxf
+    {'name': 'AC500-2_DESSUS', 'layer': '0', 'rot': 0, 'nkids': 6, 'rots': [], 'bb': [5062, -24337, 23232, -12137], 'depth': 0}
+    {'name': 'AC500-2_DESSUS_SILHOUETTE', 'layer': '0', 'rot': 0, 'nkids': 4, 'rots': [], 'bb': [5062, -38736, 23232, -26536], 'depth': 0}
+    {'name': 'AC500-2_DOS', 'layer': '0', 'rot': 0, 'nkids': 4, 'rots': [], 'bb': [-9879, 16523, 2120, 19474], 'depth': 0}
+    {'name': 'AC500-2_FACE', 'layer': '0', 'rot': 0, 'nkids': 4, 'rots': [], 'bb': [23508, 16523, 35507, 19474], 'depth': 0}
+    {'name': 'AC500-2_COTE', 'layer': '0', 'rot': 0, 'nkids': 4, 'rots': [], 'bb': [5062, 16523, 22961, 19474], 'depth': 0}
+    {'name': 'ALSTOM_Title_Block_01', 'layer': '0', 'rot': 0, 'nkids': 2, 'rots': [], 'bb': [-19109, 15028, -18919, 15156], 'depth': 0}
+    {'name': 'AC500-2 tourelle-flèche à étirer dessus', 'layer': '0_Construction', 'rot': 0, 'nkids': 1, 'rots': [], 'bb': [79941, -37646, 104577, -32106], 'depth': 0}
+    {'name': 'A4LASER', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-13261, -49042, 39239, 25208], 'depth': 0}
+== DEMAG_CC2000.dxf
+    {'name': 'A3LASER', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-106284, -5512, -64284, 24188], 'depth': 0}
+    {'name': 'CC2000_DESSUS', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-102291, -2489, -88291, 11511], 'depth': 0}
+    {'name': 'CC2000_CABINE_DESSUS', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-104795, 13056, -94500, 18956], 'depth': 0}
+    {'name': 'CC2000_FACE', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-80801, 14208, -71277, 16008], 'depth': 0}
+    {'name': 'CC2000_COTE', 'layer': 'FORT', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-81302, 9990, -70776, 11790], 'depth': 0}
+    {'name': 'CC2000_FLECHE_BASE', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-76889, 4615, -75189, 8215], 'depth': 0}
+    {'name': 'CC2000_FLECHE_COTE', 'layer': 'FORT', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-76889, 2946, -75189, 2947], 'depth': 0}
+    {'name': 'CC2000_FLECHE_TETE', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-77414, -1968, -74739, 1632], 'depth': 0}
+== Demag_AC_700.dxf
+    {'name': '*U90', 'layer': 'Technique Crane Demag AC 700', 'rot': 0, 'nkids': 60, 'rots': [(64, 14), (77, 2), (139, 2), (154, 1)], 'bb': [-39128, 187545, 12879, 219269], 'depth': 0}
+    {'name': '*U89', 'layer': 'Technique Crane Demag AC 700', 'rot': 0, 'nkids': 43, 'rots': [(90, 7), (44, 2), (136, 2), (134, 2)], 'bb': [-40900, 168900, -18679, 183034], 'depth': 0}
+== Demag_CC2400-1.dxf
+    {'name': '*U160', 'layer': 'Техника. Кран CC 2400-1', 'rot': 0, 'nkids': 119, 'rots': [(68, 13), (118, 3), (48, 3), (42, 2)], 'bb': [-17330, -252, 37475, 37502], 'depth': 0}
+    {'name': '*U161', 'layer': 'Техника. Кран CC 2400-1', 'rot': 0, 'nkids': 95, 'rots': [(90, 5)], 'bb': [-18300, -19422, 18960, -10578], 'depth': 0}
+== Demag_CC2500__1_.dxf
+    {'name': 'A$C2F3D0995', 'layer': 'Track', 'rot': 0, 'nkids': 7, 'rots': [(90, 5)], 'bb': [321317, 29671, 343736, 46446], 'depth': 0}
+    {'name': 'A$C2F3D0995', 'layer': 'Track', 'rot': 0, 'nkids': 7, 'rots': [(90, 5)], 'bb': [369152, 29671, 391571, 46446], 'depth': 0}
+    {'name': 'A$C2F3D0995', 'layer': 'Track', 'rot': 0, 'nkids': 7, 'rots': [(90, 5)], 'bb': [422604, 29671, 445022, 46446], 'depth': 0}
+    {'name': 'CC2500- Cabin', 'layer': 'Cabin', 'rot': 0, 'nkids': 1, 'rots': [], 'bb': [263131, 140965, 265016, 142565], 'depth': 0}
+    {'name': 'M_CONFIG', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': None, 'depth': 0}
+    {'name': 'M_CONFIG', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': None, 'depth': 0}
+    {'name': 'Demag CC2400-1Fixed Jib', 'layer': 'Jib', 'rot': 57.0, 'nkids': 0, 'rots': [], 'bb': [99500, 156884, 103916, 162570], 'depth': 0}
+    {'name': 'CC2500-Boom Joist', 'layer': 'Boom Hoist', 'rot': 13.0, 'nkids': 0, 'rots': [], 'bb': [282251, 142483, 292888, 145300], 'depth': 0}
+== Heavy_Equipment_admin_65hoiqch_ZTC300V.dxf
+    {'name': '*U38', 'layer': 'Техника. Кран ZTC300V', 'rot': 0, 'nkids': 36, 'rots': [(69, 8), (86, 2)], 'bb': [-93595, 51908, -80705, 72935], 'depth': 0}
+    {'name': '*U39', 'layer': 'Техника. Кран ZTC300V', 'rot': 180.0, 'nkids': 12, 'rots': [], 'bb': [-93745, 41373, -82235, 47989], 'depth': 0}
+== Heavy_Equipment_admin_65hoiqch_Zoomlion-ZAT2000V.dxf
+    {'name': '*U77', 'layer': 'Техника. Кран Zoomlion ZAT2000V', 'rot': 0, 'nkids': 61, 'rots': [(43, 15), (56, 2)], 'bb': [0, 0, 63087, 44611], 'depth': 0}
+    {'name': 'Zoomlion ZAT2000V- План', 'layer': 'Техника. Кран Zoomlion ZAT2000V', 'rot': 180.0, 'nkids': 38, 'rots': [(166, 1), (14, 1)], 'bb': [30053, 7178, 51729, 16178], 'depth': 0}
+== Heavy_Equipment_admin_65hoiqch_Zoomlion-ZTC1000V.dxf
+    {'name': '*U105', 'layer': 'Техника. Кран ZTC1000V653', 'rot': 0, 'nkids': 61, 'rots': [(80, 16), (93, 2)], 'bb': [-4900, -80, 9015, 28622], 'depth': 0}
+    {'name': '*U55', 'layer': 'Техника. Кран ZTC1000V653', 'rot': 0, 'nkids': 19, 'rots': [], 'bb': [-4998, -15114, 11934, -6514], 'depth': 0}
+== Heavy_Equipment_admin_65hoiqch_Zoomlion-ZTC600V.dxf
+    {'name': '*U84', 'layer': 'Техника. Кран ZTC600V532', 'rot': 0, 'nkids': 47, 'rots': [(68, 9), (84, 2)], 'bb': [-8225, 0, 17034, 30683], 'depth': 0}
+    {'name': '*U85', 'layer': 'Техника. Кран ZTC600V552', 'rot': 0, 'nkids': 47, 'rots': [(68, 9), (84, 2)], 'bb': [49625, 0, 69178, 24070], 'depth': 0}
+    {'name': '*U40', 'layer': 'Техника. Кран ZTC600V532', 'rot': 0, 'nkids': 12, 'rots': [], 'bb': [-9997, -10917, 4098, -3337], 'depth': 0}
+    {'name': '*U80', 'layer': 'Техника. Кран ZTC600V552', 'rot': 0, 'nkids': 12, 'rots': [], 'bb': [47854, -10375, 61949, -2094], 'depth': 0}
+== Liebherr_LR_11000.dxf
+    {'name': '*U489', 'layer': 'Техника. Кран LR 11000', 'rot': 0, 'nkids': 369, 'rots': [(70, 36), (171, 5), (172, 5), (156, 4)], 'bb': [-31632, -1058, 30716, 41803], 'depth': 0}
+    {'name': 'Liebherr LR 11100 План', 'layer': 'Техника. Кран LR 11000', 'rot': 0, 'nkids': 98, 'rots': [], 'bb': [-32000, -22300, 6250, -7700], 'depth': 0}
+== Liebherr_LR_1200.dxf
+    {'name': '*U195', 'layer': 'Техника. Кран LR 1200', 'rot': 0, 'nkids': 91, 'rots': [(70, 21), (39, 2), (178, 2), (72, 2)], 'bb': [-6621, -78, 30077, 32881], 'depth': 0}
+    {'name': 'Liebherr LR 1200. План', 'layer': 'Техника. Кран LR 1200', 'rot': 0, 'nkids': 33, 'rots': [(90, 1)], 'bb': [-6800, -13800, 5800, 0], 'depth': 0}
+== Liebherr_LR_1400-2.dxf
+    {'name': '*U258', 'layer': 'Техника. Кран LR 1400-2', 'rot': 0, 'nkids': 167, 'rots': [(77, 23), (90, 4), (116, 3), (175, 3)], 'bb': [-13255, -47, 36941, 40676], 'depth': 0}
+    {'name': 'Liebherr LR 1400-2 План', 'layer': 'Техника. Кран LR 1400-2', 'rot': 0, 'nkids': 49, 'rots': [], 'bb': [-18300, -19600, 6105, -10400], 'depth': 0}
+== Liebherr_LR_1600-2.dxf
+    {'name': '*U281', 'layer': 'Техника. Кран LR 1600', 'rot': 0, 'nkids': 314, 'rots': [(74, 13), (176, 8), (122, 5), (169, 4)], 'bb': [-21633, -5205, 69594, 44550], 'depth': 0}
+    {'name': '*U280', 'layer': 'Техника. Кран LR 1600', 'rot': 0, 'nkids': 126, 'rots': [(90, 4), (67, 4), (113, 4), (51, 2)], 'bb': [-21900, -23600, 9600, -6400], 'depth': 0}
+    {'name': 'Raster', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-200, -1749, 79148, 100356], 'depth': 0}
+== Liebherr_LR_1700-1.0.dxf
+    {'name': '*U319', 'layer': 'Техника. Кран LR 1700', 'rot': 0, 'nkids': 225, 'rots': [(67, 27), (113, 5), (167, 5), (49, 2)], 'bb': [-25020, -20, 28905, 49228], 'depth': 0}
+    {'name': 'Liebherr LR 1700-1 План', 'layer': 'Техника. Кран LR 1700', 'rot': 0, 'nkids': 72, 'rots': [], 'bb': [-22900, -22300, 6105, -7700], 'depth': 0}
+== Liebherr_LR_1800-1.0_27.dxf
+    {'name': '*U364', 'layer': 'Техника. Кран LR 1800', 'rot': 0, 'nkids': 219, 'rots': [(65, 26), (111, 5), (160, 5), (153, 3)], 'bb': [-27020, -14, 38259, 54669], 'depth': 0}
+    {'name': 'Liebherr LR 1800-1 План', 'layer': 'Техника. Кран LR 1800', 'rot': 0, 'nkids': 74, 'rots': [], 'bb': [-24900, -22300, 6280, -7700], 'depth': 0}
+== Liebherr_LTM_1090-4.2-PJH.dxf
+    {'name': '*U58', 'layer': '0', 'rot': 0, 'nkids': 64, 'rots': [(82, 13), (88, 2), (108, 1), (95, 1)], 'bb': [-211392, -39463, -188945, 34514], 'depth': 0}
+    {'name': 'Liebherr LTM 1090-4.2', 'layer': '0', 'rot': 0, 'nkids': 64, 'rots': [(4, 2), (26, 1), (13, 1)], 'bb': [-130781, 34455, -106613, 42262], 'depth': 0}
+    {'name': '*U59', 'layer': '0', 'rot': 0, 'nkids': 64, 'rots': [(82, 13), (88, 2), (108, 1), (95, 1)], 'bb': [-55996, -39518, -38919, 33647], 'depth': 0}
+    {'name': '*U60', 'layer': '0', 'rot': 0, 'nkids': 64, 'rots': [(82, 11), (88, 2), (42, 2), (108, 1)], 'bb': [-35996, -39518, -7821, 42096], 'depth': 0}
+    {'name': '*U75', 'layer': '0', 'rot': 0, 'nkids': 64, 'rots': [(4, 2), (26, 1), (13, 1)], 'bb': [-211392, 49211, -183845, 54385], 'depth': 0}
+    {'name': '*U78', 'layer': '0', 'rot': 0, 'nkids': 64, 'rots': [(4, 2), (26, 1), (13, 1)], 'bb': [-191392, 49211, -160145, 54385], 'depth': 0}
+    {'name': '*U80', 'layer': '0', 'rot': 0, 'nkids': 64, 'rots': [(4, 2), (26, 1), (13, 1)], 'bb': [-167692, 49211, -132645, 54385], 'depth': 0}
+    {'name': '*U82', 'layer': '0', 'rot': 0, 'nkids': 64, 'rots': [(4, 2), (26, 1), (13, 1)], 'bb': [-140192, 49211, -101445, 54385], 'depth': 0}
+== Liebherr_LTM_1090-4.2_53.dxf
+    {'name': '*U59', 'layer': 'Техника. Кран LTM 1090-4.2', 'rot': 0, 'nkids': 64, 'rots': [(42, 13), (53, 2), (68, 1), (55, 1)], 'bb': [-211392, -39511, -185617, -21327], 'depth': 0}
+    {'name': '*U58', 'layer': 'Техника. Кран LTM 1090-4.2', 'rot': 0, 'nkids': 23, 'rots': [(15, 1), (165, 1)], 'bb': [-211334, -51803, -199413, -43803], 'depth': 0}
+== Liebherr_LTM_1100-4.1.dxf
+    {'name': 'A3LASER', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [0, 0, 84000, 59400], 'depth': 0}
+    {'name': 'LIEBHERR_LTM1100-4.1_DESSUS', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [2221, 1499, 13556, 10019], 'depth': 0}
+    {'name': 'LIEBHERR_LTM1100-4.1_BASE_COTE_GAUCHE', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [2156, 10642, 12746, 13442], 'depth': 0}
+    {'name': 'LIEBHERR_LTM1100-4.1_CABINE_COTE', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [7429, 16939, 13556, 18939], 'depth': 0}
+    {'name': 'LIEBHERR_LTM1100-4.1_BASE_COTE_GAUCHE', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [85491, 9000, 96081, 11800], 'depth': 0}
+    {'name': 'LIEBHERR_LTM1100-4.1_CABINE_COTE', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [88371, 10940, 94498, 12940], 'depth': 0}
+    {'name': 'LIEBHERR_LTM1100-4.1_FLECHE_11.5 m', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [2312, 19705, 14257, 21180], 'depth': 0}
+    {'name': 'A4LASER', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [143400, 54300, 164400, 84000], 'depth': 0}
+== Liebherr_LTM_1100-5.1.dxf
+    {'name': '*U61', 'layer': 'Техника. Кран LTM 1100-5.1', 'rot': 0, 'nkids': 57, 'rots': [(44, 10), (56, 2), (45, 2), (46, 1)], 'bb': [-8379, 11418, 29400, 39021], 'depth': 0}
+    {'name': '*U62', 'layer': 'Техника. Кран LTM 1100-5.1', 'rot': 0, 'nkids': 18, 'rots': [], 'bb': [-15837, -1577, 2284, 4223], 'depth': 0}
+== Liebherr_LTM_1110-5.2.dxf
+    {'name': '*U101', 'layer': 'Техника LTM 1110-5.2', 'rot': 0, 'nkids': 80, 'rots': [(45, 14), (8, 4), (60, 2), (6, 1)], 'bb': [-4100, 1, 18569, 20209], 'depth': 0}
+    {'name': '*U98', 'layer': 'Техника LTM 1110-5.2', 'rot': 180.0, 'nkids': 34, 'rots': [(166, 1), (14, 1)], 'bb': [-4600, -15458, 16552, -6542], 'depth': 0}
+== Liebherr_LTM_1120.dxf
+    {'name': '*U53', 'layer': '0', 'rot': 0, 'nkids': 13, 'rots': [], 'bb': [517, 332, 1009, 379], 'depth': 0}
+    {'name': '*U37', 'layer': '0', 'rot': 0, 'nkids': 7, 'rots': [], 'bb': [563, 188, 766, 269], 'depth': 0}
+== Liebherr_LTM_11200-9.1_34.dxf
+    {'name': '*U190', 'layer': 'Техника LTM 11200-9.1', 'rot': 0, 'nkids': 125, 'rots': [(62, 28), (80, 2), (179, 2), (11, 2)], 'bb': [-9180, 0, 28720, 35440], 'depth': 0}
+    {'name': 'Liebherr LTM 11200-9.1 План', 'layer': 'Техника LTM 11200-9.1', 'rot': 180.0, 'nkids': 71, 'rots': [(90, 4), (45, 2), (135, 2), (126, 2)], 'bb': [-9400, -31193, 16593, -8807], 'depth': 0}
+== Liebherr_LTM_1130_5.1.dxf
+    {'name': 'LTM_1130-5.1_DESSUS_BASE 1', 'layer': '0', 'rot': 0, 'nkids': 5, 'rots': [], 'bb': [21772, 18709, 34422, 27109], 'depth': 0}
+    {'name': 'LTM_1130-5.1_DESSUS_BASE 1', 'layer': '0', 'rot': 0, 'nkids': 5, 'rots': [], 'bb': [63772, 18709, 76422, 27109], 'depth': 0}
+    {'name': 'FLECHE', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [42213, 29536, 42226, 29538], 'depth': 0}
+    {'name': 'FLECHE', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [42218, 29526, 42231, 29528], 'depth': 0}
+    {'name': 'FLECHE', 'layer': '0', 'rot': 270.0, 'nkids': 0, 'rots': [], 'bb': [42217, 29512, 42219, 29525], 'depth': 0}
+    {'name': 'FLECHE', 'layer': '0', 'rot': 90.0, 'nkids': 0, 'rots': [], 'bb': [42225, 29497, 42227, 29510], 'depth': 0}
+    {'name': 'A4LASER', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [42000, 29403, 42210, 29700], 'depth': 0}
+    {'name': 'A3LASER', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [0, 0, 42000, 29700], 'depth': 0}
+== Liebherr_LTM_1160-5.2.dxf
+    {'name': '*U99', 'layer': 'Техника LTM 1160-5.2', 'rot': 0, 'nkids': 87, 'rots': [(55, 13), (18, 4), (69, 2), (16, 1)], 'bb': [-5230, -24, 17642, 24081], 'depth': 0}
+    {'name': 'LTM 1160-5.2- План', 'layer': 'Техника LTM 1160-5.2', 'rot': 180.0, 'nkids': 36, 'rots': [(166, 1), (14, 1)], 'bb': [-5300, -14746, 16552, -5712], 'depth': 0}
+== Liebherr_LTM_1200-5.1.dxf
+    {'name': '*U58', 'layer': 'Техника. Кран LTM 1200-5.1', 'rot': 0, 'nkids': 37, 'rots': [(52, 14), (63, 2), (90, 1)], 'bb': [0, 0, 68372, 35135], 'depth': 0}
+    {'name': '*U56', 'layer': 'Техника. Кран LTM 1200-5.1', 'rot': 0, 'nkids': 15, 'rots': [], 'bb': [43590, 3751, 64514, 9981], 'depth': 0}
+== Liebherr_LTM_1220-5.2.dxf
+    {'name': '*U59', 'layer': 'Техника. Кран LTM 1200-5.2', 'rot': 0, 'nkids': 37, 'rots': [(53, 13), (64, 2), (90, 1)], 'bb': [-4909, 0, 24565, 34484], 'depth': 0}
+    {'name': '*U61', 'layer': 'Техника. Кран LTM 1200-5.2', 'rot': 0, 'nkids': 15, 'rots': [], 'bb': [-7245, -4102, 9220, 4798], 'depth': 0}
+    {'name': 'BLOCK-20200522.06055201', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-1246, 6913, 63992, 78583], 'depth': 0}
+== Liebherr_LTM_1230-5.1.dxf
+    {'name': '*U113', 'layer': 'Техника Кран LTM 1230-5.1', 'rot': 0, 'nkids': 97, 'rots': [(55, 26), (65, 2)], 'bb': [-4830, -1, 18725, 24543], 'depth': 0}
+    {'name': '*U111', 'layer': 'Техника Кран LTM 1230-5.1', 'rot': 180.0, 'nkids': 42, 'rots': [(20, 1), (160, 1), (166, 1), (14, 1)], 'bb': [-5857, -14438, 16497, -5562], 'depth': 0}
+== Liebherr_LTM_1250-6.1.dxf
+    {'name': '*U81', 'layer': 'Кран Liebherr LTM 1250-6.1', 'rot': 0, 'nkids': 58, 'rots': [(60, 21), (35, 6), (75, 2), (54, 1)], 'bb': [-241, 0, 28596, 32683], 'depth': 0}
+    {'name': '*U114', 'layer': 'Кран Liebherr LTM 1250-6.1', 'rot': 0, 'nkids': 58, 'rots': [(60, 21), (35, 6), (75, 2), (54, 1)], 'bb': [-46183, -10722, 0, 21827], 'depth': 0}
+    {'name': '*U79', 'layer': 'Кран Liebherr LTM 1250-6.1', 'rot': 180.0, 'nkids': 20, 'rots': [], 'bb': [-3708, -13923, 16041, -4339], 'depth': 0}
+    {'name': '*U84', 'layer': 'Кран Liebherr LTM 1250-6.1', 'rot': 180.0, 'nkids': 20, 'rots': [(17, 7)], 'bb': [262580, 81257, 279533, 90840], 'depth': 0}
+    {'name': '*U79', 'layer': 'Кран Liebherr LTM 1250-6.1', 'rot': 180.0, 'nkids': 20, 'rots': [], 'bb': [21183, -55462, 40932, -45878], 'depth': 0}
+    {'name': '*U79', 'layer': 'Кран Liebherr LTM 1250-6.1', 'rot': 180.0, 'nkids': 20, 'rots': [], 'bb': [-12087, -79756, 7662, -70173], 'depth': 0}
+== Liebherr_LTM_1300-6.2.dxf
+    {'name': '*U137', 'layer': 'Техника. Кран LTM 1300-6.2', 'rot': 0, 'nkids': 105, 'rots': [(55, 23), (70, 2), (60, 1), (50, 1)], 'bb': [-5647, -139, 27376, 30150], 'depth': 0}
+    {'name': '*U138', 'layer': 'Техника. Кран LTM 1300-6.2', 'rot': 180.0, 'nkids': 42, 'rots': [], 'bb': [-7030, -17331, 16556, -8079], 'depth': 0}
+== Liebherr_LTM_1300-6.3.dxf
+    {'name': '*U97', 'layer': 'Техника. Кран LTM 1300-6.3', 'rot': 0, 'nkids': 66, 'rots': [(51, 25), (63, 2)], 'bb': [-2416, -2103, 24183, 23262], 'depth': 0}
+    {'name': '*U96', 'layer': 'Техника. Кран LTM 1300-6.3', 'rot': 180.0, 'nkids': 22, 'rots': [], 'bb': [-2860, -17950, 15412, -7781], 'depth': 0}
+    {'name': 'LTM 1300-6.3-20221228.11111400', 'layer': '0', 'rot': 90.0, 'nkids': 0, 'rots': [], 'bb': [4284, -3775, 90612, 93427], 'depth': 0}
+    {'name': '*D80', 'layer': '0', 'rot': 90.0, 'nkids': 0, 'rots': [], 'bb': [43, 12438, 4016, 16520], 'depth': 0}
+    {'name': '*D81', 'layer': '0', 'rot': 90.0, 'nkids': 0, 'rots': [], 'bb': [9462, 87801, 13165, 91259], 'depth': 0}
+    {'name': '*D82', 'layer': '0', 'rot': 90.0, 'nkids': 0, 'rots': [], 'bb': [8722, 81774, 12461, 85304], 'depth': 0}
+    {'name': '*D83', 'layer': '0', 'rot': 90.0, 'nkids': 0, 'rots': [], 'bb': [7900, 76428, 11864, 80440], 'depth': 0}
+    {'name': '*D84', 'layer': '0', 'rot': 90.0, 'nkids': 0, 'rots': [], 'bb': [7283, 71403, 11267, 75577], 'depth': 0}
+== Liebherr_LTM_1300_6.1_3D.dxf
+    {'name': 'LTM1300-6-1_BASE_1_3D', 'layer': '0', 'rot': 0, 'nkids': 13, 'rots': [], 'bb': [5539, 126241, 20824, 129248], 'depth': 0}
+    {'name': 'LTM1300-6-1_BASE_DESSUS_1', 'layer': '0', 'rot': 0, 'nkids': 13, 'rots': [], 'bb': [-10990, -1500, 4295, 1500], 'depth': 1}
+    {'name': 'LTM1300-6-1_BASE_DESSUS_1', 'layer': '0', 'rot': 0, 'nkids': 13, 'rots': [], 'bb': [-10990, -1500, 4295, 1500], 'depth': 1}
+    {'name': 'LTM1300-6-1_BASE_DESSUS_1', 'layer': '0', 'rot': 0, 'nkids': 13, 'rots': [], 'bb': [150125, 60341, 165410, 63341], 'depth': 0}
+    {'name': 'LTM1300-6-1_BASE_DESSUS_1', 'layer': '0', 'rot': 0, 'nkids': 13, 'rots': [], 'bb': [-10990, -1500, 4295, 1500], 'depth': 1}
+    {'name': 'LTM1300-6-1_FLECHE_60_M_DESSUS', 'layer': '0', 'rot': 0, 'nkids': 12, 'rots': [], 'bb': [2673, 8072, 63338, 9872], 'depth': 0}
+    {'name': 'LTM1300-6-1_FLECHE_60_M_DESSUS', 'layer': '0', 'rot': 180.0, 'nkids': 12, 'rots': [], 'bb': [81725, 8831, 142390, 10631], 'depth': 0}
+    {'name': 'LTM1300-6-1_TOURELLE_3D', 'layer': '0', 'rot': 0, 'nkids': 10, 'rots': [], 'bb': [239550, 239300, 246100, 240700], 'depth': 0}
+== Liebherr_LTM_1400-7.1.dxf
+    {'name': '*U67', 'layer': 'Техника. Кран LTM-1400-7.1', 'rot': 0, 'nkids': 66, 'rots': [(82, 9), (42, 9), (51, 8), (94, 2)], 'bb': [274098, 4207, 325186, 96224], 'depth': 0}
+    {'name': '*U70', 'layer': 'Техника. Кран LTM-1400-7.1', 'rot': 0, 'nkids': 59, 'rots': [(44, 14), (59, 2), (132, 1), (169, 1)], 'bb': [6821, 4208, 40473, 32035], 'depth': 0}
+    {'name': '*U66', 'layer': 'Техника. Кран LTM-1400-7.1', 'rot': 0, 'nkids': 59, 'rots': [(74, 14), (87, 2), (132, 1), (1, 1)], 'bb': [163370, 4207, 207184, 84693], 'depth': 0}
+    {'name': '*U68', 'layer': 'Техника. Кран LTM-1400-7.1', 'rot': 0, 'nkids': 59, 'rots': [(74, 14), (88, 2), (132, 1), (3, 1)], 'bb': [85320, 4208, 117492, 62502], 'depth': 0}
+    {'name': '*U65', 'layer': 'Техника. Кран LTM-1400-7.1', 'rot': 180.0, 'nkids': 20, 'rots': [], 'bb': [7819, -9968, 29540, 738], 'depth': 0}
+== Liebherr_LTM_1450-8.1.dxf
+    {'name': '*U145', 'layer': 'Техника Кран LTM 1450-8.1', 'rot': 0, 'nkids': 177, 'rots': [(60, 24), (72, 2), (78, 2), (70, 1)], 'bb': [-5358, 0, 25701, 32057], 'depth': 0}
+    {'name': '*U146', 'layer': 'Техника Кран LTM 1450-8.1', 'rot': 180.0, 'nkids': 43, 'rots': [(50, 3), (130, 3)], 'bb': [-7030, -20200, 16480, -9800], 'depth': 0}
+== Liebherr_LTM_1500-8.1.dxf
+    {'name': '*U101', 'layer': 'Техника. Кран Liebherr LTM 1500-8.1. Стрела 84 м', 'rot': 0, 'nkids': 69, 'rots': [(68, 22), (85, 2), (176, 2), (101, 1)], 'bb': [-108518, 42378, -72279, 76374], 'depth': 0}
+    {'name': 'Кран Liebherr LTM 1500-8.1. Стрела 50 м', 'layer': 'Техника. Кран Liebherr LTM 1500-8.1. Стрела 50 м', 'rot': 0, 'nkids': 66, 'rots': [(10, 2), (112, 2), (32, 1), (78, 1)], 'bb': [-108518, 7350, -61536, 24625], 'depth': 0}
+    {'name': '*U103', 'layer': 'Техника. Кран Liebherr LTM 1500-8.1. Стрела 84 м', 'rot': 180.0, 'nkids': 41, 'rots': [(133, 2), (90, 2), (47, 2)], 'bb': [-108590, 20377, -86825, 37808], 'depth': 0}
+    {'name': '*U102', 'layer': 'Техника. Кран Liebherr LTM 1500-8.1. Стрела 50 м', 'rot': 180.0, 'nkids': 38, 'rots': [(133, 2), (90, 2), (47, 2)], 'bb': [-108590, -4992, -86773, 12440], 'depth': 0}
+== Liebherr_LTM_1650-8.1.dxf
+    {'name': '*U138', 'layer': 'Техника Кран LTM 1650-8.1', 'rot': 0, 'nkids': 129, 'rots': [(63, 21), (159, 3), (75, 2), (123, 1)], 'bb': [27626, -2935, 75465, 30779], 'depth': 0}
+    {'name': 'Liebherr LTM 1650-8.1 План', 'layer': 'Техника Кран LTM 1650-8.1', 'rot': 0, 'nkids': 47, 'rots': [(135, 3), (45, 3), (44, 3), (136, 3)], 'bb': [25707, -22054, 50078, -5551], 'depth': 0}
+    {'name': 'LTM 1650-8.1-20200522.113048', 'layer': 'Defpoints', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-27081, 3256, -24960, 8012], 'depth': 0}
+== Liebherr_LTM_1750-9.1.dxf
+    {'name': '*U114', 'layer': 'Техника. Кран LTM-1750-9.1', 'rot': 0, 'nkids': 75, 'rots': [(62, 26), (74, 2), (147, 1), (83, 1)], 'bb': [-9554, 20651, 32156, 54393], 'depth': 0}
+    {'name': '*U115', 'layer': 'Техника. Кран LTM-1750-9.1', 'rot': 180.0, 'nkids': 23, 'rots': [(35, 2), (145, 2)], 'bb': [-10446, 1916, 18307, 17921], 'depth': 0}
+    {'name': 'LTM 1750-9.1-20210527.14584000', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-71894, 3068, -70776, 5548], 'depth': 0}
+    {'name': 'LTM 1750-9.1-20210527.21184700', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [-70744, 2966, -69649, 5546], 'depth': 0}
+== Luffing_Crane_Layout___Elevation.dxf
+    {'name': 'MR 160 JIB 50M', 'layer': 'CRANE', 'rot': 0, 'nkids': 1, 'rots': [(35, 1)], 'bb': [70853, 23166, 96660, 72469], 'depth': 0}
+    {'name': 'MR 160 JIB 50M', 'layer': 'CRANE', 'rot': 0, 'nkids': 1, 'rots': [(35, 1)], 'bb': [119257, 128166, 145064, 177469], 'depth': 0}
+    {'name': 'econstruct', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': None, 'depth': 0}
+    {'name': 'A2-03 Level 3', 'layer': 'M', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': None, 'depth': 0}
+    {'name': 'REIFORCED MAST', 'layer': '0', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [78049, 8166, 79649, 13396], 'depth': 0}
+    {'name': 'MAST SECTION', 'layer': 'N-1', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [78049, -1834, 79649, 3396], 'depth': 0}
+    {'name': 'MAST SECTION', 'layer': 'N-1', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [78049, 3166, 79649, 8396], 'depth': 0}
+    {'name': 'MAST SECTION', 'layer': 'N-1', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [78049, 13166, 79649, 18396], 'depth': 0}
+== random_cranes_liebherr.dxf
+    {'name': '*U16', 'layer': '0', 'rot': 0, 'nkids': 15, 'rots': [(63, 5), (103, 2), (117, 1)], 'bb': [9632, 17938, 26086, 39165], 'depth': 0}
+    {'name': '*U56', 'layer': '0', 'rot': 0, 'nkids': 15, 'rots': [(57, 6), (72, 2)], 'bb': [52692, 18114, 68863, 33478], 'depth': 0}
+    {'name': '*U34', 'layer': '0', 'rot': 0, 'nkids': 12, 'rots': [], 'bb': [30951, 18082, 44509, 38455], 'depth': 0}
+    {'name': '*U55', 'layer': '0', 'rot': 0, 'nkids': 3, 'rots': [], 'bb': [53173, 3538, 70897, 13738], 'depth': 0}
+    {'name': '*U63', 'layer': '0', 'rot': 353.9, 'nkids': 2, 'rots': [(129, 2)], 'bb': [50373, 27214, 53474, 30312], 'depth': 0}
+    {'name': 'cn', 'layer': '0', 'rot': 309.0, 'nkids': 2, 'rots': [], 'bb': [3, 2, 3, 3], 'depth': 1}
+    {'name': '*U19', 'layer': '0', 'rot': 0, 'nkids': 1, 'rots': [], 'bb': [9944, 4326, 26550, 12670], 'depth': 0}
+    {'name': '11002_кабина_сверху', 'layer': '0', 'rot': 180.0, 'nkids': 0, 'rots': [], 'bb': [-4057, -4172, 3972, 4172], 'depth': 1}
+== tower_cranes.dxf
+    {'name': 'Тележка', 'layer': 'kran', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [149196, 71834, 150896, 72734], 'depth': 0}
+    {'name': 'Крюк внизу', 'layer': 'dim2', 'rot': 0, 'nkids': 0, 'rots': [], 'bb': [91427, 65771, 92027, 74977], 'depth': 0}
