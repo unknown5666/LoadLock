@@ -554,9 +554,11 @@ function elevationExtents(plan, res, crane, geo) {
   const v = plan.sheetView;
   if (v && v.x1 > v.x0 && v.y1 > v.y0) return { xmin: v.x0, xmax: v.x1, ymin: v.y0, ymax: v.y1 };
   const site = plan.site || {}; const Lc = num(crane.carrierLen, 12);
-  const drw = craneDrawing(crane);
+  const bodyCrane = liftBodyCrane(crane, res.side); // rear lift: carrier mirrored (reaches the other way); left / right: carrier end-on
+  const drw = craneDrawing(bodyCrane);
   const cbx = !drw && typeof customBody === 'function' ? customBody(crane) : null;
   let xmin = drw ? Math.max(-16, drw.bbox[0]) - 1.5 : cbx ? Math.max(-30, customBBox(cbx)[0]) - 1.5 : -Math.max(num(crane.tail, 4), num(crane.outTrans, 7) / 2) - 1.5;
+  if (bodyCrane._endDeck != null) xmin = Math.min(xmin, -num(crane.outTrans, 7) / 2 - 1.5); // end-on outrigger beams
   if (res.acc?.superlift) xmin = Math.min(xmin, -num(res.acc.slRadius, 15) - 4);
   let xmax = Math.max(geo.tip ? geo.tip.x : 10, res.R + num(plan.loads?.[0]?.l, 2) / 2) + 6;
   let ymax = Math.max(geo.tip ? geo.tip.y : 10, res.reqTipY || 0) + 2;
@@ -569,6 +571,112 @@ function elevationExtents(plan, res, crane, geo) {
   }
   let ymin = Math.min(0, groundAt(site, xmax), ...(site.obstacles || []).map(o => objBase(site, o))) - 1.2;
   return { xmin, xmax, ymin, ymax };
+}
+
+// ---------- lift side in the elevation ----------
+// Habib's CAD bodies all have the boom pointing right. In some the carrier cab is on the boom side (front = 1: drawn as a lift over the FRONT), in others it
+// is on the far side (front = -1: already a lift over the rear). For a REAR lift the carrier of a front = 1 body is mirrored about the slew centre so the
+// cab sits away from the load; the superstructure (turntable and above) is left alone. The split — turntable level `deck` and front edge of the
+// superstructure `x1`, both in m — was checked by eye on every body; bodies that are not listed (or front = 0) are never touched.
+// A left / right lift would show the carrier end-on, which the CAD library has no view for, so those keep the side-on body (the glyph says which side).
+const CAD_CARRIER = {
+  ltm1090: { front: -1 }, ltm1100: { front: -1 }, ltm1220: { front: -1 }, ltm1650: { front: -1 }, ltm1750: { front: 0 }, ac700: { front: -1 }, ztc600v: { front: -1 },
+  ltm1110: { front: 1 }, ltm1160: { front: 1 }, ltm1230: { front: 1 }, ltm1250: { front: 1 }, ltm1300: { front: 1 }, ltm1300_63: { front: 1 }, ltm1400: { front: 1 }, ltm1450: { front: 1 },
+  ltm1500: { front: 1 }, ltm11200: { front: 1 }, ztc1000v: { front: 1 }, ztc300v: { front: 1, deck: 1.5 }, zat2000v: { front: 1 }
+};
+// one flag per body item: carrier = not part of the superstructure (below the turntable, or beyond its front edge) and not stray linework far ahead of the machine
+function cadCarrierMask(dr, deck, xFront) {
+  const bb = dr.body.map(([, , fl]) => { let x0 = 1e9, x1 = -1e9, y0 = 1e9, sy = 0, n = 0; for (let i = 0; i < fl.length; i += 2) { const x = fl[i] / 100, y = fl[i + 1] / 100; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; sy += y; n++; } return { x0, x1, y0, cy: n ? sy / n : 0 }; });
+  const sup = bb.map(b => b.cy >= deck && b.y0 >= deck - 0.35 && b.x1 <= xFront + 0.001);
+  const frontX = Math.max(0, ...bb.filter((b, i) => !sup[i] && b.y0 < 1.0).map(b => b.x1));
+  return bb.map((b, i) => !sup[i] && b.x0 <= frontX + 0.3);
+}
+// derived drawings, built once and kept out of Object.keys(CRANE_DRAWINGS): `~rear` = carrier mirrored (cab away from the load), `~side` = superstructure only
+// (the carrier is then drawn end-on by drawCarrierEndView)
+function cadDerived(key, dr, kind) {
+  const spec = CAD_CARRIER[key]; if (!spec || !dr || dr.v !== 2 || !Array.isArray(dr.body) || typeof CRANE_DRAWINGS === 'undefined') return null;
+  if (kind === 'rear' && spec.front !== 1) return null;
+  const rk = key + '~' + kind;
+  if (!Object.prototype.hasOwnProperty.call(CRANE_DRAWINGS, rk)) {
+    const mask = cadCarrierMask(dr, spec.deck ?? 2.05, spec.x1 ?? 3.2);
+    const body = kind === 'rear' ? dr.body.map((it, i) => mask[i] ? [it[0], it[1], it[2].map((v, j) => j % 2 ? v : -v)] : it) : dr.body.filter((_, i) => !mask[i]);
+    let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9; for (const [, , fl] of body) for (let i = 0; i < fl.length; i += 2) { const x = fl[i] / 100, y = fl[i + 1] / 100; if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+    Object.defineProperty(CRANE_DRAWINGS, rk, { value: { ...dr, body, bbox: body.length ? [bx0, Math.min(0, by0), bx1, by1] : dr.bbox }, enumerable: false, configurable: true, writable: true });
+  }
+  return rk;
+}
+// The crane record to draw in the elevation for a lift side. REAR: same crane, carrier mirrored where the CAD body has its cab on the boom side.
+// LEFT / RIGHT: the boom is square to the carrier, so the carrier is seen end-on — the CAD body is cut down to its superstructure and `_endDeck` (turntable level, m)
+// tells drawElevation to draw the end-on carrier. Bodies that are not in CAD_CARRIER (or have no CAD body) come back untouched.
+function liftBodyCrane(crane, side) {
+  if (!crane || !crane.drawing || crane.drawing === 'proc' || typeof CRANE_DRAWINGS === 'undefined') return crane;
+  const key = (typeof DRAWING_ALIAS !== 'undefined' && DRAWING_ALIAS[crane.drawing]) || crane.drawing; const spec = CAD_CARRIER[key];
+  const rk = spec ? cadDerived(key, CRANE_DRAWINGS[key], sideOf(side) === 'rear' ? 'rear' : 'side') : null;
+  return rk ? (sideOf(side) === 'rear' ? { ...crane, drawing: rk } : { ...crane, drawing: rk, _endDeck: spec.deck ?? 2.05 }) : crane;
+}
+// carrier seen end-on (outrigger beams, jacks, mats, chassis, tyres, slewing ring) — the same end view the procedural body uses, standing under a CAD superstructure
+function drawCarrierEndView(P, T, crane, plan, deck0) {
+  const B = BRAND[brandOf(crane)]; const paint = crane.tint ? (crane.color || '#f5c400') : '#ffffff'; const truck = /truck/i.test(crane.type || ''); // same paint rule as the CAD body
+  const W = num(crane.width, 2.75), tr = truck ? 0.56 : 0.66, lift = 0.12, deck = deck0 - 0.12, oT = num(crane.outTrans, 7) / 2;
+  const st = { stroke: '#1b1b1b', w: 0.2, layer: 'CRANE' };
+  const poly = (pts, s2 = {}) => P.poly(pts.map(([x, y]) => T(x, y)), { closed: true, ...st, ...s2 });
+  const rect = (x0, y0, x1, y1, s2 = {}) => poly([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], s2);
+  const line = (x1, y1, x2, y2, s2 = {}) => { const a = T(x1, y1), c = T(x2, y2); P.line(a[0], a[1], c[0], c[1], { ...st, ...s2 }); };
+  const mat = matDims(plan?.matSize);
+  for (const sx of [-1, 1]) {
+    const jx = sx * (oT - 0.25);
+    rect(jx - mat[0] / 2, 0, jx + mat[0] / 2, 0.2, { fill: '#8a6d3b', layer: 'MATS' });
+    for (let i = 1; i < 4; i++) line(jx - mat[0] / 2 + i * mat[0] / 4, 0.02, jx - mat[0] / 2 + i * mat[0] / 4, 0.18, { w: 0.08, stroke: '#5c4524', layer: 'MATS' });
+    poly([[jx - 0.4, 0.2], [jx + 0.4, 0.2], [jx + 0.3, 0.38], [jx - 0.3, 0.38]], { fill: '#3d3d3d' });
+    rect(jx - 0.12, 0.38, jx + 0.12, 1.12, { fill: '#b9bcc0' });
+    rect(jx - 0.25, 1.0, jx + 0.25, 1.86, { fill: shade(paint, -14) });
+    const x0 = sx * (W / 2 - 0.2), x1 = jx + sx * 0.25;
+    poly([[x0, 1.12], [x1, 1.12], [x1, 1.5], [x0, 1.5]], { fill: shade(paint, -6) });
+    line(x0, 1.31, x1, 1.31, { w: 0.08, stroke: shade(paint, -35) });
+  }
+  rect(-W / 2 + 0.25, 0.86, W / 2 - 0.25, deck - 0.12, { fill: shade(paint, -4) });
+  for (const sx of [-1, 1]) {
+    const x0 = sx > 0 ? W / 2 - 0.66 : -W / 2 + 0.02, x1 = x0 + 0.64;
+    poly([[x0 + 0.08, lift], [x1 - 0.08, lift], [x1, lift + 0.12], [x1, lift + 2 * tr - 0.12], [x1 - 0.08, lift + 2 * tr], [x0 + 0.08, lift + 2 * tr], [x0, lift + 2 * tr - 0.12], [x0, lift + 0.12]], { fill: '#232323' });
+    for (let i = 1; i < 6; i++) line(x0 + 0.04, lift + i * 2 * tr / 6, x1 - 0.04, lift + i * 2 * tr / 6, { w: 0.06, stroke: '#4a4a4a' });
+    rect(sx > 0 ? x0 - 0.12 : x1, lift + tr - 0.18, sx > 0 ? x0 : x1 + 0.12, lift + tr + 0.18, { fill: '#9a9da1', w: 0.1 });
+    rect(x0 - 0.04, lift + 2 * tr + 0.03, x1 + 0.04, lift + 2 * tr + 0.16, { fill: paint, w: 0.12 });
+  }
+  rect(-W / 2, deck - 0.14, W / 2, deck, { fill: '#2e2e2e' });
+  rect(-W / 2 + 0.1, deck - 0.36, W / 2 - 0.1, deck - 0.14, { fill: B.accent, stroke: 'none' });
+  rect(-1.3, deck, 1.3, deck0 + 0.06, { fill: '#3a3a3a' });
+}
+// Plan-view orientation glyph: the carrier from above (cab up, so the driver's left is the left of the picture) with the boom as a red arrow and the words
+// LIFT OVER REAR / LEFT / RIGHT. (x, y) = top-left corner, w = width in drawing units; o.ds = text size unit. Returns { w, h }.
+function sideGlyphH(crane, w, ds = 4.4) { // height of the glyph for a given width (it follows the crane's proportions)
+  const Lc = num(crane?.carrierLen, 12), oT = num(crane?.outTrans, 7) / 2, Ra = Math.max(0.55 * Lc, oT + 5), xm = Ra + 0.9;
+  return (0.64 * Lc + 4.4 + Math.max(0.36 * Lc, Ra) + 0.9) * w / (2 * xm) + ds * 2.1;
+}
+function drawSideGlyph(P, x, y, w, crane, side, o = {}) {
+  side = sideOf(side);
+  const Lc = num(crane?.carrierLen, 12), W = num(crane?.width, 2.75), oT = num(crane?.outTrans, 7) / 2, oL = num(crane?.outLong, 7) / 2, tail = Math.min(num(crane?.tail, 4), 0.5 * Lc);
+  const col = crane?.color || '#f5c400', ds = o.ds || 4.4, LY = 'SIDE-GLYPH';
+  const Ra = Math.max(0.55 * Lc, oT + 5), xm = Ra + 0.9, yTop = 0.64 * Lc + 4.4, yBot = -Math.max(0.36 * Lc, Ra) - 0.9;   // metres
+  const s = w / (2 * xm), hDraw = (yTop - yBot) * s, labH = ds * 2.1, H = hDraw + labH;
+  const G = (mx, my) => [x + (mx + xm) * s, y + (yTop - my) * s];
+  const d = { rear: [0, -1], left: [-1, 0], right: [1, 0] }[side];
+  const GB = (u, v) => G(u * d[0] - v * d[1], u * d[1] + v * d[0]);                  // boom frame: u along the boom, v to its left
+  P.rect(x, y, w, H, { fill: '#ffffff', stroke: '#555', w: 0.25, layer: LY });
+  P.circle(...G(0, 0), tail * s, { stroke: '#a0a0a0', w: 0.18, fill: 'none', layer: LY });
+  for (const sy of [-oL, oL]) { const a = G(-oT, sy), b = G(oT, sy); P.line(a[0], a[1], b[0], b[1], { stroke: '#333', w: 0.4, layer: LY }); for (const sx of [-oT, oT]) { const c = G(sx, sy); P.rect(c[0] - 0.7 * s, c[1] - 0.7 * s, 1.4 * s, 1.4 * s, { stroke: '#222', w: 0.15, fill: '#8a6d3b', layer: LY }); } }
+  const poly = (pts, o2) => P.poly(pts, { closed: true, stroke: '#222', w: 0.25, layer: LY, ...o2 });
+  poly([G(-W / 2, 0.64 * Lc), G(W / 2, 0.64 * Lc), G(W / 2, -0.36 * Lc), G(-W / 2, -0.36 * Lc)], { fill: col });
+  poly([G(-W / 2, 0.64 * Lc), G(W / 2, 0.64 * Lc), G(W / 2, 0.64 * Lc - 2.2), G(-W / 2, 0.64 * Lc - 2.2)], { fill: shade(col, -28) });
+  poly([GB(-tail, -1.5), GB(2.6, -1.5), GB(2.6, 1.5), GB(-tail, 1.5)], { fill: shade(col, -12) });
+  poly([GB(0, -0.55), GB(Ra * 0.86, -0.4), GB(Ra * 0.86, 0.4), GB(0, 0.55)], { fill: col });
+  poly([GB(Ra, 0), GB(Ra * 0.86, 1.15), GB(Ra * 0.86, -1.15)], { fill: COL.red, stroke: COL.red, w: 0.15 });
+  const c0 = G(0, 0); P.circle(c0[0], c0[1], Math.max(0.5, 0.45 * s), { stroke: '#000', w: 0.15, fill: '#000', layer: LY });
+  const f = G(0, 0.64 * Lc + 0.5), f2 = G(0, 0.64 * Lc + 2.1); P.line(f[0], f[1], f2[0], f2[1], { stroke: '#333', w: 0.3, layer: LY });
+  P.poly([f2, [f2[0] - 0.9 * s, f2[1] + 1.1 * s], [f2[0] + 0.9 * s, f2[1] + 1.1 * s]], { closed: true, fill: '#333', stroke: '#333', w: 0.1, layer: LY });
+  const ft = G(0, 0.64 * Lc + 3.35); P.text(ft[0], ft[1], 'FRONT', { size: Math.max(1.6, ds * 0.62), anchor: 'middle', vAlign: 'middle', color: '#333', layer: LY });
+  const lab = 'LIFT OVER ' + SIDE_NAME[side].replace(' SIDE', ''); const ls = Math.min(ds * 1.05, fitSize(lab, w - 3, ds * 1.05, true));
+  P.text(x + w / 2, y + hDraw + labH / 2, lab, { size: ls, bold: true, anchor: 'middle', vAlign: 'middle', color: '#000', layer: LY });
+  return { w, h: H };
 }
 
 function drawElevation(P, box, plan, calc, li, ctx = {}) {
@@ -616,7 +724,9 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
     if (groundSegs.length > 1) { const p = T(stepX, 0), q = T(stepX, tg); P.line(p[0], p[1], q[0], q[1], { stroke: '#222', w: 0.4, layer: 'GROUND' }); }
   }
   drawObstacles(P, T, k, plan, { xmax: ctx.objXmax ?? ext.xmax });
-  const ce = drawCraneElevation(P, T, k, crane, geo, res, plan, { livery: ctx.livery });
+  const liftSide = sideOf(load), bodyCrane = liftBodyCrane(crane, liftSide);
+  if (bodyCrane._endDeck != null) drawCarrierEndView(P, T, crane, plan, bodyCrane._endDeck); // left / right lift: carrier end-on
+  const ce = drawCraneElevation(P, T, k, bodyCrane, geo, res, plan, { livery: ctx.livery });
   const hl = drawHookAndLoad(P, T, k, crane, geo, res, load, { rigH: plan.rigging?.height, sheaveR: ce?.cad ? ce.cad.sheaveR * 0.6 : 0.25 });
   // ---- dimensions: thin, CAD style — every dimension stops on its extension lines and none run through the drawing ----
   const dimSize = ctx.dimSize || 4.4;
@@ -688,12 +798,39 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
     tl.forEach((s, i) => { const sz = i === 0 ? 6.5 : 6.5; P.text(box.x + box.w * 0.42, ty + i * 9, s, { size: sz, bold: true, anchor: 'middle', underline: true, layer: 'TITLE' }); });
   }
   if (ctx.loadTag) P.text(box.x + 6, box.y + 18, ctx.loadTag, { size: 4.2, bold: true, layer: 'TITLE' });
+  // lift side glyph: on the sheet top-left of the view, hopping to a free corner if the boom, rope, load or a building is in the way; on the live canvas pinned next to the crane
+  if (ctx.sideGlyph !== false) {
+    const gw = ctx.sideGlyph?.w || dimSize * 9, ds = dimSize, gh = sideGlyphH(crane, gw, ds), m = 3;
+    let gx = ctx.sideGlyph?.x ?? box.x + m, gy = ctx.sideGlyph?.y ?? box.y + m;
+    if (ctx.fixed && !ctx.sideGlyph) {
+      // live canvas: pinned in the world next to the crane, at a fixed screen size — above the tail end (the side away from the boom, which is always clear),
+      // its right edge just left of the boom foot and its bottom edge one carrier height above the carrier; kept inside the view if the crane is panned off
+      gx = T(geo.pivot.x - 0.5, 0)[0] - gw; gy = T(0, 2 * num(crane.carrierH, 3.8))[1] - gh;
+      gx = Math.max(box.x + 4, Math.min(box.x + box.w - gw - 4, gx)); gy = Math.max(box.y + 4, Math.min(box.y + box.h - gh - 4, gy));
+    } else if (!ctx.fixed && !ctx.sideGlyph) {
+      const avoid = []; // screen-space segments to keep clear of
+      for (const [a, b] of geo.segments || []) { const p = T(a.x, a.y), q = T(b.x, b.y); avoid.push([p[0], p[1], q[0], q[1]]); }
+      { const tp = T(geo.tip.x, geo.tip.y), lp = T(res.R, res.landY); avoid.push([tp[0], tp[1], lp[0], lp[1]]); const lw2 = Math.max(1, num(load.l, 2)) * k / 2; avoid.push([lp[0] - lw2, lp[1], lp[0] + lw2, lp[1] - num(load.h, 1.5) * k]); }
+      for (const { e } of objs) { const a = T(e.x0, e.top), b = T(e.x1, e.b); avoid.push([a[0], a[1], b[0], a[1]], [a[0], b[1], b[0], b[1]], [a[0], a[1], a[0], b[1]], [b[0], a[1], b[0], b[1]]); }
+      const hits = (rx, ry) => avoid.some(([x1, y1, x2, y2]) => { const n = Math.max(2, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 2)); for (let i = 0; i <= n; i++) { const px = x1 + (x2 - x1) * i / n, py = y1 + (y2 - y1) * i / n; if (px > rx - 2 && px < rx + gw + 2 && py > ry - 2 && py < ry + gh + 2) return true; } return false; });
+      const cand = [[box.x + m, box.y + m], [box.x + box.w - gw - m, box.y + m], [box.x + m, box.y + m + gh + 3], [box.x + box.w - gw - m, box.y + m + gh + 3]];
+      const free = cand.find(([cx, cy]) => !hits(cx, cy)); if (free) [gx, gy] = free;
+    }
+    drawSideGlyph(P, gx, gy, gw, crane, liftSide, { ds });
+  }
   return { scale: sc, T, ext };
 }
 
 
 // ---------- site plan viewport (client plot + crane footprint, working radius) ----------
-function sitePlanState(plan) { return Object.assign({ enabled: false, cx: 0, cy: 0, rot: 0, carrierRot: null }, plan.sitePlan || {}); }
+// site plan settings + the headings that follow from the load's lift side: sp.side, sp.boom (boom / load heading, deg) and sp.carrier (the way the cab faces, deg);
+// `load` defaults to the active load. Headings run counter-clockwise from east, north up — the same as the 3D twin.
+function sitePlanState(plan, load) {
+  const sp = Object.assign({ enabled: false, cx: 0, cy: 0, rot: 0, carrierRot: null }, plan.sitePlan || {});
+  const ld = load || (plan.loads || [])[Math.min((plan.loads || []).length - 1, plan.activeLoad || 0)] || {};
+  sp.side = sideOf(ld); sp.boom = boomHeadingFor(plan, ld); sp.carrier = carrierHeadingFor(plan, ld);
+  return sp;
+}
 function sitePlanExtents(plan, calc) {
   const sp = sitePlanState(plan); const R = (calc.loads[plan.activeLoad || 0] || calc.loads[0])?.R || 10;
   if (sp.view && sp.view.x1 > sp.view.x0) return { ...sp.view };
@@ -702,7 +839,7 @@ function sitePlanExtents(plan, calc) {
   return { x0, x1, y0, y1 };
 }
 function drawCraneFootprint(P, T, k, crane, sp, R, lw, livery) {
-  const cr = (sp.carrierRot == null || sp.carrierRot === '' ? num(sp.rot) : num(sp.carrierRot)) * D2R, br = num(sp.rot) * D2R;
+  const cr = (sp.carrier != null ? num(sp.carrier) : (sp.carrierRot == null || sp.carrierRot === '' ? num(sp.rot) + 180 : num(sp.carrierRot) + 180)) * D2R, br = (sp.boom != null ? num(sp.boom) : num(sp.rot)) * D2R;
   const rot = (a) => (u, v) => T(sp.cx + u * Math.cos(a) - v * Math.sin(a), sp.cy + u * Math.sin(a) + v * Math.cos(a));
   const C = rot(cr), B = rot(br);
   const poly = (f, pts, o) => P.poly(pts.map(([u, v]) => f(u, v)), { closed: true, ...o });
@@ -712,8 +849,11 @@ function drawCraneFootprint(P, T, k, crane, sp, R, lw, livery) {
     const a = C(sx, 0), b = C(sx, sy); P.line(a[0], a[1], b[0], b[1], { stroke: '#333', w: 0.6, layer: 'SITE-CRANE' });
     poly(C, [[sx - 0.75, sy - 0.75], [sx + 0.75, sy - 0.75], [sx + 0.75, sy + 0.75], [sx - 0.75, sy + 0.75]], { stroke: '#222', w: 0.2, fill: '#8a6d3b', layer: 'SITE-CRANE' });
   }
-  poly(C, [[-0.64 * Lc, -W / 2], [0.36 * Lc, -W / 2], [0.36 * Lc, W / 2], [-0.64 * Lc, W / 2]], { stroke: '#222', w: 0.3, fill: col, layer: 'SITE-CRANE' });
-  poly(C, [[-0.64 * Lc, -W / 2], [-0.64 * Lc + 2.2, -W / 2], [-0.64 * Lc + 2.2, W / 2], [-0.64 * Lc, W / 2]], { stroke: '#222', w: 0.2, fill: shade(col, -15), layer: 'SITE-CRANE' });
+  // carrier: the cab (darker block) is at the +u end, so u points the way the carrier faces; the slew centre sits 36% from the rear
+  poly(C, [[0.64 * Lc, -W / 2], [-0.36 * Lc, -W / 2], [-0.36 * Lc, W / 2], [0.64 * Lc, W / 2]], { stroke: '#222', w: 0.3, fill: col, layer: 'SITE-CRANE' });
+  poly(C, [[0.64 * Lc, -W / 2], [0.64 * Lc - 2.2, -W / 2], [0.64 * Lc - 2.2, W / 2], [0.64 * Lc, W / 2]], { stroke: '#222', w: 0.2, fill: shade(col, -15), layer: 'SITE-CRANE' });
+  { const a = C(0.64 * Lc + 0.5, 0), b = C(0.64 * Lc + 0.5 + Math.max(2.4, 7 / k), 0); P.line(a[0], a[1], b[0], b[1], { stroke: '#333', w: 0.3, layer: 'SITE-CRANE' }); arrow(P, b[0], b[1], Math.atan2(b[1] - a[1], b[0] - a[0]), { stroke: '#333', al: 2.4, aw: 0.9, layer: 'SITE-CRANE' });
+    const t = C(0.64 * Lc + 0.5 + Math.max(2.4, 7 / k) + 2.2 / k, 0); P.text(t[0], t[1], 'FRONT', { size: 2.4, anchor: 'middle', vAlign: 'middle', color: '#333', layer: 'SITE-CRANE' }); }
   const tail = num(crane.tail, 4);
   poly(B, [[-tail, -1.5], [2.6, -1.5], [2.6, 1.5], [-tail, 1.5]], { stroke: '#222', w: 0.3, fill: shade(col, -22), layer: 'SITE-CRANE' });
   const bd = num(crane.boomDepth, 1.2) / 2;
@@ -724,10 +864,10 @@ function drawCraneFootprint(P, T, k, crane, sp, R, lw, livery) {
   const ring = (r, stroke, dash) => { const segs = []; for (let a = 0; a < 360; a += 3) { const p = T(sp.cx + r * Math.cos(a * D2R), sp.cy + r * Math.sin(a * D2R)), q = T(sp.cx + r * Math.cos((a + 3) * D2R), sp.cy + r * Math.sin((a + 3) * D2R)); segs.push([p[0], p[1], q[0], q[1]]); } P.path(segs, { stroke, w: 0.3, dash, layer: 'SITE-RADIUS' }); };
   ring(R, COL.red, true); ring(tail, '#666', true);
   const lp = B(R, 0); P.rect(lp[0] - lw / 2 * k, lp[1] - lw / 2 * k, lw * k, lw * k, { stroke: '#7a007a', w: 0.35, fill: '#f1d5f1', layer: 'SITE-LOAD' });
-  const lab = B(R * 0.55, R * 0.06 + 1); P.text(lab[0], lab[1], 'R=' + mm(R), { size: 3.6, color: COL.green, anchor: 'middle', rot: -((num(sp.rot) % 360 + 360) % 360 > 90 && (num(sp.rot) % 360 + 360) % 360 < 270 ? num(sp.rot) + 180 : num(sp.rot)), layer: 'DIMTEXT' });
+  const lab = B(R * 0.55, R * 0.06 + 1); P.text(lab[0], lab[1], 'R=' + mm(R), { size: 3.6, color: COL.green, anchor: 'middle', rot: -((br * R2D % 360 + 360) % 360 > 90 && (br * R2D % 360 + 360) % 360 < 270 ? br * R2D + 180 : br * R2D), layer: 'DIMTEXT' });
 }
 function drawSitePlan(P, box, plan, calc, ctx = {}) {
-  const sp = sitePlanState(plan); const li = plan.activeLoad || 0; const res = calc.loads[li] || calc.loads[0]; const load = plan.loads[li] || plan.loads[0];
+  const li = plan.activeLoad || 0; const res = calc.loads[li] || calc.loads[0]; const load = plan.loads[li] || plan.loads[0]; const sp = sitePlanState(plan, load);
   let ext, T, k, scl;
   if (ctx.fixed) ({ T, k, ext } = ctx.fixed);
   else {
@@ -743,7 +883,11 @@ function drawSitePlan(P, box, plan, calc, ctx = {}) {
   drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, Math.max(1, num(load?.l, 2)), ctx.livery);
   if (!ctx.fixed) {
     P.text(box.x + 6, box.y + 8, 'SITE PLAN', { size: 5.5, layer: 'TITLE' });
+    P.text(box.x + 6, box.y + 13.5, 'LIFT OVER ' + SIDE_NAME[sp.side], { size: 3.4, bold: true, layer: 'TITLE' });
     if (scl) P.text(box.x + box.w - 4, box.y + box.h - 4, '1:' + scl.N, { size: 3.4, anchor: 'end', layer: 'TITLE' });
+  } else if (ctx.sideTag !== false) { // live canvas: pinned under the crane (whatever way it faces), fixed screen size
+    const Lc = num(calc.crane.carrierLen, 12), c0 = T(sp.cx, sp.cy), r = (Math.max(0.64 * Lc, num(calc.crane.outTrans, 7) / 2 + 1) + 2.5) * k;
+    P.text(Math.max(box.x + 40, Math.min(box.x + box.w - 40, c0[0])), Math.max(box.y + 8, Math.min(box.y + box.h - 6, c0[1] + r)), 'LIFT OVER ' + SIDE_NAME[sp.side], { size: 4.4, bold: true, anchor: 'middle', layer: 'TITLE' });
   }
   return { scale: scl, T, k, ext };
 }
@@ -754,7 +898,7 @@ function drawChartTable(P, box, crane, chartDef, parsed, selCols, selRow) {
     P.text(box.x + box.w / 2, box.y + box.h / 2, 'No load chart in library for ' + (crane?.model || 'this crane'), { size: 4, anchor: 'middle', color: COL.grey });
     return;
   }
-  const hdr = [`${crane.make || ''} ${crane.model}  —  ${chartDef.name}`.trim(), `Prerequisites: counterweight ${chartDef.cwt ?? crane.cwt} t · outriggers ${chartDef.outrigger || crane.outrigger} m · 360° slewing · capacities in tonnes${chartDef.kind === 'luffing' ? ` · main boom ${chartDef.mainLabel || chartDef.mainLen} m + jib ${chartDef.jibLen} m (columns = main boom angle °)` : chartDef.kind === 'fixedjib' ? ` · fly jib ${chartDef.jibLen} m (columns = offset °)` : ''}`];
+  const hdr = [`${crane.make || ''} ${crane.model}  —  ${chartDef.name}`.trim(), `Prerequisites: counterweight ${chartDef.cwt ?? crane.cwt} t · outriggers ${chartDef.outrigger || crane.outrigger} m · ${chartSectorsOf(chartDef).includes('360') ? '360° slewing' : 'lifting ' + chartSectorLabel(chartDef)} · capacities in tonnes${chartDef.kind === 'luffing' ? ` · main boom ${chartDef.mainLabel || chartDef.mainLen} m + jib ${chartDef.jibLen} m (columns = main boom angle °)` : chartDef.kind === 'fixedjib' ? ` · fly jib ${chartDef.jibLen} m (columns = offset °)` : ''}`];
   P.rect(box.x, box.y, box.w, 15, { fill: '#f7ecd2', stroke: 'none', layer: 'CHART' });
   P.text(box.x + 3, box.y + 5.5, hdr[0], { size: 3.6, bold: true, layer: 'CHART' });
   wrapText(hdr[1], Math.floor(box.w / 1.65)).slice(0, 2).forEach((l, i) => P.text(box.x + 3, box.y + 10 + i * 3.6, l, { size: 2.5, layer: 'CHART' }));
@@ -913,7 +1057,7 @@ function cellText(P, cx, cy, str, maxW, size, o = {}) { // one line, shrunk to f
 // ---------- the data rows printed in the panel (each one can be switched off in Sheet; DAF, angle, tip height are optional) ----------
 const SHEET_ROWS = {
   crane: [['crane', 'Crane selected'], ['config', 'Config selected'], ['outrigger', 'Outrigger'], ['cwt', 'Counter weight'], ['boom', 'Boom length'], ['tele', 'Telescoping'], ['jib', 'Fly jib / jib'], ['acc', 'Accessories'], ['falls', 'No. of falls'], ['mat', 'Mat size'], ['wind', 'Wind speed']],
-  load: [['name', 'Load name'], ['cat', 'Lift category'], ['rig', 'Crane'], ['boom', 'Boom length (per load)'], ['radius', 'Radius'], ['angle', 'Boom angle'], ['tipH', 'Boom tip height'], ['hookH', 'Hook height'], ['weight', 'Load weight'], ['cont', 'Contingency'], ['hook', 'Hook block'], ['tackles', 'Lifting tackles'], ['other', 'Other deductions'], ['total', 'Total lift weight'], ['daf', 'DAF'], ['design', 'Design lift weight'], ['cap', 'Chart capacity'], ['util', '% chart capacity'], ['sf', 'Safety factor'], ['sling', 'Rigging / sling tension']],
+  load: [['name', 'Load name'], ['cat', 'Lift category'], ['rig', 'Crane'], ['boom', 'Boom length (per load)'], ['radius', 'Radius'], ['side', 'Lift side'], ['angle', 'Boom angle'], ['tipH', 'Boom tip height'], ['hookH', 'Hook height'], ['weight', 'Load weight'], ['cont', 'Contingency'], ['hook', 'Hook block'], ['tackles', 'Lifting tackles'], ['other', 'Other deductions'], ['total', 'Total lift weight'], ['daf', 'DAF'], ['design', 'Design lift weight'], ['cap', 'Chart capacity'], ['util', '% chart capacity'], ['sf', 'Safety factor'], ['sling', 'Rigging / sling tension']],
   extra: [['tacklesList', 'Tackle schedule'], ['signoff', 'Sign-off box'], ['notes', 'General notes'], ['history', 'Drawing history']]
 };
 const SHEET_ROWS_OFF = { 'load.angle': 1, 'load.tipH': 1, 'load.hookH': 1 };
@@ -1004,6 +1148,7 @@ function drawTitleBlock(P, plan, calc, settings, scaleTxt) {
     if (multi) add('rig', 'CRANE', `${r.rigI + 1} · ${(rigs.find(x => x.i === r.rigI)?.pv.modelTxt || r.crane.model).toUpperCase()}`);
     if (l.colIdx !== '' && l.colIdx != null) add('boom', 'BOOM LENGTH', fmtM(r.tele?.L ?? r.col?.L));
     add('radius', 'RADIUS', fmtM(r.R));
+    add('side', 'LIFT SIDE', 'OVER ' + SIDE_NAME[sideOf(l)]);
     if (r.geo?.tip) { add('angle', r.geo.kind === 'luffing' ? 'JIB ANGLE' : 'BOOM ANGLE', (r.geo.kind === 'luffing' ? r.geo.gamma : r.geo.theta).toFixed(1) + '°'); add('tipH', 'BOOM TIP HEIGHT', fmtM(r.tipY)); add('hookH', 'HOOK HEIGHT', fmtM(r.hookY)); }
     if (r.empty) add('weight', 'LOAD WEIGHT', 'HOOK EMPTY'); else add('weight', 'LOAD WEIGHT', fmtT(r.W));
     if (r.contOn && r.contW > 0) add('cont', `CONTINGENCY ${num(r.cont)}%`, fmtT(r.contW));

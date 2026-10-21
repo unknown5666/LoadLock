@@ -145,6 +145,7 @@ Expected noise: `Failed to load resource: net::ERR_BLOCKED_BY_CLIENT` (the weath
     name, w, cont, contOn, hb, tk, extra,           // weight (t), contingency %, on/off, hook block, lump tackle weight, other
     by:'radius'|'angle'|'height', R, angle, tipH,   // which quantity is HELD when the boom telescopes
     l, h, rigH, shape, landY, capOverride, colIdx,  // size, landing level, manual capacity, per-load boom column
+    side:'left'|'right'|'rear',                     // which side of the crane the load is lifted over (default 'rear'; never the front) — see Lift side below
     liftType, notes, rigType, slingL, slingAng, slingWLL,
     empty,                                          // show hook empty (no load, no tackles in total)
     crane,                                          // index into plan.cranes
@@ -154,7 +155,7 @@ Expected noise: `Failed to load resource: net::ERR_BLOCKED_BY_CLIENT` (the weath
   activeLoad, secondLoad, mergeHook,
   site: { groundType:'ground'|'barge', stepX, targetGround, obstacles:[{ type, x, y, w, h, d, label, … }] },
   env: [{ id, kind:'dxf'|'pdf'|'img', view:'elev'|'plan', sc, rot, opacity, unit, N, mono, hidden, assetId|data }],
-  sitePlan: { enabled, cx, cy, rot, carrierRot },
+  sitePlan: { enabled, cx, cy, rot, carrierRot },   // rot = boom heading, carrierRot = the way the cab faces ('' = carrier follows the boom); headings °, CCW from east, north up
   weather: null | { place, lat, lon, tz, date, start, hours, limit, manual:{wind,gust,rain,note}, hourly, fetched, print },
   outrigger: { enabled, maxLoad, matSelf, mat, allow },
   rigging: { enabled, loadIdx, legs, effLegs, slingL, spread, slingWLL, shackleWLL, slingDesc, shackleDesc, height },
@@ -163,6 +164,8 @@ Expected noise: `Failed to load resource: net::ERR_BLOCKED_BY_CLIENT` (the weath
   extraNotes
 }
 ```
+
+**Lift side (`load.side`):** the load is lifted over the `'left'`, `'right'` or `'rear'` of the carrier, never the front. Engine (engine.js): `sideOf(load)`, `chartCoversSide(chart, side)`, `bestChartForSide(crane, side, currentIdx)`, `boomHeadingFor(plan, load)` / `carrierHeadingFor(plan, load)` (boom = carrier + 180 rear / +90 left / −90 right; with `sitePlan.carrierRot` empty the carrier follows `sitePlan.rot`), `computeLoad` adds `res.side` / `res.sideOk` and a FAIL check when the chart does not cover the side. Charts carry `sectors: ['360']` or any of `'rear'`, `'side'` (data.js `inferChartSectors` fills it from the chart name). After changing `load.side` the UI sets `plan.chartIdx = bestChartForSide(crane, side, plan.chartIdx)` (and resets colIdx like any chart change). Drawing: elevation glyph + mirrored carrier (draw.js `CAD_CARRIER`, `liftBodyCrane`, `drawSideGlyph`), site plan / 3D headings, sheet row `load.side`. Tests: `node test_side.js`, `node side_shots.js`, `node side_e2e.js`.
 
 **Multi-crane swap model:** the top-level CRANE_KEYS always hold the *active* crane, and the others are parked in `plan.cranes[i]`.
 - **Switching:** use `switchRig(i)`. It parks the current crane and unparks crane `i`.
@@ -292,7 +295,7 @@ Company block, logo, copyright line, default notes, `utilWarn`, `utilMax` (**bot
 | # | Issue | Where |
 |---|---|---|
 | K1 | `[` / `]` keyboard nudge does nothing in **tip-height** mode (`setPosition` writes `R`) | studio.js keydown → `setPosition` |
-| K2 | `utilWarn` and `utilMax` both default to **100 %**, so the amber "critical lift" band never shows unless set in Settings. Agree the thresholds with Habib (e.g. 75/85 or company rule) | data.js `DEFAULT_SETTINGS` |
+| K2 | **Resolved 2026-10-19:** Saad set the defaults to Careful above **75 %** (`utilWarn`) and Stop above **90 %** (`utilMax`). v7 moves saved settings still on the old 100/100 to 75/90 once (`settings.limitsV7`) | data.js `DEFAULT_SETTINGS`, src/v7/main.js |
 | K3 | **Borrowed (proxy) bodies**: STC500/STC750 → ZTC600V, STC1000 → ZTC1000V, AC100 and LTM1080 → LTM1090, LTM1200 → LTM1220, SAC2600 and ZAT4000V → ZAT2000V, AC500 → AC700 | data.js `CRANE_EXTRAS` |
 | K4 | **Partial charts**: STC1000 covers 13–26 m booms only and ZTC1000V covers 51–70 m only. Charts marked `verify` were transcribed from public sheets | data.js |
 | K5 | **Crawler and tower-crane** bodies from the DWG set are extracted but unused. There is no crawler geometry (tracks, lattice boom, track bearing pressure) | engine / crane2d |
@@ -356,3 +359,20 @@ Company block, logo, copyright line, default notes, `utilWarn`, `utilMax` (**bot
   - Sheet row manager with custom rows; fitted margin text; balanced data panel.
   - Tutorial updated to the deck.
   - Changing crane auto-picks a boom that reaches the radius.
+- **Head-sheave fix (2026-10-19, later session):**
+  - Hook rope was leaving the rear/top head sheave on `ltm1500`, `ztc300v`, `ltm1230`; `ltm1160` had its tip 0.26 m ahead of the real sheave and `ltm11200` (no sheave in the block) hung the rope in mid-air. All 20 bodies were checked against the CAD circles.
+  - New `src/fixes.js` (build.py CORE, right after crane2d): `SHEAVE_FIX` table patches `CRANE_DRAWINGS[k].tip/tipR` at load time (each entry only applies while the generated tip still equals its `was` value). `gen/assets.js` untouched. Remove the table after re-running the pipeline with the `pipeline/cad/norm2.py` fix described in the comment there.
+  - Radius geometry follows `tip` (R = Px + L·cosθ − n·sinθ), so for a fixed radius the boom angle goes up by 2 to 4° on those cranes (e.g. LTM1500 at R 14 m, L 25.9 m: 53.9° to 57.5°). The `tc` sample (LTM1500) boom angles move 49.7→51.9° and 42.1→44.3°.
+  - `ltm11200` tip is an approximation (front/lower lug of its head frame); that body has no sheave drawn.
+  - Tools: `node sheave_audit.js` (CAD head crops), `node sheave_elev.js` (real elevation, `NOFIX=1` for before), `node sheave_radius.js`, `HEAD=1 ALL=1 node fleet_shots.js` (head zoom, every body). `fleet_shots.js` now uses `pathToFileURL` (Windows). `render_test.js` and `test_eng2.js` load `fixes.js`.
+
+- **Lift side (2026-10-19):** per-load `side` (left / right / rear, default rear; v6 plans migrate in `normalizePlan`), chart `sectors` + FAIL check when a chart does not cover the side, site plan / 3D / elevation follow the side (carrier mirrored for rear lifts and end-on for side lifts on the CAD bodies, plan-view glyph on the elevation), `LIFT SIDE` row on the A1 data panel. Tests: `test_side.js` (118 asserts), `side_shots.js`, `side_e2e.js`, `render_test.js`. Known gaps: side lifts show the carrier end-on with a generic body (no cab), the CAD split is verified only for the 20 listed bodies, v6 UI has no side control.
+- **v7 interface (2026-10-19):** new Apple-style, phone-first UI for operators who don't read much. Engine, drawing, CAD and storage are unchanged and shared with v6.
+  - Build: `python build.py v7` writes `dist/v7.html` and `public/index.html` (Windows: use `python`; build.py now reads/writes UTF-8). `python build.py` still builds the v6 UI to `dist/index.html`.
+  - Hosting: GitHub `unknown5666/LoadLock` → Vercel. `vercel.json` has no install/build step and serves `public/` as-is, so **rebuild and commit `public/index.html`** with every change.
+  - Source: `src/v7/` holds `shell.html` (all CSS, tokens on `:root`, light/dark), `core.js` (actions, refresh, undo/redo, views), `ui.js` (top bar, capacity ring, tiles, dock, canvas controls, coach marks), `sheets.js` (every editor as a bottom sheet / side card), `pages.js` (plans, fleet, settings), `login.js`, `main.js`.
+  - Sign-in: Saeed / 911, Saad / 786, Habib / 12911 (salted SHA-256 in `src/v7/login.js`, key `fhe.auth.v7`). Still a soft gate, not security.
+  - New: undo/redo (`histGo`), boom-to-building gap pill on the canvas (`settings.showGap`, threshold `minClearance`), lift-side picker, "Find a crane" (findCranes on the current lift), theme Auto/Light/Dark (`settings.theme`), home-screen icon + manifest.
+  - Tests: `node v7_e2e.js` and `W=390 H=844 node v7_e2e.js` (asserting, exit 1 on failure), `node v7_shot.js` (screenshots to `out/v7_*`).
+  - Not ported from v6: the guided tour (replaced by 3 coach marks) and the "Quick setup" wizard (replaced by "Find a crane").
+  - Utilisation limits now default to Careful > 75 %, Stop > 90 % (Saad's decision, K2 closed).

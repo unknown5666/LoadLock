@@ -311,7 +311,7 @@ function secSite() {
       <div class="olist">${(p.env || []).map((e, i) => `<details class="oitem" data-ei="${i}"${state.openEnv === e.id ? ' open' : ''}><summary>${ico('file', 16)}<b>${h(e.name || 'Drawing')}</b><span>${e.kind.toUpperCase()} · ${e.view === 'plan' ? 'plan' : 'elev'}${e.hidden ? ' · hidden' : ''}</span><span></span></summary><div class="obody">${envFields(e, i)}</div></details>`).join('')}</div>`)
     + grp('Site plan', `<label class="check">${F.tog('sitePlan.enabled', { re: 1, label: 'Print a site plan' })}<span>Print a site plan next to the elevation</span></label>
       <div class="row r3">${F.num('sitePlan.cx', 'Crane E', 'm')}${F.num('sitePlan.cy', 'Crane N', 'm')}${F.num('sitePlan.rot', 'Slew to', '°')}</div>
-      <div class="row">${F.num('sitePlan.carrierRot', 'Carrier heading', '°', { ph: 'same as slew' })}<button type="button" class="btn sm" style="align-self:end" data-view-go="plan">Open site plan view</button></div>
+      <div class="row">${F.num('sitePlan.carrierRot', 'Carrier heading', '°', { ph: 'auto — follows the lift side' })}<button type="button" class="btn sm" style="align-self:end" data-view-go="plan">Open site plan view</button></div>
       <p class="hint">In the site plan view drag the amber dot to move the crane, the magenta diamond to slew and set the radius, the grey square to turn the carrier. The 3D view follows the same slew.</p>`);
 }
 
@@ -658,6 +658,8 @@ function bindStudio() {
     setP(state.plan, k, v);
     if (k === 'chartIdx') { const p = state.plan; p.colIdx = 0; p.cwt = null; p.config = null; p.loads.forEach(l => l.colIdx = ''); p.boomOverride = ''; if (p.tele?.mode === 'manual') p.tele = { mode: 'auto', fr: [] }; Scene.views.elev = null; }
     if (k === 'colIdx') { state.plan.boomOverride = ''; Scene.views.elev = null; }
+    if (k === 'sitePlan.rot' && state.plan.sitePlan) state.plan.sitePlan.carrierRot = ''; // lift side: typing the boom heading lets the carrier follow it again
+    if (k === 'sitePlan.carrierRot' && hasCarrierRot(state.plan.sitePlan)) state.plan.sitePlan.rot = Math.round(boomHeadingFor(state.plan, state.plan.loads[activeLi()])); // …and a carrier heading carries the boom (carrier + lift side)
     const m = /^env\.(\d+)\.(unit|N)$/.exec(k); if (m) { const en = state.plan.env[+m[1]]; en.sc = envScaleFrom(en); en.calibrated = false; }
     if (/^env\.\d+\.view$/.test(k)) { const en = state.plan.env[+k.split('.')[1]]; state.openEnv = en.id; }
     if (k === 'sitePlan.enabled' && v && state.view === 'elev') toast('Site plan added to the sheet — open the Site plan view to place the crane');

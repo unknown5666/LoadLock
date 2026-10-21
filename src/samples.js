@@ -7,7 +7,7 @@ function blankPlan() {
     craneId: 'ltm1250', chartIdx: 0, colIdx: 6, boomOverride: '', config: null, cwt: null, falls: 4, matSize: '2.5x2.5m', wind: '7M/S',
     hookAllowance: 3, mergeHook: false, activeLoad: 0, secondLoad: 1,
     site: { groundType: 'ground', stepX: '', targetGround: 0, obstacles: [] },
-    loads: [{ name: '', w: 10, cont: 0, hb: 1.5, tk: 0.6, extra: 0, R: 20, l: 3, h: 2, rigH: 3, shape: 'box', colIdx: '', capOverride: '', landY: '' }],
+    loads: [{ name: '', w: 10, cont: 0, hb: 1.5, tk: 0.6, extra: 0, R: 20, l: 3, h: 2, rigH: 3, shape: 'box', colIdx: '', capOverride: '', landY: '', side: 'rear' }], // side: which side of the crane the load is lifted over — 'left' | 'right' | 'rear' (never the front)
     outrigger: { enabled: false, maxLoad: '', matSelf: 0.5, mat: '', allow: '' },
     rigging: { enabled: false, loadIdx: 0, legs: 4, effLegs: 3, slingL: 6, spread: 3, slingWLL: 10, shackleWLL: 12, slingDesc: '', shackleDesc: '', height: 3 },
     extraNotes: ''

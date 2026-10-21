@@ -75,6 +75,22 @@ def main(src, out, opts={}):
     elif hc: tip = max(hc, key=lambda c: (c[0] @ u) + 0.8 * c[1])[0]
     else: a = np.array([q for p in groups[-1] for _, _, ps in p['items'] for q in ps]); tip = a[np.argmax(a @ u)]
     tipR = max([c[1] for c in hc if np.hypot(*(c[0] - tip)) < 5] or [300])
+    # ---- KNOWN BUG in the head-sheave choice above (found when the owner reported ropes leaving the rear sheave) -----------------------
+    # Every telescopic head carries TWO sheave circles at almost the same s: a rear/top one (n about 0 .. +0.5) and the FRONT/LOWER one
+    # (n about -0.6 .. -1.5) the hook rope actually hangs from. `max(hc, key = s + 0.8 r)` only compares their s, which differ by 1-7 cm (and
+    # sometimes the upper one is 1 cm further forward), so it is a coin flip: ltm1500, ztc300v and ltm1230 got the REAR/TOP sheave.
+    # ltm1160: hc came back empty (tipR fell to the 300 default, tip = end of the head casting, 0.26 m in front of the real sheave);
+    #   check len(hc) and `far` here - `far - 2600` is measured from the furthest boomP part, which can sit beyond the head.
+    # ltm11200: the block has no sheave circle at all, tip landed on a circle that far_ok() later dropped (19.99, -1.16, in mid-air).
+    # Suggested patch (NOT applied / pipeline not re-run; src/fixes.js SHEAVE_FIX patches the 5 bad bodies at load time until gen/assets.js is
+    # regenerated, and switches itself off per crane once the generated tip already matches):
+    #     if opts.get('tip'): tip = np.array(opts['tip'], float)
+    #     elif hc:
+    #         fwd = max(c[0] @ u for c in hc)
+    #         front = [c for c in hc if c[0] @ u > fwd - 250]            # the sheaves of the nose (within 25 cm of the most forward one)
+    #         tip = min(front, key=lambda c: c[0] @ nrm)[0]              # lowest = most negative n = FRONT sheave the rope hangs from
+    #     else: ...  (for blocks with no sheave drawn, take the lowest pin lug of the head frame, not the farthest point)
+    # ---------------------------------------------------------------------------------------------------------------------------------------
     ps_ = float(piv @ u); pn_ = float(piv @ nrm)
     far_ok = lambda a_: a_['s1'] < max(p['s1'] for p in secs) + 3000 and a_['n0'] > min(p['n0'] for p in secs) - 2500 and a_['n1'] < max(p['n1'] for p in secs) + 2500
     att = [a_ for a_ in att if far_ok(a_)]

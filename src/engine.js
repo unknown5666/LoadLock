@@ -3,6 +3,60 @@ const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const num = (v, d = 0) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : d; };
 const r2 = (v) => Math.round(v * 100) / 100;
 
+// ===== Lift side: the load is lifted over the LEFT, RIGHT or REAR of the carrier — never over the front, because the crane
+// would be sitting on part of its own working radius. Stored per load as load.side ('left' | 'right' | 'rear'). =====
+const LIFT_SIDES = ['left', 'right', 'rear'];
+// boom heading minus carrier heading, in degrees. Carrier heading = the way the cab faces; headings run counter-clockwise on the site plan
+// (north up), so "left" is the driver's left when sitting facing forward.
+const SIDE_OFFSET = { rear: 180, left: 90, right: -90 };
+const SIDE_WORD = { rear: 'rear', left: 'left side', right: 'right side' };      // "lifting over the rear / left side / right side"
+const SIDE_NAME = { rear: 'REAR', left: 'LEFT SIDE', right: 'RIGHT SIDE' };       // "OVER REAR / OVER LEFT SIDE / OVER RIGHT SIDE" on the sheet
+function sideOf(load) { const s = String(typeof load === 'string' ? load : load?.side ?? '').toLowerCase(); return s === 'left' || s === 'right' || s === 'rear' ? s : 'rear'; }
+function normDeg(a) { return ((num(a) % 360) + 360) % 360; }                      // 0 ≤ a < 360
+function degDiff(a, b) { const d = normDeg(num(a) - num(b)); return d > 180 ? d - 360 : d; } // signed a − b, −180 < d ≤ 180
+function hasCarrierRot(sp) { return !!sp && sp.carrierRot !== '' && sp.carrierRot != null && Number.isFinite(parseFloat(String(sp.carrierRot).replace(',', '.'))); }
+// Carrier heading (degrees, the way the cab faces). When sitePlan.carrierRot is set it rules; when it is empty the carrier simply follows the
+// boom (sitePlan.rot) so that the boom stays on the chosen side — which also keeps every v6 plan's boom heading exactly where it was.
+function carrierHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) : num(sp.rot) - SIDE_OFFSET[sideOf(load)]); }
+// Boom (= load) heading in degrees: carrier heading + 180 (rear) / +90 (left) / −90 (right).
+function boomHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) + SIDE_OFFSET[sideOf(load)] : num(sp.rot)); }
+// v6 plans: which side was the boom on? `boom` and `carrier` are headings; v6 drew the carrier cab at the −u end, so the cab faced carrier + 180°.
+// Front lifts (and anything that is not clearly left or right) become 'rear'.
+function sideFromHeadings(boom, carrier) {
+  const rel = degDiff(boom, num(carrier) + 180);               // boom relative to the way the cab faces
+  return rel >= 45 && rel < 135 ? 'left' : rel <= -45 && rel > -135 ? 'right' : 'rear';
+}
+// Which sectors a load chart is valid for: ['360'] (all round, the default) or any of 'rear', 'side'. Reads chart.sectors (or chart.sector),
+// else infers from the chart's name / source text (data.js inferChartSectors).
+function chartSectorsOf(ch) {
+  if (!ch) return ['360'];
+  if (Array.isArray(ch.sectors) && ch.sectors.length) return ch.sectors.map(String);
+  if (typeof ch.sector === 'string' && ch.sector) return ch.sector.split(/[\s,+&]+/).filter(Boolean);
+  return typeof inferChartSectors === 'function' ? inferChartSectors(ch) : ['360'];
+}
+// Is this load chart valid for lifting over `side` ('left' | 'right' | 'rear')? A missing chart (manual capacity) never blocks.
+function chartCoversSide(ch, side) {
+  if (!ch) return true;
+  const s = chartSectorsOf(ch); const sd = sideOf(side);
+  return s.includes('360') || s.includes(sd) || (sd !== 'rear' && s.includes('side'));
+}
+// "all round (360°)" / "over the rear only" / "over the rear and sides" / "over the sides only" — plain wording for messages and the chart header
+function chartSectorLabel(ch) {
+  const s = chartSectorsOf(ch);
+  if (s.includes('360')) return 'all round (360°)';
+  const rear = s.includes('rear'), side = s.includes('side') || s.includes('left') || s.includes('right');
+  return rear && side ? 'over the rear and sides' : rear ? 'over the rear only' : side ? 'over the sides only' : 'all round (360°)';
+}
+// The chart index to use when the side changes: the current one if it covers the side, else the first main-boom chart that does
+// (then any chart that does). If nothing covers the side the current index is returned unchanged (computeLoad then flags it).
+function bestChartForSide(crane, side, currentIdx) {
+  const charts = crane?.charts || []; const cur = currentIdx == null || currentIdx === '' || !Number.isFinite(+currentIdx) ? 0 : Math.round(+currentIdx);
+  if (cur < 0 || cur >= charts.length || chartCoversSide(charts[cur], side)) return cur;
+  let i = charts.findIndex(c => (!c.kind || c.kind === 'main') && chartCoversSide(c, side));
+  if (i < 0) i = charts.findIndex(c => chartCoversSide(c, side));
+  return i < 0 ? cur : i;
+}
+
 // Parse chart text. Accepts our "H:" format or tab/space separated paste from Excel
 // (first row = header of boom lengths; first column = radius).
 function parseChart(src) {
@@ -336,6 +390,12 @@ function computeLoad(plan, crane, load, settings) {
   if (chartDef && chartDef.verify) res.checks.push({ s: 'warn', t: 'Load chart', m: 'This chart was transcribed from a public datasheet (' + (chartDef.source || 'unverified') + ') — check it against the crane\'s own chart before issuing' });
   if (G.tele.mode === 'manual' && !G.tele.locked) res.checks.push({ s: 'info', t: 'Telescoping', m: `Sections set by hand (${G.tele.fr.map(f => Math.round(f * 100)).join(' / ')} %) → ${G.tele.L} m boom. Capacity is read for that length; check the crane's telescoping sequence gives the same chart` });
   res.geo = g;
+  // lift side: the selected chart must be valid for the side the load is lifted over (a hand-entered capacity is the user's own responsibility)
+  res.side = sideOf(load); res.sideOk = true;
+  if (chartDef && !G.manual && !capInfo.manual && !chartCoversSide(chartDef, res.side)) {
+    res.sideOk = false;
+    res.checks.push({ s: 'fail', t: 'Lift side', m: `Chart does not cover lifting over the ${SIDE_WORD[res.side]} — this chart is only valid ${chartSectorLabel(chartDef)}. Pick a load chart that covers the ${SIDE_WORD[res.side]}, or lift over the rear instead.` });
+  }
   // hook/load heights
   const landX = R; const landG = load.landY !== '' && load.landY != null ? num(load.landY) : null;
   const surface = landG != null ? landG : surfaceAt(plan.site, landX);
@@ -529,7 +589,7 @@ function outriggerSpan(crane, chart) {
 }
 function findCranes(req, cranes, settings, opts = {}) {
   const out = [];
-  const lim = num(opts.maxUtil, num(settings?.utilMax, 100));
+  const lim = num(opts.maxUtil, num(settings?.utilMax, 90));
   for (const crane of cranes) {
     if (opts.craneIds && !opts.craneIds.includes(crane.id)) continue;
     (crane.charts || []).forEach((ch, chi) => {
@@ -540,7 +600,7 @@ function findCranes(req, cranes, settings, opts = {}) {
       const fits = !sp || (span[0] <= sp[0] + 1e-6 && span[1] <= sp[1] + 1e-6);
       p.cols.forEach((col, ci) => {
         const plan = { craneId: crane.id, chartIdx: chi, colIdx: ci, site: req.site, hookAllowance: req.hookAllowance, rigging: { height: req.rigH } };
-        const load = { name: 'LOAD', w: req.w, hb: req.hb > 0 ? req.hb : crane.hookBlock, tk: req.tk, cont: req.cont, R: req.R, h: req.h, rigH: req.rigH, landY: req.landY ?? '' };
+        const load = { name: 'LOAD', w: req.w, hb: req.hb > 0 ? req.hb : crane.hookBlock, tk: req.tk, cont: req.cont, R: req.R, h: req.h, rigH: req.rigH, landY: req.landY ?? '', side: sideOf(req.side) };
         const r = computeLoad(plan, crane, load, { ...settings, utilMax: lim });
         if (r.cap == null || !r.geo.ok) return;
         const fails = r.checks.filter(c => c.s === 'fail');
@@ -561,4 +621,4 @@ function bestPerCrane(res) {
   return [...by.values()].sort((a, b) => (b.ok - a.ok) || (a.crane.cls - b.crane.cls) || (a.r.util - b.r.util));
 }
 
-if (typeof module !== 'undefined') module.exports = { boomLayout, boomSpec, teleFor, jibRange, accState, ACC_LABELS, windAt, evalWeather, weatherWindow, WX_CODES, geoSetup, slingInfo, RIG_TYPES, LIFT_TYPES, angleFromRadius, bestPerCrane, outriggerSpan, radiusFromAngle, objExtent, OBJ_TYPES, parseChart, chartToText, getChart, lookupCap, solveGeometry, computeLoad, computePlan, findCranes, clearanceToSegment, surfaceAt, groundAt, num, r2, colName };
+if (typeof module !== 'undefined') module.exports = { LIFT_SIDES, SIDE_OFFSET, SIDE_WORD, SIDE_NAME, sideOf, normDeg, degDiff, carrierHeadingFor, boomHeadingFor, sideFromHeadings, chartSectorsOf, chartCoversSide, chartSectorLabel, bestChartForSide, boomLayout, boomSpec, teleFor, jibRange, accState, ACC_LABELS, windAt, evalWeather, weatherWindow, WX_CODES, geoSetup, slingInfo, RIG_TYPES, LIFT_TYPES, angleFromRadius, bestPerCrane, outriggerSpan, radiusFromAngle, objExtent, OBJ_TYPES, parseChart, chartToText, getChart, lookupCap, solveGeometry, computeLoad, computePlan, findCranes, clearanceToSegment, surfaceAt, groundAt, num, r2, colName };

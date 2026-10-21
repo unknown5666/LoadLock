@@ -306,7 +306,7 @@ const DEFAULT_CRANES = [
   { id:'ztc1000v', drawing:'k11002', tint:false, dimsImg:'ztc1000v', model:'ZTC1000V', make:'Zoomlion', cls:100, type:'Truck crane', axles:5, carrierLen:15.7, carrierH:3.92, width:2.75,
     outrigger:'8.0x6.9', outLong:6.94, outTrans:8.0, pivotX:-1.6, pivotH:2.9, tail:4.76, boomMin:11.6, boomMax:70, sections:6, boomDepth:1.1,
     mass:55, cwt:23, hookBlock:0.7, color:'#7cb342',
-    charts:[{ id:'main', name:'Main boom · 23 t CWT · 8.0 m · over rear & sides (51–70 m only)', kind:'main', config:'MAINBOOM', cwt:23, outrigger:'8.0x6.9', src:CHART_SRC.ztc1000v_main,
+    charts:[{ id:'main', name:'Main boom · 23 t CWT · 8.0 m · over rear & sides (51–70 m only)', kind:'main', config:'MAINBOOM', cwt:23, outrigger:'8.0x6.9', sectors:['rear','side'], src:CHART_SRC.ztc1000v_main,
       source:'Transcribed from 100T EMCC sheet — partial (51–70 m boom)' }] },
   { id:'ac100', drawing:'k11002', tint:false, model:'AC100', make:'Demag', cls:100, type:'All-terrain', axles:4, carrierLen:13.1, carrierH:3.9, width:2.75,
     outrigger:'7.0x7.1', outLong:7.1, outTrans:7.0, pivotX:-1.5, pivotH:2.8, tail:4.2, boomMin:11.1, boomMax:50, sections:6, boomDepth:1.1,
@@ -378,6 +378,21 @@ const CRANE_EXTRAS = {
 };
 for (const c of DEFAULT_CRANES) Object.assign(c, CRANE_EXTRAS[c.id] || {});
 
+// ---------- lifting sectors: which sides of the carrier a load chart is valid for ----------
+// chart.sectors = ['360'] (full circle — also the default when a chart says nothing), or any of 'rear' (over the rear) and 'side' (over the left / right
+// side), e.g. ['rear','side'] for "over rear & sides". The front is never offered (loads are not lifted over the cab). The engine reads this through
+// chartCoversSide(); charts without the field (your own, older saved cranes) get it inferred from their name / source text.
+function inferChartSectors(ch) {
+  const name = String(ch?.name || '').toLowerCase();
+  if (/360\s*°|360\s*deg|full[\s-]*(circle|slew)|all[\s-]*round/.test(name)) return ['360'];
+  const look = (t) => { const rear = /\brear\b/.test(t), side = /\bsides?\b/.test(t); return rear && side ? ['rear', 'side'] : rear ? ['rear'] : side ? ['side'] : null; };
+  const src = String(ch?.source || '').toLowerCase();
+  return look(name) || (/remov|omit|exclud|without/.test(src) ? null : look(src)) || ['360'];
+}
+function tagChartSectors(chs) { for (const ch of chs || []) if (ch && !(Array.isArray(ch.sectors) && ch.sectors.length)) ch.sectors = inferChartSectors(ch); }
+for (const c of DEFAULT_CRANES) tagChartSectors(c.charts);
+if (typeof IMPORTED_CHARTS !== 'undefined') for (const k of Object.keys(IMPORTED_CHARTS)) tagChartSectors(IMPORTED_CHARTS[k]);
+
 const DEFAULT_SETTINGS = {
   company:'FRIENDSHIP HALL EST',
   companyLines:['P.O BOX. 8058, ABU DHABI UAE','TEL:02-4485660  FAX:02-4485661','EMAIL: info@fhecranes.com','website:  www.fhecrane.net'],
@@ -389,6 +404,6 @@ const DEFAULT_SETTINGS = {
     'NO DIMENSIONS TO BE SCALED OFF, ONLY WRITTEN DIMENSIONS ARE TO BE FOLLOWED.',
     '"TYPICAL" MEANS THE REFERENCED DETAIL SHALL APPLY FOR ALL SIMILAR CONDITIONS UNLESS OTHERWISE NOTED.'
   ],
-  utilWarn:100, utilMax:100, minClearance:1.0, lookup:'conservative', outriggerFactor:0.8,
+  utilWarn:75, utilMax:90, minClearance:1.0, lookup:'conservative', outriggerFactor:0.8,
   defaultDrawnBy:'HABIB', headerStyle:'yellow'
 };

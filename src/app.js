@@ -192,6 +192,15 @@ function normalizePlan(p) {
   out.cranes = Array.isArray(p.cranes) && p.cranes.length ? p.cranes.map(c => ({ ...c })) : [rigPick(out)];
   if (out.activeCrane >= out.cranes.length) out.activeCrane = 0;
   out.loads.forEach(l => { l.crane = Math.max(0, Math.min(out.cranes.length - 1, Math.round(num(l.crane, 0)))); });
+  // lift side (left / right / rear — never the front). v6 plans have none: work it out from where the boom pointed relative to the carrier
+  // (a front lift, or no carrier heading at all, becomes 'rear'). The boom heading (sitePlan.rot) is kept, so the load stays where it was placed.
+  const legacySide = !(p.loads || []).some(l => l && LIFT_SIDES.includes(String(l.side).toLowerCase()));
+  let side0 = 'rear';
+  if (legacySide && hasCarrierRot(out.sitePlan)) {
+    side0 = sideFromHeadings(num(out.sitePlan.rot), num(out.sitePlan.carrierRot));
+    out.sitePlan.carrierRot = r2(normDeg(num(out.sitePlan.rot) - SIDE_OFFSET[side0]));
+  }
+  out.loads.forEach(l => { l.side = legacySide ? side0 : sideOf(l); });
   out.sheetRows = { hide: {}, show: {}, custom: [], ...(p.sheetRows || {}) };
   return out;
 }

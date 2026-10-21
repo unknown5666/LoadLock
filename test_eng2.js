@@ -1,6 +1,6 @@
 const fs=require('fs'); const vm=require('vm');
 const ctx={module:{},console}; vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('gen/assets.js','utf8')+'\n'+fs.readFileSync('src/data.js','utf8')+'\n'+fs.readFileSync('src/engine.js','utf8').replace(/if \(typeof module[\s\S]*$/,'')+'\nthis.E={DEFAULT_CRANES,DEFAULT_SETTINGS,parseChart,computeLoad,computePlan,getChart,radiusFromAngle,angleFromHeight,tipFromAngle,boomSpec,chartLengths};',ctx);
+vm.runInContext(fs.readFileSync('gen/assets.js','utf8')+'\n'+fs.readFileSync('src/data.js','utf8')+'\n'+fs.readFileSync('src/engine.js','utf8').replace(/if \(typeof module[\s\S]*$/,'')+'\n'+fs.readFileSync('src/fixes.js','utf8')+'\nthis.E={DEFAULT_CRANES,DEFAULT_SETTINGS,parseChart,computeLoad,computePlan,getChart,radiusFromAngle,angleFromHeight,tipFromAngle,boomSpec,chartLengths};',ctx);
 const E=ctx.E; const S=E.DEFAULT_SETTINGS; const C=id=>E.DEFAULT_CRANES.find(c=>c.id===id);
 const plan={craneId:'ltm1250',chartIdx:0,colIdx:6,site:{obstacles:[]},loads:[]};
 for (const by of ['radius','angle','height']) {

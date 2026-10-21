@@ -160,8 +160,12 @@ function sceneOverlay(plan, calc, T, k) {
   if (Scene.mode === 'elev') {
     const site = plan.site || {};
     // live boom-clearance line to the critical corner
-    const cl = res?.clearLine; if (cl) { const a = T(cl.x1, cl.y1), b = T(cl.x2, cl.y2); const col = cl.clr <= 0 ? RD : cl.clr < 1 ? AM : GO;
-      out.push(`<g pointer-events="none"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${col}" stroke-width="${1.3 / U}" stroke-dasharray="${4 / U} ${2.5 / U}"/><circle cx="${a[0]}" cy="${a[1]}" r="${2.6 / U}" fill="${col}"/><circle cx="${b[0]}" cy="${b[1]}" r="${2.6 / U}" fill="none" stroke="${col}" stroke-width="${1.2 / U}"/>${tag((a[0] + b[0]) / 2 + 6 / U, (a[1] + b[1]) / 2, `${cl.clr.toFixed(2)} m clear`, col)}</g>`); }
+    const cl = res?.clearLine; const S0 = typeof settingsEff === 'function' ? settingsEff() : {}; const minC = num(S0.minClearance, 1);
+    if (cl && S0.showGap !== false) { const a = T(cl.x1, cl.y1), b = T(cl.x2, cl.y2); const col = cl.clr <= 0 ? RD : cl.clr < minC ? AM : GO;
+      // boom-to-building gap: dashed line with a pill label (v7 "show the gap" switch in Site)
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, txt = `${cl.clr.toFixed(2)} m gap`, fs = 11.5 / U, pw = txt.length * fs * 0.62 + 14 / U, ph = fs + 9 / U;
+      out.push(`<g pointer-events="none"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${col}" stroke-width="${1.6 / U}" stroke-dasharray="${5 / U} ${3 / U}"/><circle cx="${a[0]}" cy="${a[1]}" r="${3 / U}" fill="${col}"/><circle cx="${b[0]}" cy="${b[1]}" r="${3 / U}" fill="${ring}" stroke="${col}" stroke-width="${1.4 / U}"/>
+        <rect x="${mx + 8 / U}" y="${my - ph / 2}" width="${pw}" height="${ph}" rx="${ph / 2}" fill="${col}"/><text x="${mx + 8 / U + pw / 2}" y="${my + fs * 0.36}" font-size="${fs}" font-weight="700" font-family="-apple-system, Inter, Segoe UI, Arial, sans-serif" text-anchor="middle" fill="#fff">${txt}</text></g>`); }
     (site.obstacles || []).forEach((o, i) => {
       const e = objExtent(site, o); const sel = Scene.sel === 'obj:' + i;
       if (sel) { const a = T(e.x0, e.top), b = T(e.x1, e.b); out.push(`<rect x="${Math.min(a[0], b[0]) - 3 / U}" y="${a[1] - 3 / U}" width="${Math.abs(b[0] - a[0]) + 6 / U}" height="${b[1] - a[1] + 6 / U}" fill="none" stroke="${SC_GRIP}" stroke-width="${1.4 / U}" stroke-dasharray="${5 / U} ${3 / U}"/>`);
@@ -179,11 +183,11 @@ function sceneOverlay(plan, calc, T, k) {
     grip('crane', 0, -0.2, { r: 9 / U, fill: SC_ACC, label: '⇆ crane', dy: 22 / U });
     if (res?.geo?.tip) grip('load', res.R, res.landY + Math.max(0.6, num(load.h, 1.5)) / 2, { shape: 'dia', r: 8 / U, fill: '#c000c0', label: load.by === 'angle' ? Math.round(num(load.angle) * 10) / 10 + '°' : load.by === 'height' ? 'tip ' + num(res.tipY).toFixed(1) + ' m' : 'R ' + res.R.toFixed(1) + ' m' });
   } else {
-    const sp = sitePlanState(plan), R = res?.R || 10, br = num(sp.rot) * D2R, cr = (sp.carrierRot == null || sp.carrierRot === '' ? num(sp.rot) : num(sp.carrierRot)) * D2R;
+    const sp = sitePlanState(plan, load), R = res?.R || 10, br = sp.boom * D2R, cr = sp.carrier * D2R; // sp.boom / sp.carrier follow the lift side (draw.js)
     const Lc = num(calc.crane.carrierLen, 12);
     (plan.env || []).forEach((e, i) => { if (e.view !== 'plan' || e.hidden) return; const b = envBBox(e); if (b) grip('penv:' + i, b.x0, b.y1, { r: 6 / U, fill: '#7c4dff', label: e.name ? e.name.slice(0, 28) : 'Drawing', dy: -9 / U }); });
-    grip('pcar', sp.cx + 0.36 * Lc * Math.cos(cr), sp.cy + 0.36 * Lc * Math.sin(cr), { shape: 'sq', r: 6 / U, fill: '#5b6670', label: 'carrier' });
-    grip('pload', sp.cx + R * Math.cos(br), sp.cy + R * Math.sin(br), { shape: 'dia', r: 8 / U, fill: '#c000c0', label: 'R ' + R.toFixed(1) + ' m · ' + Math.round(((num(sp.rot) % 360) + 360) % 360) + '°' });
+    grip('pcar', sp.cx + 0.64 * Lc * Math.cos(cr), sp.cy + 0.64 * Lc * Math.sin(cr), { shape: 'sq', r: 6 / U, fill: '#5b6670', label: 'cab' }); // the cab end of the carrier
+    grip('pload', sp.cx + R * Math.cos(br), sp.cy + R * Math.sin(br), { shape: 'dia', r: 8 / U, fill: '#c000c0', label: 'R ' + R.toFixed(1) + ' m · ' + Math.round(sp.boom) % 360 + '°' });
     grip('pcrane', sp.cx, sp.cy, { r: 9 / U, fill: SC_ACC, label: 'crane' });
   }
   if (Scene.tool?.kind !== 'measure') for (const [i, p] of Scene.pts.entries()) { const q = T(p.x, p.y); out.push(`<g><circle cx="${q[0]}" cy="${q[1]}" r="${5 / U}" fill="none" stroke="${SC_HOT}" stroke-width="${1.5 / U}"/><path d="M${q[0] - 9 / U} ${q[1]}H${q[0] + 9 / U}M${q[0]} ${q[1] - 9 / U}V${q[1] + 9 / U}" stroke="${SC_HOT}" stroke-width="${1 / U}"/><text x="${q[0] + 7 / U}" y="${q[1] - 7 / U}" font-size="${10 / U}" fill="${SC_HOT}">${i + 1}</text></g>`); }
@@ -250,12 +254,14 @@ function sceneMoveDrag(e) {
     const en = plan.env[+m[1]], oe = O.env[+m[1]]; en.x = r2(num(oe.x) + dx); en.y = r2(num(oe.y) + dy);
   } else if (d.kind === 'step') plan.site.stepX = r2(Math.max(0.5, snap(w.x)));
   else if (d.kind === 'pcrane') { plan.sitePlan = { ...(plan.sitePlan || {}), cx: r2(snap(num(O.sp.cx) + dx)), cy: r2(snap(num(O.sp.cy) + dy)) }; }
-  else if (d.kind === 'pload') {
-    if (O.sp.carrierRot === '' || O.sp.carrierRot == null) plan.sitePlan.carrierRot = num(O.sp.rot);
-    const sp = sitePlanState(plan); const ang = Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D;
-    plan.sitePlan = { ...(plan.sitePlan || {}), rot: Math.round(ang) };
+  else if (d.kind === 'pload') { // dragging the load swings the whole crane: the carrier turns so the boom stays on the chosen lift side
+    const sp = sitePlanState(plan, load); const ang = Math.round(Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D); const off = SIDE_OFFSET[sp.side];
+    plan.sitePlan = { ...(plan.sitePlan || {}), rot: Math.round(normDeg(ang)), carrierRot: Math.round(normDeg(ang - off)) };
     setRadius(load, Math.hypot(w.x - sp.cx, w.y - sp.cy));
-  } else if (d.kind === 'pcar') { const sp = sitePlanState(plan); plan.sitePlan = { ...(plan.sitePlan || {}), carrierRot: Math.round(Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D) }; }
+  } else if (d.kind === 'pcar') { // dragging the cab end turns the carrier; the boom follows to the same side (sitePlan.rot is kept in step for older code)
+    const sp = sitePlanState(plan, load); const ch = Math.round(normDeg(Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D));
+    plan.sitePlan = { ...(plan.sitePlan || {}), carrierRot: ch, rot: Math.round(normDeg(ch + SIDE_OFFSET[sp.side])) };
+  }
   Scene.hooks.edited('drag');
 }
 

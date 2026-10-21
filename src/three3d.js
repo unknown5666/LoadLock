@@ -418,9 +418,10 @@ C3D.twin = (host) => {
       const li = Math.min(calc.loads.length - 1, plan.activeLoad || 0), res = calc.loads[li], load = plan.loads[li], geo = res.geo;
       const s2 = JSON.stringify([crane.id, crane.color, livery, plan.cwt, plan.matSize, crane.sections, crane.boomMin, crane.boomMax]);
       if (s2 !== sig) { if (g) scene.remove(g.root, g.hook, g.rope, g.slings, g.load); g = C3D.buildCrane(C3D.paramsFor(crane, plan, calc, livery)); g._hung = false; scene.add(g.root); sig = s2; }
-      const sp = sitePlanState(plan);
+      const sp = sitePlanState(plan, load);
       const L = geo.kind === 'main' ? geo.L : geo.Lb;
-      const phS = num(sp.rot, 0), phC = sp.carrierRot === '' || sp.carrierRot == null ? phS : num(sp.carrierRot);
+      // headings follow the lift side: the carrier faces phC (cab = local +x), the boom is carrier + 180 (rear) / +90 (left) / −90 (right)
+      const phS = sp.boom, phC = sp.carrier;
       g.state.theta = geo.theta || 45; g.state.slew = phS - phC; g.state.L = L; g.state.fr = res.tele?.fr || g.state.fr; g.state.acc = res.acc || {};
       g.state.jib = geo.kind !== 'main' && geo.Lj ? { len: geo.Lj, angle: geo.gamma } : null;
       g.state.loadSize = [Math.max(0.6, num(load.l, 2)), Math.max(0.3, num(load.h, 1.5)), Math.max(0.6, num(load.l, 2) * 0.6)]; g.state.rig = res.rigH || 3;
@@ -446,7 +447,7 @@ C3D.twin = (host) => {
       const ring = new THREE.Mesh(new THREE.RingGeometry(res.R - 0.14, res.R + 0.14, 180), ringM('#4fe0ff', 0.9)); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; site.add(ring);
       const tl = num(crane.tail, 5); const tail = new THREE.Mesh(new THREE.RingGeometry(tl - 0.09, tl + 0.09, 96), ringM('#ffb81c', 0.85)); tail.rotation.x = -Math.PI / 2; tail.position.y = 0.05; site.add(tail);
       const pad = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.85, 40), ringM('#e040e0', 0.95)); pad.rotation.x = -Math.PI / 2; pad.position.set(dir.x * res.R, res.landY + 0.06, dir.z * res.R); site.add(pad);
-      const lb = label(`R ${res.R.toFixed(2)} m`, '#4fe0ff'); lb.position.set(dir.x * res.R + 1, 0.8, dir.z * res.R); site.add(lb);
+      const lb = label(`R ${res.R.toFixed(2)} m · OVER ${SIDE_NAME[sp.side]}`, '#4fe0ff'); lb.position.set(dir.x * res.R + 1, 0.8, dir.z * res.R); site.add(lb);
       if (res.tipY != null && g.tipW) { const lt = label(`TIP ${res.tipY.toFixed(1)} m · ${(geo.kind === 'luffing' ? geo.gamma : geo.theta).toFixed(1)}°`, '#ffb81c'); lt.position.copy(g.tipW).add(new THREE.Vector3(0, 1.6, 0)); site.add(lt); }
       for (const en of plan.env || []) { if (en.view !== 'plan' || en.hidden) continue; const gm = typeof ENV_CACHE !== 'undefined' ? ENV_CACHE[en.id] : null; if (!gm || gm.img) continue; const f = envXf(en); const pts = [];
         for (const [, flat] of gm.polys) { for (let i = 2; i < flat.length; i += 2) { const a = f(flat[i - 2], flat[i - 1]), b = f(flat[i], flat[i + 1]); pts.push(a[0] - sp.cx, 0.04, -(a[1] - sp.cy), b[0] - sp.cx, 0.04, -(b[1] - sp.cy)); } if (pts.length > 600000) break; }
