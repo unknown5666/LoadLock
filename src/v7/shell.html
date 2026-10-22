@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>FHE Lift Planner</title>
+<title>FHE Lift Planner 8</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 /* =====================================================================================================
-   FHE Lift Planner v7 — "Cab glass"
+   FHE Lift Planner v8 — "Cab glass" (v8: outrigger leg loads)
    Apple-style system UI: inset-grouped lists, frosted bars, bottom sheets, one hi-vis yellow accent.
    Signature: the capacity ring — a crane LMI reading turned into one big glanceable circle.
    Every colour comes from the tokens below; components never use raw hex.
@@ -224,7 +224,7 @@ body.locked #app { visibility: hidden; }
 }
 
 /* ---------- action dock ---------- */
-.dock { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.dock { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
 .dk { display: grid; justify-items: center; gap: 5px; padding: 4px 0 2px; border-radius: 14px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
 .dk .di { position: relative; width: 50px; height: 50px; border-radius: 16px; background: var(--card); color: var(--ink); display: grid; place-items: center; box-shadow: var(--shadow-1); }
 .dk .di .badge { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; font-weight: 700; display: grid; place-items: center; color: #fff; background: var(--stop-fill); box-shadow: 0 0 0 2px var(--bg); }
@@ -536,6 +536,39 @@ button.it:hover, a.it:hover, label.it:hover { background: var(--fill); }
 .coach .bub .btn { height: 38px; font-size: 15px; background: rgba(255,255,255,.16); color: inherit; }
 .coach .bub .btn.pri { background: var(--brand); color: var(--brand-ink); }
 .coach .ring-hl { position: absolute; border-radius: 18px; box-shadow: 0 0 0 4px var(--brand), 0 0 0 9999px rgba(0,0,0,.45); transition: all .5s var(--ease); }
+
+/* ---------- v8: outrigger legs ---------- */
+.legs-wrap { display: grid; place-items: center; margin: 2px 0 10px; }
+.legs-pic { width: min(340px, 100%); height: auto; color: var(--ink); }
+.legs-pic .poly { fill: none; stroke: var(--ink-3); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.legs-pic .kern { fill: var(--safe-soft); stroke: none; }
+.legs-pic .beam { stroke: var(--ink-2); stroke-width: 7; stroke-linecap: round; opacity: .55; }
+.legs-pic .beam.half { stroke: var(--warn-fill); opacity: .9; }
+.legs-pic .body { fill: var(--card); stroke: var(--ink-2); stroke-width: 1.5; }
+.legs-pic .cab { fill: var(--fill-2); stroke: none; }
+.legs-pic .cabt { font: 700 10px var(--f-ui); fill: var(--ink-2); }
+.legs-pic .boom { stroke: var(--brand); stroke-width: 9; stroke-linecap: round; }
+.legs-pic .hk { fill: var(--brand); stroke: var(--brand-ink); stroke-width: 2; }
+.legs-pic .hkt { font: 650 12px var(--f-ui); fill: var(--ink-2); }
+.legs-pic .ring { fill: var(--card); stroke: var(--ink); stroke-width: 2; }
+.legs-pic .cog circle { fill: var(--safe-fill); stroke: #fff; stroke-width: 2; } .legs-pic .cog path { stroke: var(--ink); stroke-width: 1.5; }
+.legs-pic .cog.warn circle { fill: var(--warn-fill); } .legs-pic .cog.fail circle { fill: var(--stop-fill); }
+.legs-pic .pad circle { fill: var(--brand); stroke: var(--brand-ink); stroke-width: 2; }
+.legs-pic .pad.ok circle { fill: var(--safe-fill); } .legs-pic .pad.warn circle { fill: var(--warn-fill); } .legs-pic .pad.fail circle { fill: var(--stop-fill); }
+.legs-pic .pad.lift circle { fill: var(--card); stroke: var(--ink-3); stroke-dasharray: 4 3; }
+.legs-pic .pad.man circle { fill: var(--stop-soft); stroke: var(--stop-fill); stroke-width: 3; stroke-dasharray: 5 3; }
+.legs-pic .pid { font: 800 11px var(--f-ui); fill: var(--brand-ink); } .legs-pic .pad.lift .pid, .legs-pic .pad.man .pid { fill: var(--ink); }
+.legs-pic .pv { font: 800 19px var(--f-num); fill: var(--ink); letter-spacing: -.02em; } .legs-pic .pv .u { font-size: 12px; font-weight: 600; fill: var(--ink-2); }
+.legs-pic .pm2 { font: 700 11px var(--f-ui); fill: var(--stop); }
+.pads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0 4px; }
+.padc { display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--r); background: var(--card); box-shadow: var(--shadow-1); min-width: 0; }
+.padc span { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.padc b { font-size: 28px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; } .padc b small { font-size: 14px; font-weight: 600; color: var(--ink-2); margin-left: 2px; }
+.padc em { font-style: normal; font-size: 12px; color: var(--ink-2); }
+.padc.ok .q { color: var(--safe); font-weight: 650; } .padc.warn .q { color: var(--warn); font-weight: 650; } .padc.fail .q { color: var(--stop); font-weight: 650; }
+.padc.lift b { color: var(--ink-3); font-size: 22px; }
+.padc.man { box-shadow: inset 0 0 0 2px var(--stop-fill), var(--shadow-1); } .padc.man em { color: var(--stop); font-weight: 650; }
+.it.ovr.on { background: var(--warn-soft); } .it.ovr.on input.fld { font-weight: 700; }
 </style>
 </head>
 <body class="locked">

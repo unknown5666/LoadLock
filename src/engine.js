@@ -496,7 +496,7 @@ function angleFromRadius(crane, chartDef, col, R, boomOv) {
 }
 
 // several cranes per plan: the top-level crane fields are the active crane; the others are parked in plan.cranes[i]
-const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind'];
+const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan'];
 function rigOf(plan, i) { const a = num(plan.activeCrane, 0); if (i === a || !plan.cranes?.[i]) return plan; return { ...plan, ...plan.cranes[i] }; }
 function rigIndexOf(plan, l) { const i = Math.round(num(l?.crane, 0)); return plan.cranes?.[i] || i === num(plan.activeCrane, 0) ? i : num(plan.activeCrane, 0); }
 function computePlan(plan, cranes, settings) {
@@ -507,17 +507,28 @@ function computePlan(plan, cranes, settings) {
     if (!rigs.has(ri)) rigs.set(ri, { i: ri, crane: cr, pv });
     const r = computeLoad(pv, cr, l, settings); r.crane = cr; r.rigI = ri; return r;
   });
-  // outrigger / ground pressure
+  // outrigger (leg) loads per crane — outrig.js; the active crane's result drives the ground table
   const op = plan.outrigger || {};
+  const outrigs = [];
+  if (typeof outriggerCrane === 'function') for (const rg of rigs.values()) {
+    const O = outriggerCrane(rg.pv, rg.crane, loads.map((res, li) => ({ li, res })).filter(x => x.res.rigI === rg.i), op);
+    O.rigI = rg.i; O.crane = rg.crane; O.checks = outriggerChecks(O, rg.crane, loads); outrigs.push(O);
+  }
+  const outr = outrigs.find(o => o.rigI === num(plan.activeCrane, 0)) || outrigs[0] || null;
+  // ground pressure: the maker's leg load when typed, else the biggest leg load (calculated, or typed by hand for an illustration)
   let ground = null;
-  if (op.enabled) {
+  if (op.enabled || num(op.allow) > 0) {
     const maxT = Math.max(0, ...loads.map(l => l.total || 0));
     const est = r2(num(settings.outriggerFactor, 0.8) * (num(crane.mass) + num(plan.cwt ?? crane.cwt) + maxT));
-    const P = num(op.maxLoad) > 0 ? num(op.maxLoad) : est;
+    const maker = num(op.maxLoad) > 0;
+    const P = maker ? num(op.maxLoad) : outr?.any || outr?.illus ? outr.Pmax.v : est;
+    const src = maker ? 'maker' : outr?.illus && outr.Pmax.manual ? 'illus' : outr?.any ? 'calc' : 'est';
     const [a, b] = String(op.mat || plan.matSize || '1.0x1.0').toLowerCase().replace('m', '').split('x').map(v => num(v, 1));
-    const area = r2(a * b), self = num(op.matSelf, 0);
-    const press = r2((P + self) / area);
-    ground = { P, est: !(num(op.maxLoad) > 0), estVal: est, self, mat: `${a.toFixed(1)}x${b.toFixed(1)}M`, area, press, allow: num(op.allow, 0) };
+    const area = r2(a * b), self = num(op.matSelf, 0), eff = Math.max(0.05, Math.min(1, num(op.matEff, 1)));
+    const press = r2((P + self) / (area * eff));
+    ground = { P, est: src === 'est', src, illus: !maker && !!outr?.illus, estVal: est, self, mat: `${a.toFixed(1)}x${b.toFixed(1)}M`, area, eff, press, allow: num(op.allow, 0) };
+    if (outr) ground.pads = Object.fromEntries(OUT_PADS.map(id => [id, r2((outr.used[id] + self) / (area * eff))]));
+    if (ground.allow > 0) ground.side = r2(Math.sqrt((P + self) / (ground.allow * eff)));
     ground.status = ground.allow > 0 ? (press > ground.allow ? 'fail' : press > 0.9 * ground.allow ? 'warn' : 'ok') : 'info';
   }
   // rigging
@@ -536,10 +547,13 @@ function computePlan(plan, cranes, settings) {
     rig.shackleUtil = rig.shackleWLL > 0 ? r2(T / rig.shackleWLL * 100) : null;
     rig.status = (rig.slingUtil > 100 || rig.shackleUtil > 100 || alpha > 60) ? 'fail' : (alpha > 45 ? 'warn' : 'ok');
   }
-  const status = [...loads.map(l => l.status), ground?.status, rig?.status].includes('fail') ? 'fail' : [...loads.map(l => l.status), ground?.status, rig?.status].includes('warn') ? 'warn' : 'ok';
+  // the leg checks were added to each lift after computeLoad set its status — settle it again
+  for (const l of loads) l.status = l.checks.some(c => c.s === 'fail') ? 'fail' : l.checks.some(c => c.s === 'warn') ? 'warn' : 'ok';
+  const sts = [...loads.map(l => l.status), ground?.status, rig?.status, ...outrigs.flatMap(o => o.checks.map(c => c.s))];
+  const status = sts.includes('fail') ? 'fail' : sts.includes('warn') ? 'warn' : 'ok';
   const wx = evalWeather(plan, loads[Math.min(loads.length - 1, plan.activeLoad || 0)]);
   const st2 = wx && wx.status === 'fail' ? 'fail' : wx && wx.status === 'warn' && status === 'ok' ? 'warn' : status;
-  return { crane, loads, ground, rig, status: st2, weather: wx, rigs: [...rigs.values()].sort((a, b) => a.i - b.i) };
+  return { crane, loads, ground, rig, status: st2, weather: wx, rigs: [...rigs.values()].sort((a, b) => a.i - b.i), outr, outrigs };
 }
 
 // ---- weather: wind at boom-tip height from the 10/80/120/180 m forecast levels, rain & storms in the lift window ----

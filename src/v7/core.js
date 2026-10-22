@@ -1,6 +1,8 @@
 // ===== v7 core: icons, actions, refresh loop, undo history, views =====
 // The v7 interface keeps v6's engine, drawing and storage (app.js) and replaces every screen.
 
+const APP_VERSION = '8.0'; // shown on sign-in, More and Settings. v8 = outrigger leg loads, half / full legs, typed-over sheet values
+
 // ---------- icons (24px grid, round caps; never emoji) ----------
 const IC = {
   crane: 'M3 21h18M6 21v-9l13-7v3.2L8.8 14V21M16 7v6.5M14.6 13.5h2.8v2.4h-2.8z',
@@ -33,7 +35,7 @@ const IC = {
   file: 'M5 3h10l4 4v14H5zM14 3v5h5', dl: 'M12 3v12M7 10l5 5 5-5M4 20h16', star: 'M12 3l2.2 5.6L20 9.4l-4.5 3.8 1.4 5.8L12 16l-4.9 3 1.4-5.8L4 9.4l5.8-.8z',
   gap: 'M4 4v16M20 4v16M8 12h8M8 12l2-2M8 12l2 2M16 12l-2-2M16 12l-2 2', eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
   layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5', sliders: 'M4 6h9M17 6h3M15 4v4M4 12h3M11 12h9M9 10v4M4 18h11M19 18h1M17 16v4', help: 'M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5M12 17.5h.01',
-  phone: 'M7 3h10v18H7zM11 18h2'
+  phone: 'M7 3h10v18H7zM11 18h2', legs: 'M9 4h6v16H9zM9 7H4M15 7h5M9 17H4M15 17h5M3 5.5v3M21 5.5v3M3 15.5v3M21 15.5v3', hand: 'M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.7-2.3L3.5 14.6a1.6 1.6 0 0 1 2.4-2.1L8 14.5'
 };
 const ic = (k, s = 22, w = 1.9) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" aria-hidden="true"><path d="${IC[k] || ''}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const OBJ_ICON = { building: 'M3 21V8l7-4 7 4v13M7 21v-4h6v4', wall: 'M3 18h18M3 13h18M3 8h18M8 8v5M14 13v5M16 8v5', box: 'M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8', container: 'M3 7h18v10H3zM7 7v10M11 7v10M15 7v10', trailer: 'M2 15h14v-3H2zM16 15h5v-4l-2-2h-3zM5 18a1.5 1.5 0 1 0 0-.01M18 18a1.5 1.5 0 1 0 0-.01', truck: 'M2 16h11V7H2zM13 16h7v-5l-3-3h-4zM6 19a1.5 1.5 0 1 0 0-.01M17 19a1.5 1.5 0 1 0 0-.01', towercrane: 'M8 21V5M12 21V5M8 5h13M3 5h5M8 9l4-4M8 13l4-4M8 17l4-4M19 5v5', tower: 'M12 3L6 21M12 3l6 18M8 14h8M4 8h16', person: 'M12 6a2 2 0 1 0 0-.01M12 9v6M9 21l3-6 3 6M8 12h8', tree: 'M12 21v-6M12 3a5 5 0 0 0-5 5 4 4 0 0 0 1 7h8a4 4 0 0 0 1-7 5 5 0 0 0-5-5z', pole: 'M12 3v18M6 6h12M7 6v2M17 6v2M10 21h4', shed: 'M3 11l9-7 9 7M5 10v11h14V10M10 21v-5h4v5' };
@@ -49,7 +51,9 @@ function utilCls(r) { const S = settingsEff(); return r?.cap == null ? 'fail' : 
 const VERDICT = { ok: ['Safe', 'check'], warn: ['Careful', 'alert'], fail: ['Stop', 'stop'] };
 function allChecks(calc) {
   const items = []; calc.loads.forEach((x, i) => x.checks.forEach(c => items.push({ ...c, t: (calc.loads.length > 1 ? `Lift ${i + 1} · ` : '') + c.t, li: i })));
-  if (calc.ground) items.push({ s: calc.ground.status, t: 'Ground pressure', m: `${calc.ground.press.toFixed(2)} t/m² under each mat` + (calc.ground.allow ? ` — ${calc.ground.allow} t/m² allowed` : ' — add the allowed ground bearing to check it') });
+  for (const O of calc.outrigs || []) O.checks.forEach(c => items.push({ ...c, t: ((calc.outrigs.length > 1 ? `Crane ${O.rigI + 1} · ` : '') + c.t) }));
+  if (calc.ground) { const g = calc.ground; items.push({ s: g.status, t: 'Ground pressure', m: `${g.press.toFixed(2)} t/m² under the busiest leg (${g.P.toFixed(1)} t${{ maker: ' from the crane maker', illus: ' typed by hand — illustration only', calc: ', calculated', est: ', rough estimate' }[g.src] || ''})` + (g.allow ? ` — ${g.allow} t/m² allowed` + (g.side ? `. Smallest square mat: ${g.side.toFixed(2)} m` : '') : ' — add what the ground can take to check it') }); }
+  if (calc.sheetOv?.length) { const o = calc.sheetOv; items.push({ s: o.some(x => x.safety) ? 'warn' : 'info', t: 'Sheet values typed by hand', m: o.slice(0, 4).map(x => `${x.label} ${x.v} (worked out: ${x.calc || '—'})`).join(' · ') + (o.length > 4 ? ` · and ${o.length - 4} more` : '') + '. The sheet prints what you typed, not the calculation.' }); }
   if (calc.rig) items.push({ s: calc.rig.status, t: 'Rigging', m: `${calc.rig.T.toFixed(2)} t in each sling leg at ${calc.rig.alpha.toFixed(0)}°` + (calc.rig.alpha > 45 ? ' — too wide, use longer slings or a spreader' : '') });
   if (calc.weather) items.push({ s: calc.weather.status, t: 'Weather', m: calc.weather.msgs.join(' · ') });
   const rank = { fail: 0, warn: 1, info: 2, ok: 3 }; items.sort((a, b) => (rank[a.s] ?? 4) - (rank[b.s] ?? 4));
@@ -63,6 +67,7 @@ function refresh(immediate) {
   clearTimeout(refreshT);
   const run = () => {
     let calc; try { calc = computePlan(state.plan, cranes(), settingsEff()); } catch (e) { console.error(e); return; }
+    try { calc.sheetOv = sheetOverrides(state.plan, calc, settingsEff()); if (calc.sheetOv.some(x => x.safety) && calc.status === 'ok') calc.status = 'warn'; } catch (e) { console.error(e); calc.sheetOv = []; }
     state.calc = calc; state._sheet = null;
     try { renderPanel(); } catch (e) { console.error(e); }
     try { renderTop(); } catch (e) { console.error(e); }

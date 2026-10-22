@@ -151,7 +151,9 @@ function settingsSet(t) {
 }
 
 // ---------- sheet actions ----------
+const SA_EXTRA = {}; // actions added by later modules (legs.js): name → (dataset, button)
 function sheetAct(a, d, b) {
+  if (SA_EXTRA[a]) { SA_EXTRA[a](d, b); return; }
   const p = state.plan, li = activeLi(), l = p.loads[li];
   if (a === 'close') { closeSheet(true); return; }
   if (a === 'back') { closeSheet(); return; }
@@ -190,7 +192,7 @@ function sheetAct(a, d, b) {
   if (a === 'delRev') { p.meta.revs.splice(+d.i, 1); commit({ sheet: true }); return; }
   if (a === 'srAdd') { const R = p.sheetRows = p.sheetRows || { hide: {}, show: {}, custom: [] }; R.custom = R.custom || []; R.custom.push({ label: '', value: '', sec: 'load', load: '' }); commit({ sheet: true }); return; }
   if (a === 'srDel') { p.sheetRows.custom.splice(+d.i, 1); commit({ sheet: true }); return; }
-  if (a === 'srReset') { p.sheetRows = { hide: {}, show: {}, custom: p.sheetRows?.custom || [] }; commit({ sheet: true }); return; }
+  if (a === 'srReset') { p.sheetRows = { hide: {}, show: {}, custom: p.sheetRows?.custom || [], ov: p.sheetRows?.ov || {} }; commit({ sheet: true }); return; }
   if (a === 'export') { const k = d.v; b.classList.add('busy'); const done = () => b.classList.remove('busy'); (k === 'pdf' ? exportPDF('A1') : k === 'pdfA3' ? exportPDF('A3') : k === 'dxf' ? exportDXF() : k === 'svg' ? exportSVG() : exportJSON(fileBase() + '.json', { version: 2, plan: state.plan })).finally(done); return; }
   if (a === 'save') { savePlan(d.v === 'new').then(() => { renderTop(); sheetRefresh(); }); return; }
   if (a === 'page') { closeSheet(true); openPage(d.v); return; }
@@ -491,8 +493,8 @@ SH.print = {
     out += grp('Job', `${Fx.text('name', 'Plan name', { ph: 'e.g. Al Deem School panels' })}${Fx.text('meta.client', 'Client')}${Fx.text('meta.project', 'Project', { ph: 'optional' })}${Fx.text('meta.title', 'Drawing title', { ph: 'e.g. LIFTING CHILLERS' })}${Fx.text('meta.date', 'Date')}${Fx.text('meta.drawnBy', 'Drawn by')}${Fx.text('meta.checkedBy', 'Checked by')}`);
     out += grp('Sheet layout', `<div class="otiles" style="grid-template-columns:repeat(2,minmax(0,1fr))">${LAYOUTS.map(([v, t]) => `<button type="button" class="ot tap" data-sa="layout" data-v="${v}" aria-pressed="${p.layout === v}">${layoutIco(v)}${h(t)}</button>`).join('')}</div>`, { raw: true });
     out += grp('More', `${Fx.text('meta.sheetNo', 'Sheet no')}${Fx.text('meta.drawingNo', 'Drawing no')}${Fx.text('meta.scale', 'Scale', { ph: 'auto' })}${p.layout === 'elev2' ? Fx.sel('secondLoad', 'Second drawing shows', p.loads.map((x, i) => [i, `Lift ${i + 1}${x.name ? ' · ' + x.name : ''}`]), { numeric: 1 }) : Fx.text('viewTitle1', 'Drawing caption', { ph: (curCrane()?.cls || '') + 'T MOBILE CRANE' })}
-      ${Fx.link('open', 'What prints in the data panel', { data: 'data-k="rows"' })}<button type="button" class="it accent tap" data-sa="${locked ? 'unlockView' : 'lockView'}">${locked ? 'Frame the sheet automatically' : 'Use what I see on screen for the sheet'}</button>`);
-    out += grp('Ground pressure table', `${Fx.sw('outrigger.enabled', 'Add the ground pressure table')}${p.outrigger?.enabled ? `${Fx.num('outrigger.maxLoad', 'Biggest leg load', 't', { ph: 'estimate' })}${Fx.text('outrigger.mat', 'Mat size', { ph: p.matSize || '2.5x2.5' })}${Fx.num('outrigger.matSelf', 'Mat weight', 't')}${Fx.num('outrigger.allow', 'Ground can take', 't/m²', { ph: 'not checked' })}` : ''}`, { foot: p.outrigger?.enabled ? 'Use the leg load from the crane maker\'s planner. Left empty, it is only a rough estimate.' : '' });
+      ${Fx.link('open', 'What prints in the data panel', { data: 'data-k="rows"' })}${Fx.link('open', 'Change values on the sheet', { data: 'data-k="sheetData"', sub: 'Type over any number or word printed in the data panel', val: (state.calc.sheetOv || []).length ? `${state.calc.sheetOv.length} typed` : '' })}<button type="button" class="it accent tap" data-sa="${locked ? 'unlockView' : 'lockView'}">${locked ? 'Frame the sheet automatically' : 'Use what I see on screen for the sheet'}</button>`);
+    out += grp('Ground pressure table', `${Fx.sw('outrigger.enabled', 'Add the ground pressure table')}${Fx.link('open', 'Leg loads, mats and ground', { data: 'data-k="legs"', ic: icb('legs', 'var(--brand-ink)'), val: state.calc.ground ? `${state.calc.ground.press.toFixed(1)} t/m²` : '' })}`, { foot: 'The busiest leg load is worked out for the crane, the load and the lift side. Mats, ground and the maker\'s figure are set under Legs.' });
     out += grp('Sling detail', `${Fx.sw('rigging.enabled', 'Add the sling drawing')}${p.rigging?.enabled ? `${Fx.sel('rigging.loadIdx', 'For lift', p.loads.map((l, i) => [i, 'Lift ' + (i + 1)]), { numeric: 1 })}${Fx.num('rigging.legs', 'Legs', '')}${Fx.num('rigging.effLegs', 'Legs that carry', '')}${Fx.num('rigging.slingL', 'Sling length', 'm')}${Fx.num('rigging.spread', 'Spread', 'm')}${Fx.num('rigging.slingWLL', 'Sling WLL', 't')}${Fx.num('rigging.shackleWLL', 'Shackle WLL', 't')}${Fx.text('rigging.slingDesc', 'Sling text', { ph: "10m x 20t round sling - 4No's" })}${Fx.text('rigging.shackleDesc', 'Shackle text', { ph: "25t BOW SHACKLE - 4No's" })}` : ''}`);
     out += grp('Changes (revisions)', (p.meta.revs || []).map((rv, i) => `<div class="it" style="gap:8px"><input class="fld" style="max-width:52px;text-align:left" data-k="meta.revs.${i}.rev" value="${h(rv.rev || '')}" aria-label="Revision"><input class="fld wide" data-k="meta.revs.${i}.desc" value="${h(rv.desc || '')}" placeholder="What changed" aria-label="Description"><input class="fld" style="max-width:96px" data-k="meta.revs.${i}.date" value="${h(rv.date || '')}" aria-label="Date"><button type="button" class="btn sm tap" data-sa="delRev" data-i="${i}" aria-label="Remove">${ic('x', 16)}</button></div>`).join('') + `<button type="button" class="it accent tap" data-sa="addRev">${ic('plus', 20, 2.4)}Add a change</button>`);
     out += grp('Notes', Fx.area('extraNotes', 'Extra notes · one per line', { rows: 4 }));
@@ -543,6 +545,6 @@ SH.more = {
       + grp('', `${Fx.link('page', 'Cranes and charts', { data: 'data-v="fleet"', ic: icb('truck', '#ff9500') })}${Fx.link('page', 'Settings', { data: 'data-v="settings"', ic: icb('gear', 'var(--ink-3)') })}<button type="button" class="it has-ic tap" data-sa="coach">${icb('help', '#af52de')}<span class="lb"><b>Show the tips again</b></span></button>`)
       + grp('Look', `<div class="it"><div class="seg" style="width:100%">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<button type="button" class="tap" data-sa="theme" data-v="${v}" aria-checked="${t === v}">${l}</button>`).join('')}</div></div>`)
       + grp('', `<button type="button" class="it has-ic tap" data-sa="signout">${icb('out', 'var(--stop-fill)')}<span class="lb"><b>Sign out</b><small>Signed in as ${h(V7.user || authUser() || '')}</small></span></button>`)
-      + `<p class="hint" style="text-align:center;margin-top:20px">FHE Lift Planner 7 · built by Saad Khan for Friendship Hall Est.</p>`;
+      + `<p class="hint" style="text-align:center;margin-top:20px">FHE Lift Planner · version ${APP_VERSION} · built by Saad Khan for Friendship Hall Est.</p>`;
   }
 };

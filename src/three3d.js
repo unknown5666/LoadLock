@@ -65,8 +65,9 @@ C3D.buildCrane = (p) => {
   const xs = []; for (let i = 0; i < front; i++) xs.push(xf - 2.4 - i * 1.65); for (let i = 0; i < ax - front; i++) xs.push(xr + 1.4 + i * 1.65);
   const wg = new THREE.CylinderGeometry(tr, tr, 0.6, 28); wg.rotateX(Math.PI / 2); const hg = new THREE.CylinderGeometry(tr * 0.5, tr * 0.5, 0.62, 18); hg.rotateX(Math.PI / 2);
   for (const x of xs) for (const z of [-(W / 2 - 0.3), W / 2 - 0.3]) { const w = new THREE.Mesh(wg, tyre); w.position.set(x, tr + lift, z); w.castShadow = true; root.add(w); const hh = new THREE.Mesh(hg, steel); hh.position.copy(w.position); root.add(hh); }
-  const oT = (p.outT || 7) / 2, oL = (p.outL || 7) / 2;
+  const oT0 = (p.outT || 7) / 2, oL = (p.outL || 7) / 2;
   for (const x of [oL, -oL]) for (const s of [-1, 1]) {
+    const oT = s < 0 ? (p.oTL ?? oT0) : (p.oTR ?? oT0); // this side's reach: left = −z (full or half out)
     const beamL = oT - W / 2 + 0.3; C3D.box(0.5, 0.42, beamL, paintDk, x, 1.3, s * (W / 2 + beamL / 2 - 0.3), root);
     const j = C3D.cyl(0.13, 0.13, 1.0, chrome); j.position.set(x, 0.85, s * (oT - 0.2)); root.add(j);
     C3D.box(0.55, 0.75, 0.55, paintDk, x, 1.55, s * (oT - 0.2), root);
@@ -195,7 +196,8 @@ C3D.paramsFor = (crane, plan, calc, livery) => {
   return { Lc: num(crane.carrierLen, 15), W: num(crane.width, 2.9), axles: num(crane.axles, 6), outT: num(crane.outTrans, 8), outL: num(crane.outLong, 8), tail: num(crane.tail, 5),
     pivX: dr ? dr.pivot[0] : num(crane.pivotX, -1.5), pivH: dr ? dr.pivot[1] : num(crane.pivotH, 3.2), D: b ? Math.max(0.8, b.qb - b.qa) : spec.D, qc: b ? (b.qa + b.qb) / 2 : null,
     paint: crane.tint || !dr ? (crane.color || '#f5c400') : (isLightFill(b?.fill) ? b.fill : '#f2f2f2'), n: spec.n, lens: spec.lens, E: spec.E, foot: spec.foot, head: spec.head, Lmin: spec.Lmin,
-    cwt: num(plan?.cwt ?? crane.cwt, 40), livery, truck: /truck/i.test(crane.type || ''), mat: matDims(plan?.matSize)[0] };
+    cwt: num(plan?.cwt ?? crane.cwt, 40), livery, truck: /truck/i.test(crane.type || ''), mat: matDims(plan?.matSize)[0],
+    ...(typeof outSpans === 'function' && plan ? (() => { const s = outSpans(crane, outExtOf(plan)); return { oTL: s.yL, oTR: s.yR }; })() : {}) };
 };
 
 // ---------- renderer shell ----------
@@ -416,7 +418,7 @@ C3D.twin = (host) => {
   return {
     update(plan, calc, crane, livery) {
       const li = Math.min(calc.loads.length - 1, plan.activeLoad || 0), res = calc.loads[li], load = plan.loads[li], geo = res.geo;
-      const s2 = JSON.stringify([crane.id, crane.color, livery, plan.cwt, plan.matSize, crane.sections, crane.boomMin, crane.boomMax]);
+      const s2 = JSON.stringify([crane.id, crane.color, livery, plan.cwt, plan.matSize, crane.sections, crane.boomMin, crane.boomMax, plan.outExt, crane.outTrans, crane.outTransHalf]);
       if (s2 !== sig) { if (g) scene.remove(g.root, g.hook, g.rope, g.slings, g.load); g = C3D.buildCrane(C3D.paramsFor(crane, plan, calc, livery)); g._hung = false; scene.add(g.root); sig = s2; }
       const sp = sitePlanState(plan, load);
       const L = geo.kind === 'main' ? geo.L : geo.Lb;

@@ -136,6 +136,8 @@ Expected noise: `Failed to load resource: net::ERR_BLOCKED_BY_CLIENT` (the weath
   attach: { type:'none'|'fly'|'luff', ext, jibLen, offset, boomAngle, swl },
   acc: { yguy, superlift, runner, slRadius, slBallast },
   falls, matSize, modelTxt, hookAllowance, wind,
+  outExt: { left:'full'|'half', right:'full'|'half' },   // v8: outrigger beams per side
+  padMan: { FR?, FL?, RL?, RR? },                         // v8: leg loads typed by hand (t) — ILLUSTRATION ONLY, flagged everywhere
 
   // ── several cranes on one plan ("swap" model) ──
   cranes: [ {…CRANE_KEYS snapshot…}, … ],   // parked copies; index = crane number
@@ -157,9 +159,9 @@ Expected noise: `Failed to load resource: net::ERR_BLOCKED_BY_CLIENT` (the weath
   env: [{ id, kind:'dxf'|'pdf'|'img', view:'elev'|'plan', sc, rot, opacity, unit, N, mono, hidden, assetId|data }],
   sitePlan: { enabled, cx, cy, rot, carrierRot },   // rot = boom heading, carrierRot = the way the cab faces ('' = carrier follows the boom); headings °, CCW from east, north up
   weather: null | { place, lat, lon, tz, date, start, hours, limit, manual:{wind,gust,rain,note}, hourly, fetched, print },
-  outrigger: { enabled, maxLoad, matSelf, mat, allow },
+  outrigger: { enabled, maxLoad, matSelf, mat, allow, matEff, basis:'full'|'side', ground },   // maxLoad = the maker's leg load (wins); ground = GROUND_PRESETS key
   rigging: { enabled, loadIdx, legs, effLegs, slingL, spread, slingWLL, shackleWLL, slingDesc, shackleDesc, height },
-  sheetRows: { hide:{'load.sf':true,…}, show:{'load.angle':true,…}, custom:[{ label, value, sec:'crane'|'load'|'extra', load:''|index }] },
+  sheetRows: { hide:{'load.sf':true,…}, show:{'load.angle':true,…}, custom:[{ label, value, sec:'crane'|'load'|'extra', load:''|index }], ov:{ rowId:'TEXT' } },  // ov (v8): values typed over the printed ones
   sheetView: null | { x0, x1, y0, y1 },    // locked sheet framing
   extraNotes
 }
@@ -179,6 +181,8 @@ Expected noise: `Failed to load resource: net::ERR_BLOCKED_BY_CLIENT` (the weath
 ### 4.2 Crane record (`DEFAULT_CRANES` in data.js, merged with `CRANE_EXTRAS`, overridden by user cranes from the db)
 
 `id, model, make, cls (t), type, axles, carrierLen, carrierH, width, outrigger, outLong, outTrans, pivotX, pivotH, tail, boomMin, boomMax, sections, boomDepth, mass, cwt, hookBlock, color, charts[], drawing, drawProxy, tint, acc[], jib{fly:[min,max], luff:[min,max]}, dimsImg, customBody`
+
+v8 optional leg-load fields (Fleet → "Leg loads — maker's weights"): `outTransHalf` (width across at half out), `outEx` (legs centre ahead of the slew centre), `omCarrier`, `omCarrierX`, `omSuper`, `omBoom`, `omCwtR`, `padMax`. Without `omCarrier` + `omBoom` the leg model uses estimated weights (`O.est`).
 
 - `drawing` = key into `CRANE_DRAWINGS` (with `DRAWING_ALIAS`). When `drawProxy:true`, the body belongs to a *different* model because no DWG exists for this one. The Fleet page says so.
 - `charts[]`: `{ id, name, kind:'main'|'fixedjib'|'luffing', config, cwt, outrigger, src, verify?, source, mainLen?, jibLen?, mainLabel? }`.
@@ -376,3 +380,13 @@ Company block, logo, copyright line, default notes, `utilWarn`, `utilMax` (**bot
   - Tests: `node v7_e2e.js` and `W=390 H=844 node v7_e2e.js` (asserting, exit 1 on failure), `node v7_shot.js` (screenshots to `out/v7_*`).
   - Not ported from v6: the guided tour (replaced by 3 coach marks) and the "Quick setup" wizard (replaced by "Find a crane").
   - Utilisation limits now default to Careful > 75 %, Stop > 90 % (Saad's decision, K2 closed).
+- **v8 — outrigger leg loads (2026-10-22, major):** built from the outrigger brief (physics, worked example, data).
+  - Engine `src/outrig.js` (build CORE right after engine): point-mass model (carrier, superstructure, counterweight, boom/jib, hook load incl. DAF), rigid-plane pad reactions (3×3 solve), lift-off iteration (3-point support), tipping check (CoG vs pad polygon), tipping hook load by bisection (rated = 85 %), 360° slew sweep (5°) plus the unloaded / boom-steep case, ground pressure and smallest square mat. Frame: +x cab, +y carrier's left, θ CCW (rear 180, left 90, right 270). Tonnes; kN = × 9.81.
+  - Per crane (`CRANE_KEYS`): `outExt` left/right full or half (half span = `crane.outTransHalf` or halfway between carrier side and full), `padMan` hand-typed leg loads — **illustration only**: red banner in the app, ILLUSTRATIVE row + `*` on the A1 sheet, warn check.
+  - `computePlan` → `calc.outrigs[]` (one per crane) and `calc.outr` (active crane). Checks: half legs with a full-leg chart = FAIL (warn if capacity typed by hand; a chart named "half / 50 % / partial" counts as a half chart), leg lift-off, model tipping, backward stability (warn/info when the crane weights are estimated, fail/warn with the maker's weights), maker's max leg force. `calc.ground` uses the maker's leg load, else the busiest leg (360° or lift side, `outrigger.basis`), and is checked whenever `allow` is set.
+  - Sheet: pressure table shows beams (FULL/HALF), the four leg loads, CALC./ILLUSTRATIVE labels; OUTRIGGER row adds the half info. Top view, end-on carrier and 3D draw each side at its real spread.
+  - **Typed-over sheet values:** `sheetBlocks()` (draw.js) builds every data-panel row with a stable id (`c<crane>.<key>#n`, `l<lift>.<key>#n`, `t<lift>.<tackle>`, `g.*` pressure table, `w.*` weather); `plan.sheetRows.ov[id]` replaces the printed value. Safety rows (weights, capacity, %, SF, radius, ground) raise a warn check; others info.
+  - v7 UI: new **Legs** dock button / sheet (`src/v7/legs.js`: top-view picture with leg loads, half/full per side, 360° vs lift-side basis, mats and BS 8004 ground presets, maker's leg load, hand-typed legs, tipping estimate) and **Print → Change values on the sheet**. Fleet: leg-load crane fields. Version shown as 8.0 (`APP_VERSION`).
+  - Tests: `node test_outrig.js` (357 asserts: every §10 worked-example number to ±0.1 kN, §9 invariants, half legs, illustration values, sheet overrides, samples, fleet), `node v7_e2e.js` + `W=390 H=844 node v7_e2e.js` (Legs and sheet-values flows added), `render_test.js`, `test_side.js`. No screenshots were taken this session (code-only run).
+  - Known gaps: wind/slope CoG shift and mat bending not modelled; estimated crane weights are rough (chart ÷ (85 % × model tipping) is 0.8–0.9 for most of the fleet, 1.0–1.16 for STC750/STC1000 at full reach); v6 UI has no Legs screen (sheet output is shared).
+
