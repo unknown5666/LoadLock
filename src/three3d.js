@@ -384,83 +384,196 @@ C3D.hero = (host, hud, o = {}) => {
 };
 
 // ---------- TWIN: the plan in 3D ----------
-C3D.twin = (host) => {
+// v9: one live scene serves the full 3D view and the small 3D window over the drawing (mount() moves the canvas; the WebGL context stays).
+// Updates are deltas: a crane is rebuilt only when its make-up changes, site objects only when they change, rings and labels are moved
+// in place, and nothing is redrawn while nothing moves. The camera eases toward where the fingers put it (one finger turns, two fingers
+// pinch and pan, double-tap re-frames). On a slow device the resolution steps down while the picture moves and comes back sharp when it
+// stops. opts.onPad(x, y, phase): the magenta landing ring was dragged to plan point (x, y) — reach and swing follow the finger.
+C3D.twin = (host0, opts = {}) => {
+  let host = host0;
   const W0 = () => host.clientWidth || 800, H0 = () => host.clientHeight || 500;
-  const r = C3D.makeRenderer(host, { aa: true, exposure: 1.0, maxDpr: 2, shadows: true, keep: true });
+  const coarse = window.matchMedia('(pointer: coarse)').matches; const dprMax = Math.min(window.devicePixelRatio || 1, 2); let dpr = dprMax;
+  const r = C3D.makeRenderer(host, { aa: !coarse || dprMax < 2, exposure: 1.0, maxDpr: dprMax, shadows: true });
+  r.domElement.classList.add('twin-cv');
   const scene = new THREE.Scene(); scene.background = C3D.gradTex([[0, '#0b0f15'], [0.55, '#18212b'], [1, '#2a3440']]); scene.fog = new THREE.Fog(C3D.lin('#1f2833'), 220, 700);
   const cam = new THREE.PerspectiveCamera(38, W0() / H0(), 0.3, 3000);
   scene.add(new THREE.HemisphereLight(C3D.lin('#c4d6ee'), C3D.lin('#3a3128'), 0.85));
-  const sun = new THREE.DirectionalLight(C3D.lin('#fff0d8'), 1.45); sun.position.set(-70, 120, 80); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004;
+  const sun = new THREE.DirectionalLight(C3D.lin('#fff0d8'), 1.45); sun.position.set(-70, 120, 80); sun.castShadow = true; sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048); sun.shadow.bias = -0.0004;
   Object.assign(sun.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, near: 10, far: 420 }); scene.add(sun);
   const fill = new THREE.DirectionalLight(C3D.lin('#8fb6ff'), 0.35); fill.position.set(80, 40, -60); scene.add(fill);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), C3D.mat({ color: '#3a4048', roughness: 0.95 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   const grid = new THREE.GridHelper(400, 80, C3D.lin('#5e7891'), C3D.lin('#465564')); grid.position.y = 0.02; grid.material.transparent = true; grid.material.opacity = 0.55; scene.add(grid);
-  const site = new THREE.Group(); scene.add(site);
-  let g = null, sig = '', raf = 0, alive = true, dirty = true;
-  const orb = { az: -0.75, el: 0.42, dist: 90, tx: 10, ty: 12, tz: 0, phS: 0 };
-  const applyCam = () => { cam.position.set(orb.tx + orb.dist * Math.cos(orb.el) * Math.cos(orb.az), orb.ty + orb.dist * Math.sin(orb.el), orb.tz + orb.dist * Math.cos(orb.el) * Math.sin(orb.az)); cam.lookAt(orb.tx, orb.ty, orb.tz); dirty = true; };
-  const el = r.domElement; el.style.touchAction = 'none'; const ptrs = new Map(); let drag = null, pinch = null;
-  el.addEventListener('pointerdown', (e) => { ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); el.setPointerCapture(e.pointerId); if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), dist: orb.dist }; drag = null; return; } drag = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, o: { ...orb } }; });
-  el.addEventListener('pointermove', (e) => { if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pinch && ptrs.size === 2) { const [a, b] = [...ptrs.values()]; orb.dist = Math.max(12, Math.min(600, pinch.dist * pinch.d / Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)))); applyCam(); return; }
-    if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (drag.b === 2 || drag.sh) { const s = orb.dist / 600; orb.tx = drag.o.tx - dx * Math.sin(orb.az) * s; orb.tz = drag.o.tz + dx * Math.cos(orb.az) * s; orb.ty = Math.max(0, drag.o.ty + dy * s); }
-    else { orb.az = drag.o.az + dx * 0.006; orb.el = Math.max(0.03, Math.min(1.5, drag.o.el + dy * 0.005)); } applyCam(); });
-  const up = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; drag = null; };
+  const site = new THREE.Group(), dyn = new THREE.Group(), tand = new THREE.Group(); scene.add(site, dyn, tand);
+  // shared materials (made once — the old twin made new ones on every update and never freed them)
+  const M = { conc: C3D.mat({ color: '#8a9097', roughness: 0.9 }), dark: C3D.mat({ color: '#454b52', roughness: 0.7 }), tm: C3D.mat({ color: '#d4a51e', metalness: 0.4, roughness: 0.5 }), cont: C3D.mat({ color: '#2f6fb3', roughness: 0.6, metalness: 0.4 }), box: C3D.mat({ color: '#9b7bc6' }), shed: C3D.mat({ color: '#c8b48c' }), trunk: C3D.mat({ color: '#5a3a1e' }), leaf: C3D.mat({ color: '#2f6b2f', roughness: 1 }), load: C3D.mat({ color: '#9aa1a8', metalness: 0.1, roughness: 0.85 }) };
+  const ringM = (col, op) => new THREE.MeshBasicMaterial({ color: C3D.lin(col), transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false });
+  const ringR = new THREE.Mesh(new THREE.BufferGeometry(), ringM('#4fe0ff', 0.9)), ringT = new THREE.Mesh(new THREE.BufferGeometry(), ringM('#ffb81c', 0.85));
+  const pad = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.85, 40), ringM('#e040e0', 0.95)), padDot = new THREE.Mesh(new THREE.CircleGeometry(0.42, 28), ringM('#e040e0', 0.55));
+  const padHit = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ visible: false })); // a bigger target for the finger
+  for (const m of [ringR, ringT, pad, padDot, padHit]) { m.rotation.x = -Math.PI / 2; dyn.add(m); }
+  const tLoad = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), M.load); tLoad.castShadow = tLoad.receiveShadow = true; const tSling = C3D.lines('#d13b2a'); tand.add(tLoad, tSling); tand.visible = false;
+  let g = null, sig = '', siteSig = '', raf = 0, alive = true, dirty = true, framed = false, lastR = -1, lastTail = -1; const extra = new Map();
+  // camera: `to` is where the gestures put it, `orb` eases toward it
+  const to = { az: -0.75, el: 0.42, dist: 90, tx: 10, ty: 12, tz: 0 }; const orb = { ...to }; let phS = 0, easing = false;
+  const applyCam = () => { cam.position.set(orb.tx + orb.dist * Math.cos(orb.el) * Math.cos(orb.az), orb.ty + orb.dist * Math.sin(orb.el), orb.tz + orb.dist * Math.cos(orb.el) * Math.sin(orb.az)); cam.lookAt(orb.tx, orb.ty, orb.tz); };
+  const go = (snap) => { if (snap || reduceMotion3()) { Object.assign(orb, to); applyCam(); } easing = !snap; dirty = true; };
+  function reduceMotion3() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  // ---- gestures ----
+  const el = r.domElement; el.style.touchAction = 'none'; const ptrs = new Map(); let drag = null, pinch = null, lastTap = 0, moving = false;
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const groundAtPtr = (e, y) => { const b = el.getBoundingClientRect(); ndc.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1); ray.setFromCamera(ndc, cam); const d = ray.ray.direction, o = ray.ray.origin; if (Math.abs(d.y) < 1e-6) return null; const t = (y - o.y) / d.y; return t > 0 ? o.clone().addScaledVector(d, t) : null; };
+  const hitPad = (e) => { if (!opts.onPad || !padHit.visible) return false; const b = el.getBoundingClientRect(); ndc.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1); ray.setFromCamera(ndc, cam); return ray.intersectObject(padHit).length > 0; };
+  el.addEventListener('pointerdown', (e) => {
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { el.setPointerCapture(e.pointerId); } catch {} moving = true;
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, o: { ...to } }; drag = null; return; }
+    const now = performance.now(); if (now - lastTap < 300 && e.pointerType !== 'mouse') { framed = false; opts.onReframe?.(); lastTap = 0; return; } lastTap = now;
+    if (e.button === 0 && !e.shiftKey && hitPad(e)) { drag = { kind: 'pad', y: pad.position.y }; el.style.cursor = 'grabbing'; return; }
+    drag = { kind: e.button === 2 || e.shiftKey ? 'pan' : 'orbit', x: e.clientX, y: e.clientY, o: { ...to } };
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!ptrs.size) { if (opts.onPad) el.style.cursor = hitPad(e) ? 'grab' : ''; return; }
+    if (pinch && ptrs.size === 2) { // pinch zooms, moving both fingers pans
+      const [a, b] = [...ptrs.values()]; to.dist = Math.max(12, Math.min(600, pinch.o.dist * pinch.d / Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))));
+      const s = to.dist / 600, dx = (a.x + b.x) / 2 - pinch.mx, dy = (a.y + b.y) / 2 - pinch.my;
+      to.tx = pinch.o.tx - dx * Math.sin(to.az) * s; to.tz = pinch.o.tz + dx * Math.cos(to.az) * s; to.ty = Math.max(0, pinch.o.ty + dy * s); go(); return;
+    }
+    if (!drag) return;
+    if (drag.kind === 'pad') { const w = groundAtPtr(e, drag.y); if (w) opts.onPad(w.x + orbBase.cx, -w.z + orbBase.cy, 'move'); return; }
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (drag.kind === 'pan') { const s = to.dist / 600; to.tx = drag.o.tx - dx * Math.sin(to.az) * s; to.tz = drag.o.tz + dx * Math.cos(to.az) * s; to.ty = Math.max(0, drag.o.ty + dy * s); }
+    else { to.az = drag.o.az + dx * 0.006; to.el = Math.max(0.03, Math.min(1.5, drag.o.el + dy * 0.005)); }
+    go();
+  });
+  const up = (e) => { ptrs.delete(e.pointerId); if (drag?.kind === 'pad') { opts.onPad?.(0, 0, 'end'); el.style.cursor = ''; } if (ptrs.size < 2) pinch = null; drag = null; if (!ptrs.size) moving = false; };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('contextmenu', (e) => e.preventDefault());
-  el.addEventListener('wheel', (e) => { e.preventDefault(); orb.dist = Math.max(12, Math.min(600, orb.dist * Math.exp(e.deltaY * 0.0012))); applyCam(); }, { passive: false });
+  el.addEventListener('dblclick', () => { framed = false; opts.onReframe?.(); });
+  el.addEventListener('wheel', (e) => { e.preventDefault(); to.dist = Math.max(12, Math.min(600, to.dist * Math.exp(e.deltaY * 0.0012))); go(); }, { passive: false });
+  const orbBase = { cx: 0, cy: 0 };                                                    // plan point at the scene origin (the lead crane)
+  // ---- size, render loop, quality governor ----
   const resize = () => { const w = W0(), h = H0(); r.setSize(w, h, false); cam.aspect = w / Math.max(1, h); cam.updateProjectionMatrix(); dirty = true; };
-  const ro = new ResizeObserver(resize); ro.observe(host); resize(); applyCam();
-  const loop = () => { if (!alive) return; raf = requestAnimationFrame(loop); if (!dirty || host.offsetParent === null) return; dirty = false; r.render(scene, cam); };
+  let ro = new ResizeObserver(resize); ro.observe(host); resize(); applyCam();
+  let last = performance.now(), ema = 16, idleT = 0;
+  const setDpr = (v) => { if (Math.abs(v - dpr) < 0.01) return; dpr = v; r.setPixelRatio(dpr); resize(); };
+  const loop = (now) => {
+    if (!alive) return; raf = requestAnimationFrame(loop);
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (easing) { const k = 1 - Math.exp(-dt * 14); let big = 0; for (const key of ['az', 'el', 'dist', 'tx', 'ty', 'tz']) { const d = to[key] - orb[key]; orb[key] += d * k; big = Math.max(big, Math.abs(d) / (key === 'dist' ? Math.max(1, to.dist) : key.startsWith('t') ? Math.max(1, to.dist * 0.05) : 1)); }
+      if (big < 2e-4) { Object.assign(orb, to); easing = false; } applyCam(); dirty = true; }
+    if (!dirty || host.offsetParent === null) { if (!moving && !easing && dpr < dprMax && (idleT += dt) > 0.3) { setDpr(dprMax); dirty = true; } return; }
+    dirty = false; idleT = 0; r.render(scene, cam);
+    if (moving || easing) ema = ema * 0.85 + dt * 1000 * 0.15;                          // frame interval while the picture moves
+    if ((moving || easing) && ema > 24 && dpr > 1) setDpr(Math.max(1, dpr - 0.25));     // too slow while moving: fewer pixels
+  };
   raf = requestAnimationFrame(loop);
-  const clearSite = () => { while (site.children.length) { const c = site.children.pop(); c.traverse?.((m) => { m.geometry?.dispose?.(); }); } };
-  const label = (text, col = '#e9eef2') => { const F = '700 44px "Martian Mono", ui-monospace, monospace'; const c = document.createElement('canvas'); let x = c.getContext('2d'); x.font = F; const w = Math.ceil(x.measureText(text).width + 44); c.width = w; c.height = 96; x = c.getContext('2d'); x.font = F; x.fillStyle = 'rgba(8,11,15,.82)'; x.fillRect(0, 10, w, 76); x.fillStyle = col; x.fillRect(0, 10, 6, 76); x.textBaseline = 'middle'; x.fillText(text, 22, 50); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); s.scale.set(w * 1.5 / 96, 1.5, 1); s.center.set(Math.min(0.5, 40 / w), 0); s.renderOrder = 10; return s; };
-  return {
+  const vis = () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else if (!raf && alive) { last = performance.now(); dirty = true; raf = requestAnimationFrame(loop); } };
+  document.addEventListener('visibilitychange', vis);
+  // ---- labels (rebuilt only when their text changes) ----
+  const labels = {};
+  const label = (key, text, col = '#e9eef2') => {
+    const old = labels[key]; if (old && old.userData.text === text) return old;
+    if (old) { dyn.remove(old); old.material.map.dispose(); old.material.dispose(); }
+    const F = '700 44px "Martian Mono", ui-monospace, monospace'; const c = document.createElement('canvas'); let x = c.getContext('2d'); x.font = F; const w = Math.ceil(x.measureText(text).width + 44); c.width = w; c.height = 96; x = c.getContext('2d'); x.font = F; x.fillStyle = 'rgba(8,11,15,.82)'; x.fillRect(0, 10, w, 76); x.fillStyle = col; x.fillRect(0, 10, 6, 76); x.textBaseline = 'middle'; x.fillText(text, 22, 50);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); s.scale.set(w * 1.5 / 96, 1.5, 1); s.center.set(Math.min(0.5, 40 / w), 0); s.renderOrder = 10; s.userData.text = text;
+    labels[key] = s; dyn.add(s); return s;
+  };
+  const dropLabel = (key) => { const o = labels[key]; if (o) { dyn.remove(o); o.material.map.dispose(); o.material.dispose(); delete labels[key]; } };
+  const ringGeo = (mesh, rad, w, seg) => { mesh.geometry.dispose(); mesh.geometry = new THREE.RingGeometry(Math.max(0.01, rad - w), rad + w, seg); };
+  const disposeTree = (o) => o.traverse?.((m) => { m.geometry?.dispose?.(); });
+  const P2W = (x, y) => new THREE.Vector3(x - orbBase.cx, 0, -(y - orbBase.cy));       // plan point → world (scene origin = lead crane)
+  // ---- the site objects (rebuilt only when they change) ----
+  const buildSite = (plan, sp) => {
+    while (site.children.length) { const c = site.children.pop(); disposeTree(c); }
+    const dir = new THREE.Vector3(Math.cos(sp.boom * D2R), 0, -Math.sin(sp.boom * D2R));
+    const place = (m, along) => { m.position.x = dir.x * along; m.position.z = dir.z * along; m.rotation.y = sp.boom * D2R; };
+    for (const o of plan.site?.obstacles || []) {
+      const e = objExtent(plan.site, o); const len = Math.max(0.3, e.x1 - e.x0), hgt = Math.max(0.2, e.top - e.b), dep = num(o.d) || (o.type === 'building' ? Math.max(12, len * 0.8) : o.type === 'wall' ? 12 : Math.max(2.4, len * 0.5));
+      let m;
+      if (o.type === 'tree') { m = new THREE.Group(); const tr2 = C3D.cyl(0.25, 0.3, hgt * 0.4, M.trunk); tr2.position.y = hgt * 0.2; m.add(tr2); const cn = new THREE.Mesh(new THREE.SphereGeometry(len * 0.5, 14, 10), M.leaf); cn.position.y = hgt * 0.68; cn.scale.y = 1.2; cn.castShadow = true; m.add(cn); m.position.y = e.b; place(m, num(o.x)); }
+      else if (o.type === 'pole' || o.type === 'towercrane' || o.type === 'tower') { m = new THREE.Group(); const hh = num(o.h, 10); const mast = o.type === 'pole' ? C3D.cyl(0.18, 0.22, hh, M.dark) : C3D.lattice(hh, num(o.mastW, 2), num(o.mastW, 2), M.tm, { bay: 2, r: 0.06 }); if (o.type === 'pole') mast.position.y = hh / 2; else mast.rotation.z = Math.PI / 2; m.add(mast);
+        if (o.type === 'towercrane' && num(o.jib) > 0) { const jb = C3D.lattice(num(o.jib), 1.5, 1.2, M.tm, { bay: 2, r: 0.05, taper: 0.3 }); jb.position.y = hh + 0.5; m.add(jb); }
+        m.position.y = e.b; place(m, num(o.x)); }
+      else { const mat = o.type === 'container' ? M.cont : o.type === 'trailer' || o.type === 'truck' ? M.dark : o.type === 'box' ? M.box : o.type === 'shed' ? M.shed : M.conc;
+        m = C3D.box(len, hgt, dep, mat); m.position.y = e.b + hgt / 2; place(m, (e.x0 + e.x1) / 2); }
+      site.add(m);
+    }
+    for (const en of plan.env || []) { if (en.view !== 'plan' || en.hidden) continue; const gm = typeof ENV_CACHE !== 'undefined' ? ENV_CACHE[en.id] : null; if (!gm) continue; const f = envXf(en);
+      if (gm.img) { // a photo / satellite map lies on the ground as a texture
+        const tex = new THREE.TextureLoader().load(gm.img, () => { dirty = true; }); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+        const w = gm.w * num(en.sc, 0.001), h = gm.h * num(en.sc, 0.001); const pl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: num(en.opacity, 1) < 1, opacity: num(en.opacity, 1), depthWrite: false }));
+        const c = f(gm.w / 2, gm.h / 2); pl.rotation.x = -Math.PI / 2; pl.rotation.z = num(en.rot, 0) * D2R; pl.position.set(c[0] - sp.cx, 0.03, -(c[1] - sp.cy)); pl.renderOrder = -1; site.add(pl); continue; }
+      const pts = [];
+      for (const [, flat] of gm.polys) { for (let i = 2; i < flat.length; i += 2) { const a = f(flat[i - 2], flat[i - 1]), b = f(flat[i], flat[i + 1]); pts.push(a[0] - sp.cx, 0.04, -(a[1] - sp.cy), b[0] - sp.cx, 0.04, -(b[1] - sp.cy)); } if (pts.length > 600000) break; }
+      const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); site.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: C3D.lin('#ff8a6a'), transparent: true, opacity: 0.85 })));
+    }
+  };
+  // ---- one crane of the scene (the lead, or a tandem crane): rebuilt only when its make-up changes ----
+  const craneSig = (crane, pv, livery) => JSON.stringify([crane.id, crane.color, livery, pv.cwt, pv.matSize, crane.sections, crane.boomMin, crane.boomMax, pv.outExt, crane.outTrans, crane.outTransHalf]);
+  const poseCrane = (gg, res, load, boomHd, carHd) => {
+    const geo = res.geo; gg.state.theta = geo.theta || 45; gg.state.slew = boomHd - carHd; gg.state.L = geo.kind === 'main' ? geo.L : geo.Lb; gg.state.fr = res.tele?.fr || gg.state.fr; gg.state.acc = res.acc || {};
+    gg.state.jib = geo.kind !== 'main' && geo.Lj ? { len: geo.Lj, angle: geo.gamma } : null;
+    gg.state.loadSize = [Math.max(0.6, num(load.l, 2)), Math.max(0.3, num(load.h, 1.5)), Math.max(0.6, num(load.l, 2) * 0.6)]; gg.state.rig = res.rigH || 3;
+    gg.state.empty = !!res.empty; gg.state.hookY = res.empty && res.hookY != null ? res.hookY + 0.95 : res.landY + num(load.h, 1.5) + (res.rigH || 3) + 0.95 + 0.5;
+    gg.root.rotation.y = carHd * D2R; C3D.pose(gg, gg.state, scene);
+  };
+  const api = {
     update(plan, calc, crane, livery) {
-      const li = Math.min(calc.loads.length - 1, plan.activeLoad || 0), res = calc.loads[li], load = plan.loads[li], geo = res.geo;
-      const s2 = JSON.stringify([crane.id, crane.color, livery, plan.cwt, plan.matSize, crane.sections, crane.boomMin, crane.boomMax, plan.outExt, crane.outTrans, crane.outTransHalf]);
-      if (s2 !== sig) { if (g) scene.remove(g.root, g.hook, g.rope, g.slings, g.load); g = C3D.buildCrane(C3D.paramsFor(crane, plan, calc, livery)); g._hung = false; scene.add(g.root); sig = s2; }
-      const sp = sitePlanState(plan, load);
-      const L = geo.kind === 'main' ? geo.L : geo.Lb;
-      // headings follow the lift side: the carrier faces phC (cab = local +x), the boom is carrier + 180 (rear) / +90 (left) / −90 (right)
-      const phS = sp.boom, phC = sp.carrier;
-      g.state.theta = geo.theta || 45; g.state.slew = phS - phC; g.state.L = L; g.state.fr = res.tele?.fr || g.state.fr; g.state.acc = res.acc || {};
-      g.state.jib = geo.kind !== 'main' && geo.Lj ? { len: geo.Lj, angle: geo.gamma } : null;
-      g.state.loadSize = [Math.max(0.6, num(load.l, 2)), Math.max(0.3, num(load.h, 1.5)), Math.max(0.6, num(load.l, 2) * 0.6)]; g.state.rig = res.rigH || 3;
-      g.state.empty = !!res.empty; g.state.hookY = res.empty && res.hookY != null ? res.hookY + 0.95 : res.landY + num(load.h, 1.5) + (res.rigH || 3) + 0.95 + 0.5;
-      orb.phS = phS; g.root.rotation.y = phC * D2R;
-      C3D.pose(g, g.state, scene);
-      clearSite(); const dir = new THREE.Vector3(Math.cos(phS * D2R), 0, -Math.sin(phS * D2R));
-      const place = (m, along) => { m.position.x = dir.x * along; m.position.z = dir.z * along; m.rotation.y = phS * D2R; };
-      const conc = C3D.mat({ color: '#8a9097', roughness: 0.9 }), dark = C3D.mat({ color: '#454b52', roughness: 0.7 }), tm = C3D.mat({ color: '#d4a51e', metalness: 0.4, roughness: 0.5 });
-      for (const o of plan.site?.obstacles || []) {
-        const e = objExtent(plan.site, o); const len = Math.max(0.3, e.x1 - e.x0), hgt = Math.max(0.2, e.top - e.b), dep = num(o.d) || (o.type === 'building' ? Math.max(12, len * 0.8) : o.type === 'wall' ? 12 : Math.max(2.4, len * 0.5));
-        let m;
-        if (o.type === 'tree') { m = new THREE.Group(); const tr2 = C3D.cyl(0.25, 0.3, hgt * 0.4, C3D.mat({ color: '#5a3a1e' })); tr2.position.y = hgt * 0.2; m.add(tr2); const cn = new THREE.Mesh(new THREE.SphereGeometry(len * 0.5, 14, 10), C3D.mat({ color: '#2f6b2f', roughness: 1 })); cn.position.y = hgt * 0.68; cn.scale.y = 1.2; cn.castShadow = true; m.add(cn); m.position.y = e.b; place(m, num(o.x)); }
-        else if (o.type === 'pole' || o.type === 'towercrane' || o.type === 'tower') { m = new THREE.Group(); const hh = num(o.h, 10); const mast = o.type === 'pole' ? C3D.cyl(0.18, 0.22, hh, dark) : C3D.lattice(hh, num(o.mastW, 2), num(o.mastW, 2), tm, { bay: 2, r: 0.06 }); if (o.type === 'pole') mast.position.y = hh / 2; else mast.rotation.z = Math.PI / 2; m.add(mast);
-          if (o.type === 'towercrane' && num(o.jib) > 0) { const jb = C3D.lattice(num(o.jib), 1.5, 1.2, tm, { bay: 2, r: 0.05, taper: 0.3 }); jb.position.y = hh + 0.5; m.add(jb); }
-          m.position.y = e.b; place(m, num(o.x)); }
-        else { const mat = o.type === 'container' ? C3D.mat({ color: '#2f6fb3', roughness: 0.6, metalness: 0.4 }) : o.type === 'trailer' || o.type === 'truck' ? dark : o.type === 'box' ? C3D.mat({ color: '#9b7bc6' }) : o.type === 'shed' ? C3D.mat({ color: '#c8b48c' }) : conc;
-          m = C3D.box(len, hgt, dep, mat); m.position.y = e.b + hgt / 2; place(m, (e.x0 + e.x1) / 2); }
-        site.add(m);
-      }
-      // rings: radius (cyan), tail swing (amber); landing pad; labels
-      const ringM = (col, op) => new THREE.MeshBasicMaterial({ color: C3D.lin(col), transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false });
-      const ring = new THREE.Mesh(new THREE.RingGeometry(res.R - 0.14, res.R + 0.14, 180), ringM('#4fe0ff', 0.9)); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; site.add(ring);
-      const tl = num(crane.tail, 5); const tail = new THREE.Mesh(new THREE.RingGeometry(tl - 0.09, tl + 0.09, 96), ringM('#ffb81c', 0.85)); tail.rotation.x = -Math.PI / 2; tail.position.y = 0.05; site.add(tail);
-      const pad = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.85, 40), ringM('#e040e0', 0.95)); pad.rotation.x = -Math.PI / 2; pad.position.set(dir.x * res.R, res.landY + 0.06, dir.z * res.R); site.add(pad);
-      const lb = label(`R ${res.R.toFixed(2)} m · OVER ${SIDE_NAME[sp.side]}`, '#4fe0ff'); lb.position.set(dir.x * res.R + 1, 0.8, dir.z * res.R); site.add(lb);
-      if (res.tipY != null && g.tipW) { const lt = label(`TIP ${res.tipY.toFixed(1)} m · ${(geo.kind === 'luffing' ? geo.gamma : geo.theta).toFixed(1)}°`, '#ffb81c'); lt.position.copy(g.tipW).add(new THREE.Vector3(0, 1.6, 0)); site.add(lt); }
-      for (const en of plan.env || []) { if (en.view !== 'plan' || en.hidden) continue; const gm = typeof ENV_CACHE !== 'undefined' ? ENV_CACHE[en.id] : null; if (!gm || gm.img) continue; const f = envXf(en); const pts = [];
-        for (const [, flat] of gm.polys) { for (let i = 2; i < flat.length; i += 2) { const a = f(flat[i - 2], flat[i - 1]), b = f(flat[i], flat[i + 1]); pts.push(a[0] - sp.cx, 0.04, -(a[1] - sp.cy), b[0] - sp.cx, 0.04, -(b[1] - sp.cy)); } if (pts.length > 600000) break; }
-        const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); site.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: C3D.lin('#ff8a6a'), transparent: true, opacity: 0.85 }))); }
-      if (!this._framed) { const reach = Math.max(20, res.R, (geo.tip?.y || 20)); orb.dist = reach * 2.3; orb.az = Math.PI / 2 - phS * D2R - 0.75; orb.el = 0.36; orb.tx = res.R * 0.45 * dir.x; orb.tz = res.R * 0.45 * dir.z; orb.ty = Math.max(6, (geo.tip?.y || 20) * 0.38); applyCam(); this._framed = true; }
+      const li = Math.min(calc.loads.length - 1, plan.activeLoad || 0), res = calc.loads[li], load = plan.loads[li], geo = res.geo; if (!geo?.tip) return;
+      const s2 = craneSig(crane, plan, livery);
+      if (s2 !== sig) { if (g) { scene.remove(g.root, g.hook, g.rope, g.slings, g.load); disposeTree(g.root); } g = C3D.buildCrane(C3D.paramsFor(crane, plan, calc, livery)); g._hung = false; scene.add(g.root); sig = s2; }
+      const sp = sitePlanState(plan, load); orbBase.cx = num(sp.cx); orbBase.cy = num(sp.cy);
+      phS = sp.boom; poseCrane(g, res, load, sp.boom, sp.carrier);
+      // site objects
+      const ss = JSON.stringify([plan.site?.obstacles, plan.site?.stepX, plan.site?.targetGround, Math.round(sp.boom * 10), sp.cx, sp.cy, (plan.env || []).filter(e => e.view === 'plan').map(e => [e.id, e.hidden, e.x, e.y, e.sc, e.rot, e.opacity, !!(typeof ENV_CACHE !== 'undefined' && ENV_CACHE[e.id])])]);
+      if (ss !== siteSig) { siteSig = ss; buildSite(plan, sp); }
+      // rings, landing pad, labels — moved in place
+      const dir = new THREE.Vector3(Math.cos(sp.boom * D2R), 0, -Math.sin(sp.boom * D2R));
+      if (Math.abs(res.R - lastR) > 0.004) { lastR = res.R; ringGeo(ringR, res.R, 0.14, 180); } ringR.position.y = 0.05;
+      const tl = num(crane.tail, 5); if (tl !== lastTail) { lastTail = tl; ringGeo(ringT, tl, 0.09, 96); } ringT.position.y = 0.05;
+      const T = res.tandem; const padOn = !T;
+      pad.visible = padDot.visible = padHit.visible = padOn;
+      pad.position.set(dir.x * res.R, res.landY + 0.06, dir.z * res.R); padDot.position.copy(pad.position); padHit.position.copy(pad.position); padHit.scale.setScalar(Math.max(1.6, res.R * 0.07));
+      const lb = label('R', `R ${res.R.toFixed(2)} m · OVER ${SIDE_NAME[sp.side]}`, '#4fe0ff'); lb.position.set(dir.x * res.R + 1, 0.8, dir.z * res.R);
+      if (res.tipY != null && g.tipW) { const lt = label('tip', `TIP ${res.tipY.toFixed(1)} m · ${(geo.kind === 'luffing' ? geo.gamma : geo.theta).toFixed(1)}°`, '#ffb81c'); lt.position.copy(g.tipW).add(new THREE.Vector3(0, 1.6, 0)); } else dropLabel('tip');
+      // tandem: the other cranes, one shared load, a sling from every hook to its lifting point
+      const seen = new Set();
+      if (T) {
+        g.load.visible = g.slings.visible = false;
+        T.picks.slice(1).forEach((pk) => {
+          const pv = rigOf(plan, pk.crane), cr = pk.res.crane || crane; const ks = craneSig(cr, pv, livery) + '|' + pk.k; seen.add(pk.k);
+          let ex = extra.get(pk.k); if (!ex || ex.sig !== ks) { if (ex) { scene.remove(ex.g.root, ex.g.hook, ex.g.rope, ex.g.slings, ex.g.load); disposeTree(ex.g.root); } ex = { sig: ks, g: C3D.buildCrane(C3D.paramsFor(cr, pv, calc, livery)) }; ex.g._hung = false; scene.add(ex.g.root); extra.set(pk.k, ex); }
+          const bh = normDeg(pk.boomHd + num(pk.mv?.swing)); ex.g.root.position.copy(P2W(pk.base.x, pk.base.y));
+          poseCrane(ex.g, pk.res, load, bh, normDeg(bh - SIDE_OFFSET[sideOf(pk.side)])); ex.g.load.visible = ex.g.slings.visible = false; ex.g.root.visible = ex.g.hook.visible = ex.g.rope.visible = true;
+        });
+        const hooks = [g, ...T.picks.slice(1).map(p => extra.get(p.k)?.g)].filter(Boolean);
+        const pickY = g.hook.position.y - 0.95 - Math.max(1.2, res.rigH || 3); const tilt = num(T.live?.tilt) * D2R; const ax = num(T.axis) * D2R; const a = new THREE.Vector3(Math.cos(ax), 0, -Math.sin(ax));
+        const xs = T.picks.map(p => p.x), x0 = Math.min(...xs), x1 = Math.max(...xs), mid = (x0 + x1) / 2; const p0 = T.picks[0];
+        const origin = P2W(p0.pos.x, p0.pos.y); origin.y = pickY;
+        const at = (x, z) => { const d = x - mid, c = Math.cos(tilt), s = Math.sin(tilt); const base = origin.clone().addScaledVector(a, mid - p0.x); const n = new THREE.Vector3(-a.z, 0, a.x).multiplyScalar(-(num(z) - num(p0.z))); return base.addScaledVector(a, d * c).add(new THREE.Vector3(0, d * s, 0)).add(n); };
+        const lh = Math.max(0.3, num(load.h, 1.5)), lw = Math.max(1.2, Math.min(4, lh * 1.4)); tLoad.scale.set(x1 - x0 + 1.2, lh, lw);
+        tLoad.rotation.set(0, ax, tilt, 'YZX'); tLoad.position.copy(at(mid, p0.z)).add(new THREE.Vector3(0, -lh / 2, 0).applyEuler(tLoad.rotation)); // the lifting points are on top of the load
+        const sl = []; T.picks.forEach((pk, i) => { const hk = hooks[i]; if (!hk) return; const q = at(pk.x, pk.z); for (const dz of [-0.35, 0.35]) { const qq = q.clone().add(new THREE.Vector3(-a.z * dz, 0, a.x * dz)); sl.push(hk.hook.position.x, hk.hook.position.y - 1.0, hk.hook.position.z, qq.x, qq.y, qq.z); } });
+        C3D.setLines(tSling, sl); tand.visible = true;
+        T.picks.forEach((pk, i) => { const hk = hooks[i]; if (!hk) return; const lb = label('tc' + i, `C${pk.crane + 1} · ${(+pk.share).toFixed(1)} t · ${Math.round(num(pk.util))}%`, pk.util == null || pk.util > T.derate ? '#ff6961' : '#4fe0ff'); lb.position.copy(hk.hook.position).add(new THREE.Vector3(0.9, 1.4, 0)); });
+        for (let i = T.picks.length; i < 4; i++) dropLabel('tc' + i);
+      } else { tand.visible = false; g.load.visible = g.slings.visible = !res.empty; for (let i = 0; i < 4; i++) dropLabel('tc' + i); }
+      for (const [k, ex] of extra) if (!seen.has(k)) { ex.g.root.visible = ex.g.hook.visible = ex.g.rope.visible = ex.g.slings.visible = ex.g.load.visible = false; }
+      { const reach = Math.max(20, res.R, (geo.tip?.y || 20), ...(T ? T.picks.map(p => Math.hypot(p.base.x - sp.cx, p.base.y - sp.cy) * 0.6) : []));
+        api._auto = { dist: reach * 2.3, az: Math.PI / 2 - phS * D2R - 0.75, el: 0.36, tx: res.R * 0.45 * dir.x, tz: res.R * 0.45 * dir.z, ty: Math.max(6, (geo.tip?.y || 20) * 0.38) }; }
+      if (!framed) { Object.assign(to, api._auto); go(!api._shown); framed = true; api._shown = true; }
       dirty = true;
     },
-    reframe() { this._framed = false; dirty = true; },
-    zoom(f) { orb.dist = Math.max(12, Math.min(600, orb.dist / f)); applyCam(); },
-    view(kind) { const a0 = Math.PI / 2 - num(orb.phS) * D2R; if (kind === 'side') { orb.az = a0; orb.el = 0.04; } else if (kind === 'top') { orb.az = a0; orb.el = 1.5; } else { orb.az = a0 - 0.75; orb.el = 0.36; } applyCam(); },
-    snapshot() { r.render(scene, cam); return r.domElement.toDataURL('image/jpeg', 0.92); },
-    dispose() { alive = false; cancelAnimationFrame(raf); ro.disconnect(); try { r.dispose(); r.forceContextLoss(); } catch {} host.innerHTML = ''; }
+    reframe() { framed = false; dirty = true; },
+    zoom(f) { to.dist = Math.max(12, Math.min(600, to.dist / f)); go(); },
+    view(kind) { const a0 = Math.PI / 2 - num(phS) * D2R; if (kind === 'side') { to.az = a0; to.el = 0.04; } else if (kind === 'top') { to.az = a0; to.el = 1.5; } else { to.az = a0 - 0.75; to.el = 0.36; } go(); },
+    // move the canvas into another box (full view ↔ the small window); the scene and the WebGL context stay
+    mount(h2) { if (!h2 || h2 === host) return; host = h2; h2.appendChild(r.domElement); ro.disconnect(); ro = new ResizeObserver(resize); ro.observe(h2); resize(); dirty = true; },
+    host: () => host,
+    // a still for the PDF: rendered once at the size asked, then the screen size is put back
+    snapshot(w = 1600, h = 1000, auto) { const ow = W0(), oh = H0(), od = dpr, keep = { ...orb }; Object.assign(orb, auto && api._auto ? api._auto : to); applyCam(); r.setPixelRatio(1); r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); r.render(scene, cam); const url = r.domElement.toDataURL('image/jpeg', 0.9); if (auto) { Object.assign(orb, keep); applyCam(); } r.setPixelRatio(od); r.setSize(ow, oh, false); cam.aspect = ow / Math.max(1, oh); cam.updateProjectionMatrix(); dirty = true; return url; },
+    stats: () => ({ dpr, ema: Math.round(ema * 10) / 10, calls: r.info.render.calls, tris: r.info.render.triangles, geos: r.info.memory.geometries, tex: r.info.memory.textures }),
+    dispose() { alive = false; cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener('visibilitychange', vis); try { r.dispose(); r.forceContextLoss(); } catch {} r.domElement.remove(); }
   };
+  return api;
 };

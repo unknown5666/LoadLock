@@ -1,7 +1,7 @@
 // ===== v7 core: icons, actions, refresh loop, undo history, views =====
 // The v7 interface keeps v6's engine, drawing and storage (app.js) and replaces every screen.
 
-const APP_VERSION = '8.0'; // shown on sign-in, More and Settings. v8 = outrigger leg loads, half / full legs, typed-over sheet values
+const APP_VERSION = '9.0'; // shown on sign-in, More and Settings. v9 = tandem lifts, Fit-Filter, wind on the load, satellite site map, RAMS pack, live 3D window, offline
 
 // ---------- icons (24px grid, round caps; never emoji) ----------
 const IC = {
@@ -44,10 +44,14 @@ const isDesk = () => window.matchMedia('(min-width: 900px)').matches;
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ---------- v7 UI state ----------
-const V7 = { sheet: null, hist: { u: [], r: [], cur: null, t: 0 }, ringU: 0, ringRaf: 0, sliding: false, coach: null, theme: 'auto', user: '' };
+const V7 = { sheet: null, hist: { u: [], r: [], cur: null, t: 0 }, ringU: 0, ringRaf: 0, sliding: false, coach: null, theme: 'auto', user: '', pip: LS.get('lp.pip', window.matchMedia('(min-width: 900px)').matches) }; // the live 3D window starts on for desktops, off on phones (small stage)
 
 // ---------- status helpers ----------
-function utilCls(r) { const S = settingsEff(); return r?.cap == null ? 'fail' : r.util > num(S.utilMax, 90) ? 'fail' : r.util > num(S.utilWarn, 75) ? 'warn' : 'ok'; }
+function utilCls(r) {
+  const S = settingsEff(); const T = r?.tandem;
+  if (T) return T.picks.some(p => p.cap == null) ? 'fail' : T.maxUtil > T.derate ? 'fail' : T.maxUtil > T.derate * 0.9 ? 'warn' : 'ok'; // tandem: every crane against the tandem limit
+  return r?.cap == null ? 'fail' : r.util > num(S.utilMax, 90) ? 'fail' : r.util > num(S.utilWarn, 75) ? 'warn' : 'ok';
+}
 const VERDICT = { ok: ['Safe', 'check'], warn: ['Careful', 'alert'], fail: ['Stop', 'stop'] };
 function allChecks(calc) {
   const items = []; calc.loads.forEach((x, i) => x.checks.forEach(c => items.push({ ...c, t: (calc.loads.length > 1 ? `Lift ${i + 1} · ` : '') + c.t, li: i })));
@@ -71,7 +75,7 @@ function refresh(immediate) {
     state.calc = calc; state._sheet = null;
     try { renderPanel(); } catch (e) { console.error(e); }
     try { renderTop(); } catch (e) { console.error(e); }
-    if (state.view === '3d') twinUpdate(); else sceneDirty();
+    if (state.view !== '3d') sceneDirty(); twinUpdate();
     try { sheetLive(); } catch (e) { console.error(e); }
     draft();
   };
@@ -293,18 +297,48 @@ function setView(v) {
   if (!['elev', 'plan', '3d', 'sheet'].includes(v)) v = 'elev';
   state.view = v; try { localStorage.setItem('lp.view', v); } catch {}
   const sc = $('#scene'), tw = $('#twin');
-  if (v === '3d') { sc.hidden = true; tw.hidden = false; ensureTwin(); }
+  if (v === '3d') { sc.hidden = true; tw.hidden = false; ensureTwin(tw); }
   else { tw.hidden = true; sc.hidden = false; if (Scene.mode !== v) sceneSetMode(v); }
+  pipSync();
   if (Scene.tool) sceneSetTool(null);
   if (v !== 'elev') { state.sel = Scene.sel = null; }
   renderFloats(); renderSel(); refresh(true);
 }
-function ensureTwin() {
-  const host = $('#twin'); if (state.twin || host.dataset.failed) return;
-  if (!C3D.ok()) { host.dataset.failed = '1'; host.innerHTML = '<div class="twin-msg"><div><b>3D is switched off on this device.</b><br>The drawing, top view and sheet still work.</div></div>'; return; }
-  try { state.twin = C3D.twin(host); } catch (e) { console.error(e); host.dataset.failed = '1'; host.innerHTML = `<div class="twin-msg">3D could not start: ${h(e.message)}</div>`; }
+// v9: one 3D scene for the full 3D view and the small live window over the drawing / top view; its canvas moves between the two
+function ensureTwin(host) {
+  const main = $('#twin'); host = host || main;
+  if (state.twin) { state.twin.mount(host); return; }
+  if (main.dataset.failed) return;
+  if (!C3D.ok()) { main.dataset.failed = '1'; main.innerHTML = '<div class="twin-msg"><div><b>3D is switched off on this device.</b><br>The drawing, top view and sheet still work.</div></div>'; V7.pip = false; return; }
+  try { state.twin = C3D.twin(host, { onPad: twinPad, onReframe: () => twinUpdate() }); }
+  catch (e) { console.error(e); main.dataset.failed = '1'; main.innerHTML = `<div class="twin-msg">3D could not start: ${h(e.message)}</div>`; V7.pip = false; }
 }
-let twinT; function twinUpdate() { if (state.view !== '3d' || !state.twin || !state.calc) return; clearTimeout(twinT); twinT = setTimeout(() => { try { state.twin.update(state.plan, state.calc, state.calc.crane, livery()); } catch (e) { console.error(e); } }, 30); }
+const twinVisible = () => state.view === '3d' || (V7.pip && (state.view === 'elev' || state.view === 'plan') && !!state.twin);
+// one update per screen frame, straight after the change (the old 30 ms wait made the 3D lag behind a drag)
+let twinRaf = 0;
+function twinUpdate() {
+  if (!state.twin || !state.calc || !twinVisible() || twinRaf) return;
+  twinRaf = requestAnimationFrame(() => { twinRaf = 0; const c = state.calc; if (!c) return; try { state.twin.update(state.plan, c, c.loads[activeLi()]?.crane || c.crane, livery()); } catch (e) { console.error(e); } });
+}
+// dragging the magenta landing ring in 3D: same as dragging the load in the top view — the crane swings to it and the reach follows
+function twinPad(x, y, phase) {
+  if (phase === 'end') { histMark(); sheetLive(); return; }
+  const p = state.plan, li = activeLi(), l = p.loads[li], crane = curCrane(); const sp = sitePlanState(p, l);
+  const ang = Math.atan2(y - sp.cy, x - sp.cx) * R2D, R = Math.max(1, Math.round(Math.hypot(x - sp.cx, y - sp.cy) * 10) / 10);
+  p.sitePlan = { ...(p.sitePlan || {}), rot: Math.round(normDeg(ang)), carrierRot: Math.round(normDeg(ang - SIDE_OFFSET[sp.side])) };
+  if (l.by === 'angle' || l.by === 'height') { const G = geoSetup(p, crane, l); const a = angleFromRadius(crane, G.gChart, G.gCol, R, G.boomOv); if (l.by === 'angle') l.angle = a; else l.tipH = r2(tipFromAngle(crane, G.gChart, G.gCol, a, G.boomOv).y); }
+  else l.R = r2(R);
+  markDirty(); refresh(true);
+}
+// the small live 3D window (bottom right of the drawing and the top view)
+function pipSync() {
+  const st = $('#stage'); if (!st) return; let box = $('#pip');
+  const want = V7.pip && (state.view === 'elev' || state.view === 'plan') && C3D.ok() && !$('#twin').dataset.failed;
+  if (!want) { if (box) { box.classList.remove('on'); setTimeout(() => { if (!box.classList.contains('on')) box.hidden = true; }, 320); } return; }
+  if (!box) { box = document.createElement('div'); box.id = 'pip'; box.className = 'pip'; box.innerHTML = `<div class="pip-gl" id="pipGl"></div><button type="button" class="pip-b tap" data-act="view" data-v="3d" aria-label="Open the 3D view">${ic('fit', 18, 2.2)}</button><button type="button" class="pip-x tap" data-act="pip" aria-label="Hide the 3D window">${ic('x', 15, 2.6)}</button><span class="pip-t">3D · live</span>`; st.appendChild(box); }
+  box.hidden = false; ensureTwin($('#pipGl')); requestAnimationFrame(() => box.classList.add('on')); twinUpdate();
+}
+function pipToggle(on) { V7.pip = on ?? !V7.pip; LS.set('lp.pip', V7.pip); pipSync(); renderFloats(); }
 
 // ---------- theme: follows the phone unless set ----------
 function applyTheme() {

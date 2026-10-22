@@ -13,10 +13,18 @@ const state = {
   savedAt: null, dirty: false, wx: { q: '', res: null, busy: false, err: '' }, twin: null, started: false
 };
 
+// v9: the fleet list is built once and reused until the fleet changes. Deep-cloning every default crane (hundreds of LICCON charts)
+// on each call took ~15 ms per redraw, which made dragging stutter on phones. Every fleet edit goes through _chartCache.clear()
+// (saveCrane, fleetCommit, the db snapshot, reset), so that bumps the revision; adding / removing / hiding changes the key itself.
+let CRANES_REV = 0; const CRANES_MEMO = { key: null, list: null };
+{ const clr = _chartCache.clear.bind(_chartCache); _chartCache.clear = () => { CRANES_REV++; _chartRev++; clr(); }; }
 function cranes() {
+  const key = CRANES_REV + '|' + Object.keys(state.userCranes).join(',') + '|' + state.hiddenCranes.join(',');
+  if (CRANES_MEMO.key === key && CRANES_MEMO.u === state.userCranes) return CRANES_MEMO.list;
   const map = new Map(DEFAULT_CRANES.map(c => [c.id, clone(c)]));
   for (const [id, c] of Object.entries(state.userCranes)) map.set(id, c);
-  return [...map.values()].filter(c => !state.hiddenCranes.includes(c.id)).sort((a, b) => a.cls - b.cls || a.model.localeCompare(b.model)).map(c => withImgs(c));
+  const list = [...map.values()].filter(c => !state.hiddenCranes.includes(c.id)).sort((a, b) => a.cls - b.cls || a.model.localeCompare(b.model)).map(c => withImgs(c));
+  Object.assign(CRANES_MEMO, { key, list, u: state.userCranes }); return list;
 }
 function withImgs(c) {
   const o = { ...c };

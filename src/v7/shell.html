@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>FHE Lift Planner 8</title>
+<title>FHE Lift Planner 9</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 /* =====================================================================================================
-   FHE Lift Planner v8 — "Cab glass" (v8: outrigger leg loads)
+   FHE Lift Planner v9 — "Cab glass" (v9: tandem lifts, Fit-Filter, wind, satellite map, RAMS, live 3D window)
    Apple-style system UI: inset-grouped lists, frosted bars, bottom sheets, one hi-vis yellow accent.
    Signature: the capacity ring — a crane LMI reading turned into one big glanceable circle.
    Every colour comes from the tokens below; components never use raw hex.
@@ -569,6 +569,82 @@ button.it:hover, a.it:hover, label.it:hover { background: var(--fill); }
 .padc.lift b { color: var(--ink-3); font-size: 22px; }
 .padc.man { box-shadow: inset 0 0 0 2px var(--stop-fill), var(--shadow-1); } .padc.man em { color: var(--stop); font-weight: 650; }
 .it.ovr.on { background: var(--warn-soft); } .it.ovr.on input.fld { font-weight: 700; }
+
+/* ---------- v9: live 3D window, tandem, Fit-Filter, net capacity, ground verdict, RAMS, offline ---------- */
+.pip { position: absolute; z-index: 7; right: calc(12px + var(--sar)); bottom: 12px; width: clamp(180px, 30%, 380px); aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; background: #11161c; box-shadow: var(--shadow-3), 0 0 0 .5px rgba(255, 255, 255, .12); opacity: 0; transform: translateY(12px) scale(.94); transform-origin: 100% 100%; transition: opacity .28s var(--ease-out), transform .5s var(--spring); }
+.pip.on { opacity: 1; transform: none; }
+.pip-gl { position: absolute; inset: 0; }
+.pip-gl canvas { display: block; touch-action: none; cursor: grab; } .pip-gl canvas:active { cursor: grabbing; }
+.pip-b, .pip-x { position: absolute; top: 8px; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, .42); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.pip-b { right: 8px; } .pip-x { left: 8px; }
+.pip-t { position: absolute; left: 10px; bottom: 8px; font: 650 11px var(--f-ui); color: rgba(255, 255, 255, .86); letter-spacing: .03em; text-transform: uppercase; pointer-events: none; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+.pip-t::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--safe-fill); box-shadow: 0 0 0 3px rgba(52, 199, 89, .25); vertical-align: 1px; animation: pipLive 2.4s ease-in-out infinite; }
+@keyframes pipLive { 50% { box-shadow: 0 0 0 6px rgba(52, 199, 89, 0); } }
+@media (max-width: 899px) { .pip { width: 42%; min-width: 150px; right: 10px; bottom: 10px; border-radius: 14px; } }
+.stage:has(.sel-bar) .pip { bottom: 74px; }
+@media (prefers-reduced-motion: reduce) { .pip, .pip.on { transition: opacity .2s; transform: none; } .pip-t::before { animation: none; } }
+.twin-cv { animation: twinIn .45s var(--ease-out); }
+@keyframes twinIn { from { opacity: 0; } to { opacity: 1; } }
+
+.tdm-start { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.tdm-start .btn { height: 64px; flex-direction: column; gap: 4px; font-size: 15px; }
+.tdm-live { display: grid; gap: 10px; margin-bottom: 4px; }
+.tdm-pic { width: 100%; height: auto; border-radius: var(--r); background: var(--card); box-shadow: var(--shadow-1); color: var(--ink); }
+.tdm-pic .gnd { stroke: var(--ink-3); stroke-width: 1.5; }
+.tdm-pic .car { fill: var(--fill-2); stroke: var(--ink-3); stroke-width: 1; }
+.tdm-pic .bm { stroke: var(--brand); stroke-width: 6; stroke-linecap: round; }
+.tdm-pic .rope { stroke: var(--ink); stroke-width: 1.4; } .tdm-pic .rope.warn { stroke: var(--warn-fill); stroke-width: 2; } .tdm-pic .rope.fail { stroke: var(--stop-fill); stroke-width: 2.4; }
+.tdm-pic .hd { fill: var(--brand); stroke: var(--brand-ink); stroke-width: 1.5; }
+.tdm-pic .ld { fill: rgba(175, 82, 222, .18); stroke: #af52de; stroke-width: 1.6; stroke-linejoin: round; }
+.tdm-pic .cg circle { fill: var(--safe-fill); stroke: #fff; stroke-width: 2; } .tdm-pic .cg path { stroke: var(--ink); stroke-width: 1.3; }
+.tdm-pic .tl { font: 750 12px var(--f-num); fill: var(--ink); } .tdm-pic .tl.warn { fill: var(--warn); } .tdm-pic .tl.fail { fill: var(--stop); }
+.tdm-pic .ta { font: 650 11px var(--f-ui); fill: var(--ink-2); }
+.tdm-bars { display: grid; gap: 8px; }
+.tdm-b { padding: 10px 12px 9px; border-radius: var(--r); background: var(--card); box-shadow: var(--shadow-1); }
+.tdm-h { display: flex; align-items: baseline; gap: 8px; min-width: 0; } .tdm-h > span { font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .tdm-h .sp { flex: 1; }
+.tdm-h b.num { font-size: 20px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; } .tdm-h b.num small { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.tdm-track { position: relative; height: 8px; margin: 8px 0 6px; border-radius: 4px; background: var(--fill); overflow: hidden; }
+.tdm-track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--safe-fill); transition: width .18s var(--ease-out), background-color .2s; }
+.tdm-b.warn .tdm-track i { background: var(--warn-fill); } .tdm-b.fail .tdm-track i { background: var(--stop-fill); }
+.tdm-f { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; color: var(--ink-2); }
+.tdm-shift { font-weight: 700; } .tdm-shift.up { color: var(--stop); } .tdm-shift.dn { color: var(--safe); }
+.tdm-mv .lb small { font-variant-numeric: tabular-nums; }
+
+.ff-ins { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ff-in { display: grid; gap: 4px; padding: 10px 12px; border-radius: var(--r); background: var(--card); box-shadow: var(--shadow-1); }
+.ff-in > span { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.ff-box { display: flex; align-items: baseline; gap: 4px; }
+.ff-box input { width: 100%; min-width: 0; border: 0; background: transparent; font-size: 26px; font-weight: 800; letter-spacing: -.03em; color: var(--ink); padding: 0; }
+.ff-box input::placeholder { color: var(--ink-3); font-weight: 600; font-size: 18px; letter-spacing: 0; }
+.ff-box small { font-size: 14px; font-weight: 650; color: var(--ink-2); }
+.ff-sum { margin: 14px 4px 8px; font-size: 14px; color: var(--ink-2); } .ff-sum b { color: var(--ink); }
+.ff-list { display: grid; gap: 8px; }
+.ff { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 14px 10px 16px; border-radius: var(--r); background: var(--card); box-shadow: var(--shadow-1); text-align: left; overflow: hidden; animation: ffIn .38s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 22ms); }
+.ff::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--bc, var(--brand)); }
+.ff.on { box-shadow: 0 0 0 2.5px var(--ink), var(--shadow-1); }
+.ff-v { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font: 800 16px var(--f-num); letter-spacing: -.02em; }
+.ff-v small { font-size: 10px; } .ff-v.ok { background: var(--safe-soft); color: var(--safe); } .ff-v.warn { background: var(--warn-soft); color: var(--warn); } .ff-v.no { background: var(--stop-soft); color: var(--stop); }
+.ff-m { display: grid; gap: 2px; min-width: 0; } .ff-m b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ff-m span { font-size: 13px; color: var(--ink-2); line-height: 1.3; }
+.ff-c { font-size: 24px; font-weight: 800; letter-spacing: -.03em; } .ff-c small { font-size: 13px; color: var(--ink-2); }
+@keyframes ffIn { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .ff { animation: none; } }
+
+.nc { background: var(--card); }
+.nc-r { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 16px; border-bottom: .5px solid var(--hair); font-size: 15px; }
+.nc-r span { display: grid; color: var(--ink-2); } .nc-r span small { font-size: 12px; color: var(--ink-3); }
+.nc-r b { font-size: 16px; font-weight: 650; white-space: nowrap; }
+.nc-r.tot { background: var(--card-2); } .nc-r.tot span, .nc-r.tot b { color: var(--ink); font-weight: 750; } .nc-r.tot b { font-size: 19px; }
+.nc-r.ok b { color: var(--safe); } .nc-r.fail b, .nc-r.fail span { color: var(--stop); }
+
+.gbp-v { gap: 12px; } .gbp-chip { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px; border-radius: 15px; font: 800 14px var(--f-ui); letter-spacing: .04em; color: #fff; background: var(--safe-fill); flex: none; }
+.gbp-v.warn .gbp-chip { background: var(--warn-fill); } .gbp-v.fail .gbp-chip { background: var(--stop-fill); }
+
+.btn.rams { height: auto; min-height: 58px; padding: 8px 18px; flex-wrap: wrap; background: #5856d6; color: #fff; text-align: left; justify-content: flex-start; }
+.btn.rams small { flex-basis: 100%; padding-left: 28px; font-size: 12px; font-weight: 500; opacity: .85; margin-top: -4px; }
+
+.net-chip { position: fixed; z-index: 90; left: 50%; bottom: calc(var(--sab) + 14px); transform: translate(-50%, 20px); display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 18px; background: var(--ink); color: var(--card); font-size: 13px; font-weight: 650; box-shadow: var(--shadow-3); opacity: 0; pointer-events: none; transition: opacity .3s, transform .45s var(--spring); }
+.net-chip.on { opacity: 1; transform: translate(-50%, 0); }
+@media (max-width: 899px) { .net-chip { bottom: auto; top: calc(var(--sat) + var(--top-h) + 8px); transform: translate(-50%, -20px); } .net-chip.on { transform: translate(-50%, 0); } }
 </style>
 </head>
 <body class="locked">

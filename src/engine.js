@@ -106,7 +106,7 @@ function chartToText(p) {
   return [h, ...p.rows.map(r => r[0] + ': ' + r.slice(1).map(v => v == null ? '-' : v).join(' '))].join('\n');
 }
 
-const _chartCache = new Map();
+const _chartCache = new Map(); let _chartRev = 0; // _chartRev: bumped whenever a chart may have changed (app.js wraps _chartCache.clear)
 function getChart(ch) {
   if (!ch) return null;
   const key = ch.src;
@@ -126,7 +126,25 @@ function lookupCap(parsed, ci, R, mode = 'conservative') {
   if (exact) return { cap: exact[1], row: exact[0] };
   const hi = pts.find(p => p[0] > R); const lo = [...pts].reverse().find(p => p[0] < R);
   if (mode === 'interpolate' && lo && hi) return { cap: r2(lo[1] + (hi[1] - lo[1]) * (R - lo[0]) / (hi[0] - lo[0])), row: R, interp: true };
+  if (mode === 'curve' && lo && hi) return { cap: r2(curveCap(pts, R)), row: R, interp: true, curve: true };
   return { cap: hi[1], row: hi[0], rounded: true };
+}
+// v9 curve fit between chart radii: a monotone cubic (Fritsch–Carlson / PCHIP) through the column, so the curve bends the way a load chart
+// does instead of cutting straight across. Never more than the straight line between the two neighbouring points, never less than the next
+// radius up — it sits between the "safe step" and plain interpolation.
+function curveCap(pts, R) {
+  const n = pts.length; let k = 0; while (k < n - 2 && pts[k + 1][0] < R) k++;
+  const x = pts.map(p => p[0]), y = pts.map(p => p[1]); const h = [], d = [];
+  for (let i = 0; i < n - 1; i++) { h.push(x[i + 1] - x[i]); d.push((y[i + 1] - y[i]) / (x[i + 1] - x[i])); }
+  const slope = (i) => {
+    if (n < 3 || i === 0) return d[0]; if (i === n - 1) return d[n - 2];
+    if (d[i - 1] * d[i] <= 0) return 0;
+    const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1]; return (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+  };
+  const t = (R - x[k]) / h[k], t2 = t * t, t3 = t2 * t;
+  const v = (2 * t3 - 3 * t2 + 1) * y[k] + (t3 - 2 * t2 + t) * h[k] * slope(k) + (-2 * t3 + 3 * t2) * y[k + 1] + (t3 - t2) * h[k] * slope(k + 1);
+  const lin = y[k] + (y[k + 1] - y[k]) * t;
+  return Math.max(Math.min(y[k], y[k + 1]), Math.min(v, lin, Math.max(y[k], y[k + 1])));
 }
 
 // crane side-view drawing (CAD library) for a crane record, following old keys
@@ -271,7 +289,12 @@ function teleFor(spec, L, manualFr) {
   const f = Math.max(0, Math.min(1, (L - spec.Lmin) / Math.max(1e-6, spec.Lmax - spec.Lmin)));
   return { fr: Array(spec.tele).fill(f), L: r2(spec.Lmin + f * (spec.Lmax - spec.Lmin)) };
 }
-function chartLengths(crane) { const out = []; for (const ch of crane?.charts || []) { if (ch.kind === 'luffing' || ch.kind === 'fixedjib') { if (ch.mainLen) out.push(num(ch.mainLen)); } else { const p = getChart(ch); if (p) for (const c of p.cols) out.push(c.L); } } return out; }
+// every main-boom length the crane's charts use (boomSpec only needs the shortest and longest). v9: kept per crane record —
+// the big Liebherrs carry 100–380 charts and this ran several times per lift on every redraw.
+const _lenCache = new WeakMap();
+function chartLengths(crane) { if (!crane || typeof crane !== 'object') return []; const hit = _lenCache.get(crane); if (hit && hit.charts === crane.charts && hit.n === (crane.charts || []).length && hit.rev === _chartRev) return hit.out;
+  const all = chartLengthsAll(crane).filter(L => L > 0); const out = all.length ? [Math.min(...all), Math.max(...all)] : []; _lenCache.set(crane, { charts: crane.charts, n: (crane.charts || []).length, rev: _chartRev, out }); return out; }
+function chartLengthsAll(crane) { const out = []; for (const ch of crane?.charts || []) { if (ch.kind === 'luffing' || ch.kind === 'fixedjib') { if (ch.mainLen) out.push(num(ch.mainLen)); } else { const p = getChart(ch); if (p) for (const c of p.cols) out.push(c.L); } } return out; }
 // jib length range the crane really has (from its jib charts) or a sensible default
 function jibRange(crane, type) {
   const kind = type === 'luff' ? 'luffing' : 'fixedjib'; const ls = (crane?.charts || []).filter(c => c.kind === kind).map(c => num(c.jibLen)).filter(v => v > 0);
@@ -358,35 +381,64 @@ function computeLoad(plan, crane, load, settings) {
   else if (heightMode) R = radiusFromAngle(crane, G.gChart, G.gCol, angleFromHeight(crane, G.gChart, G.gCol, num(load.tipH, 20), G.boomOv), G.boomOv);
   else R = num(load.R);
   const empty = !!load.empty; const stack = tackleStack(load);
+  const boomOv = G.boomOv;
+  // geometry first (v9: the hoist-rope deduction needs the boom-head height; nothing here depends on the weights)
+  const g = solveGeometry(crane || {}, G.gChart, G.gCol, R, boomOv);
+  if (!chartDef && !G.manual && boomOv > 0) { g.L = boomOv; }
   const W = empty ? 0 : num(load.w), contOn = load.contOn !== false && !empty, cont = contOn ? num(load.cont) : 0;
   const hb = (load.hb === '' || load.hb == null) ? num(crane?.hookBlock) : num(load.hb);
   const tk = empty && !load.emptyRig ? 0 : stack && stack.w > 0 ? stack.w : num(load.tk), ex = empty ? 0 : num(load.extra);
   const contW = r2(W * cont / 100);
-  const total = r2(W + contW + hb + tk + ex);
+  // v9 net-capacity deductions the load chart asks for: a fly jib / extension carried folded on the boom (not when a jib is in use),
+  // and the hoist rope hanging between the boom head and the hook block (falls × length × kg/m) once the crane's rope weight is entered
+  const jibInUse = !!G.manual || !!(chartDef?.kind && chartDef.kind !== 'main');
+  const jd = !jibInUse && num(plan.jibDed) > 0 ? r2(num(plan.jibDed)) : 0;
+  const hookYpre = (() => { const lg = load.landY !== '' && load.landY != null ? num(load.landY) : surfaceAt(plan.site, R); const sl0 = stack ? null : slingInfo(load); return lg + num(load.h, 1.5) + (stack ? stack.H : sl0 && sl0.rigH != null ? sl0.rigH : num(load.rigH, num(plan.rigging?.height, 3))); })();
+  const falls = num(plan.falls) > 0 ? Math.round(num(plan.falls)) : num(col?.falls) > 0 ? num(col.falls) : 0;
+  const ropeKgM = num(plan.ropeKgM); const ropeLen = g.tip ? r2(Math.max(0, g.tip.y - hookYpre - 1)) : 0;
+  const rope = ropeKgM > 0 && falls > 0 ? r2(falls * ropeLen * ropeKgM / 1000) : 0;
+  const total = r2(W + contW + hb + tk + ex + jd + rope);
   const Dd = load.daf || {}; const daf = Dd.on ? (Dd.mode === 'manual' ? Math.max(1, num(Dd.v, 1.1)) : dafAuto(Dd)) : null;
   const design = daf ? r2(total * daf) : total;
-  const res = { R, W, contW, cont, contOn, hb, tk, ex, total, daf, dafAuto: Dd.on && Dd.mode !== 'manual', design, empty, stack, checks: [], col, ci, chartDef, angleMode, heightMode, manualJib: G.manual, gChart: G.gChart, tele: G.tele, spec: G.spec, acc: G.acc };
-  // capacity
-  let capInfo;
-  const boomOv = G.boomOv;
-  if (load.capOverride !== '' && load.capOverride != null && num(load.capOverride) > 0) {
-    capInfo = { cap: num(load.capOverride), manual: true };
-  } else if (G.manual) {
-    capInfo = num(plan.attach?.swl) > 0 ? { cap: num(plan.attach.swl), manual: true, jib: true } : { cap: null, why: 'Enter the jib SWL from the ' + (G.manual === 'fly' ? 'fly-jib' : 'luffing-jib') + ' load chart' };
-  } else if (parsed && chartDef.kind === 'main' && boomOv > 0 && col && Math.abs(boomOv - col.L) > 0.05) {
-    // boom between chart columns → take the lower capacity of the bracketing lengths
-    const Ls = [...new Set(parsed.cols.map(c => c.L))].sort((a, b) => a - b);
-    const lower = [...Ls].reverse().find(L => L <= boomOv), upper = Ls.find(L => L >= boomOv);
-    if (upper == null) capInfo = { cap: null, why: `Boom ${boomOv} m is longer than the longest chart column (${Ls[Ls.length - 1]} m)` }; else {
-    const cand = parsed.cols.map((c, i) => ({ c, i })).filter(o => (o.c.L === lower || o.c.L === upper) && (o.c.label || '') === (col.label || ''));
-    const caps = cand.map(o => lookupCap(parsed, o.i, R, S.lookup)).filter(x => x.cap != null);
-    capInfo = caps.length ? { cap: Math.min(...caps.map(x => x.cap)), row: caps[0].row, between: [lower ?? upper, upper] } : { cap: null, why: 'Boom length outside chart columns' }; }
-  } else capInfo = lookupCap(parsed, ci, R, S.lookup);
+  const res = { R, W, contW, cont, contOn, hb, tk, ex, jd, rope, ropeInfo: { kgm: ropeKgM, falls, len: ropeLen }, total, daf, dafAuto: Dd.on && Dd.mode !== 'manual', design, empty, stack, checks: [], col, ci, chartDef, angleMode, heightMode, manualJib: G.manual, gChart: G.gChart, gCol: G.gCol, boomOv, tele: G.tele, spec: G.spec, acc: G.acc };
+  // capacity — capAt reads the chart at any radius the same way (used again for the wind drift)
+  const capAt = (Rq) => {
+    if (load.capOverride !== '' && load.capOverride != null && num(load.capOverride) > 0) return { cap: num(load.capOverride), manual: true };
+    if (G.manual) return num(plan.attach?.swl) > 0 ? { cap: num(plan.attach.swl), manual: true, jib: true } : { cap: null, why: 'Enter the jib SWL from the ' + (G.manual === 'fly' ? 'fly-jib' : 'luffing-jib') + ' load chart' };
+    if (parsed && chartDef.kind === 'main' && boomOv > 0 && col && Math.abs(boomOv - col.L) > 0.05) {
+      // boom between chart columns → take the lower capacity of the bracketing lengths
+      const Ls = [...new Set(parsed.cols.map(c => c.L))].sort((a, b) => a - b);
+      const lower = [...Ls].reverse().find(L => L <= boomOv), upper = Ls.find(L => L >= boomOv);
+      if (upper == null) return { cap: null, why: `Boom ${boomOv} m is longer than the longest chart column (${Ls[Ls.length - 1]} m)` };
+      const cand = parsed.cols.map((c, i) => ({ c, i })).filter(o => (o.c.L === lower || o.c.L === upper) && (o.c.label || '') === (col.label || ''));
+      const caps = cand.map(o => lookupCap(parsed, o.i, Rq, S.lookup)).filter(x => x.cap != null);
+      return caps.length ? { cap: Math.min(...caps.map(x => x.cap)), row: caps[0].row, between: [lower ?? upper, upper] } : { cap: null, why: 'Boom length outside chart columns' };
+    }
+    return lookupCap(parsed, ci, Rq, S.lookup);
+  };
+  let capInfo = capAt(R);
+  res.capChart = capInfo.cap;
+  // v9 wind on the load. A load chart's wind limit assumes about 1.2 m² of wind area per tonne on the hook (EN 13000). A load with more
+  // area (A_W = projected area × drag coefficient) may only be lifted up to v_perm = v_chart · √(1.2 · m_H / A_W). When the gust at the
+  // boom head is above that, the extra wind force pushes the hanging load out (worst case: straight away from the crane), so the chart is
+  // read again at the drifted reach.
+  const area = num(load.area);
+  if (area > 0 && !empty && g.tip) {
+    const cw = num(load.cw) > 0 ? num(load.cw) : 1.2, AW = r2(area * cw), mH = Math.max(0.05, total);
+    const vTab = windTabOf(plan); const vPerm = r2(Math.min(vTab, vTab * Math.sqrt(1.2 * mH / AW)));
+    const wx = evalWeather(plan, { tipY: g.tip.y }); const vDes = wx ? wx.maxG : null;
+    const q = (v) => 0.5 * 1.25 * v * v / 1000;                                      // kN per m² of wind area at v m/s
+    const Fdes = vDes != null ? r2(q(vDes) * AW) : null, Fref = q(vTab) * 1.2 * mH;   // the chart already allows for Fref
+    const hang = Math.max(1, g.tip.y - (hookYpre - num(load.h, 1.5) / 2));             // boom head to the middle of the load
+    const Fx = Fdes != null ? Math.max(0, Fdes - Fref) : 0; const phi = Math.atan(Fx / (mH * 9.81)); const dR = r2(hang * Math.sin(phi));
+    const w = { area, cw, AW, mH: r2(mH), vTab, vPerm, vDes, F: Fdes, Fref: r2(Fref), hang: r2(hang), dR, swing: r2(phi * R2D), src: wx ? (wx.manual ? 'typed' : 'forecast') : null };
+    if (dR > 0.005 && capInfo.cap != null && !capInfo.manual) { const c2 = capAt(R + dR); w.capWind = c2.cap; if (c2.cap == null || c2.cap < capInfo.cap) capInfo = { ...capInfo, cap: c2.cap, wind: true, why: c2.cap == null ? `The wind pushes the load ${dR.toFixed(2)} m out — beyond the chart` : capInfo.why }; }
+    res.wind = w;
+  }
   res.cap = capInfo.cap; res.capInfo = capInfo;
   if (res.cap != null && res.cap > 0) { res.util = r2(design / res.cap * 100); res.sf = Math.round(res.cap / design * 10000) / 10000; }
-  // geometry
-  const g = solveGeometry(crane || {}, G.gChart, G.gCol, R, boomOv);
-  if (!chartDef && !G.manual && boomOv > 0) { g.L = boomOv; }
+  // net capacity: what the load itself (with its margin) may weigh once the hook, tackles and deductions come off the chart value
+  if (res.cap != null) { res.ded = r2(hb + tk + ex + jd + rope); res.netCap = r2(res.cap / (daf || 1) - res.ded); res.margin = res.cap > 0 ? r2((res.cap - design) / res.cap * 100) : null; }
   if (chartDef && chartDef.verify) res.checks.push({ s: 'warn', t: 'Load chart', m: 'This chart was transcribed from a public datasheet (' + (chartDef.source || 'unverified') + ') — check it against the crane\'s own chart before issuing' });
   if (G.tele.mode === 'manual' && !G.tele.locked) res.checks.push({ s: 'info', t: 'Telescoping', m: `Sections set by hand (${G.tele.fr.map(f => Math.round(f * 100)).join(' / ')} %) → ${G.tele.L} m boom. Capacity is read for that length; check the crane's telescoping sequence gives the same chart` });
   res.geo = g;
@@ -411,9 +463,13 @@ function computeLoad(plan, crane, load, settings) {
   const lim = num(S.utilMax, 85), warn = num(S.utilWarn, 75);
   if (res.cap == null) res.checks.push({ s: 'fail', t: 'Chart capacity', m: capInfo.why || 'No capacity' });
   else {
-    const note = capInfo.jib ? ' (jib SWL entered manually)' : capInfo.manual ? ' (entered manually)' : capInfo.between ? ` (lower of ${capInfo.between.join(' / ')} m columns)` : capInfo.rounded ? ` (taken at ${capInfo.row} m — next chart radius up)` : capInfo.interp ? ' (interpolated)' : '';
+    const note = capInfo.jib ? ' (jib SWL entered manually)' : capInfo.manual ? ' (entered manually)' : capInfo.wind ? ` (read at ${(R + res.wind.dR).toFixed(2)} m — the wind pushes the load ${res.wind.dR.toFixed(2)} m out)` : capInfo.between ? ` (lower of ${capInfo.between.join(' / ')} m columns)` : capInfo.rounded ? ` (taken at ${capInfo.row} m — next chart radius up)` : capInfo.curve ? ' (curve fit between chart radii)' : capInfo.interp ? ' (interpolated)' : '';
     res.checks.push({ s: res.util > 100 ? 'fail' : res.util > lim ? 'fail' : res.util > warn ? 'warn' : 'ok', t: 'Capacity utilisation', m: `${res.util.toFixed(2)}% of ${res.cap.toFixed(2)} t${note}${daf ? ` — with DAF ${daf} (${design.toFixed(2)} t design load)` : ''}` + (res.util > lim && res.util <= 100 ? ` — over the ${lim}% limit` : res.util > warn && res.util <= lim ? ` — critical lift (> ${warn}%)` : '') });
   }
+  if (jd || rope) res.checks.push({ s: 'info', t: 'Deductions', m: [jd ? `folded jib ${jd.toFixed(2)} t` : '', rope ? `hoist rope ${rope.toFixed(2)} t (${falls} falls × ${ropeLen.toFixed(1)} m × ${ropeKgM} kg/m)` : ''].filter(Boolean).join(' and ') + ' counted in the hook load, as the load chart asks' });
+  if (res.wind) { const w = res.wind;
+    if (w.vDes != null) res.checks.push({ s: w.vDes > w.vPerm ? 'fail' : w.vDes > 0.8 * w.vPerm ? 'warn' : 'ok', t: 'Wind on the load', m: `${w.AW.toFixed(1)} m² wind area on ${w.mH.toFixed(1)} t: lift only up to ${w.vPerm.toFixed(1)} m/s (chart ${w.vTab} m/s). Gust at the boom head ${w.vDes.toFixed(1)} m/s` + (w.vDes > w.vPerm ? ` — too windy for this load${w.dR > 0 ? `; it would swing ${w.dR.toFixed(2)} m out` : ''}` : w.vDes > 0.8 * w.vPerm ? ' — close to the limit, use tag lines' : '') });
+    else res.checks.push({ s: w.vPerm < w.vTab ? 'warn' : 'info', t: 'Wind on the load', m: `${w.AW.toFixed(1)} m² wind area on ${w.mH.toFixed(1)} t: stop lifting above ${w.vPerm.toFixed(1)} m/s at the boom head` + (w.vPerm < w.vTab ? ` (the chart allows ${w.vTab} m/s for normal loads)` : '') + '. Add the weather to check the forecast.' }); }
   if (!g.ok) g.msgs.forEach(m => res.checks.push({ s: 'fail', t: 'Geometry', m }));
   else g.msgs.forEach(m => res.checks.push({ s: 'warn', t: 'Geometry', m }));
   if (g.tip) {
@@ -468,6 +524,9 @@ function surfaceAt(site, x) {
   return y;
 }
 
+// v9: the load chart's wind limit (m/s at the boom head): the weather card's limit, else the crane's own entry, else 9.8 m/s (a common chart value)
+function windTabOf(plan) { const a = num(plan?.weather?.limit), b = num(plan?.windTab); return a > 0 ? a : b > 0 ? b : 9.8; }
+
 // radius produced by a given boom (telescopic) / jib (luffing) / main-boom (fly jib) angle
 function tipFromAngle(crane, chartDef, col, ang, boomOv) {
   const P = geoPivot(crane || {});
@@ -496,24 +555,32 @@ function angleFromRadius(crane, chartDef, col, R, boomOv) {
 }
 
 // several cranes per plan: the top-level crane fields are the active crane; the others are parked in plan.cranes[i]
-const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan'];
+const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan', 'jibDed', 'ropeKgM', 'windTab'];
 function rigOf(plan, i) { const a = num(plan.activeCrane, 0); if (i === a || !plan.cranes?.[i]) return plan; return { ...plan, ...plan.cranes[i] }; }
 function rigIndexOf(plan, l) { const i = Math.round(num(l?.crane, 0)); return plan.cranes?.[i] || i === num(plan.activeCrane, 0) ? i : num(plan.activeCrane, 0); }
 function computePlan(plan, cranes, settings) {
   const crane = cranes.find(c => c.id === plan.craneId) || cranes[0];
   const rigs = new Map();
-  const loads = (plan.loads || []).map(l => {
+  const loads = (plan.loads || []).map((l, li) => {
     const ri = rigIndexOf(plan, l); const pv = rigOf(plan, ri); const cr = cranes.find(c => c.id === pv.craneId) || crane;
     if (!rigs.has(ri)) rigs.set(ri, { i: ri, crane: cr, pv });
-    const r = computeLoad(pv, cr, l, settings); r.crane = cr; r.rigI = ri; return r;
+    // v9: a tandem lift (2–4 cranes on this load) — the lift's own crane carries its share, tandem.js works out every crane
+    const r = typeof computeTandem === 'function' && typeof tandemOf === 'function' && tandemOf(l) ? computeTandem(plan, cranes, settings, l, li) : computeLoad(pv, cr, l, settings);
+    r.crane = cr; r.rigI = ri; return r;
   });
+  // the other cranes of a tandem stand on their own legs too: their share goes into their outrigger model
+  const extra = new Map();
+  loads.forEach((res, li) => { for (const pk of res.tandem?.picks?.slice(1) || []) { if (!rigs.has(pk.crane)) rigs.set(pk.crane, { i: pk.crane, crane: pk.res.crane, pv: rigOf(plan, pk.crane) }); if (!extra.has(pk.crane)) extra.set(pk.crane, []); extra.get(pk.crane).push({ li, res: pk.res }); } });
   // outrigger (leg) loads per crane — outrig.js; the active crane's result drives the ground table
   const op = plan.outrigger || {};
   const outrigs = [];
   if (typeof outriggerCrane === 'function') for (const rg of rigs.values()) {
-    const O = outriggerCrane(rg.pv, rg.crane, loads.map((res, li) => ({ li, res })).filter(x => x.res.rigI === rg.i), op);
-    O.rigI = rg.i; O.crane = rg.crane; O.checks = outriggerChecks(O, rg.crane, loads); outrigs.push(O);
+    const ex = extra.get(rg.i) || [];
+    const O = outriggerCrane(rg.pv, rg.crane, [...loads.map((res, li) => ({ li, res })).filter(x => x.res.rigI === rg.i), ...ex], op);
+    const lr = loads.slice(); for (const x of ex) lr[x.li] = x.res;                     // a tandem crane's leg checks land on its own result
+    O.rigI = rg.i; O.crane = rg.crane; O.checks = outriggerChecks(O, rg.crane, lr); outrigs.push(O);
   }
+  if (typeof tandemMergeChecks === 'function') for (const l of loads) if (l.tandem) tandemMergeChecks(l);
   const outr = outrigs.find(o => o.rigI === num(plan.activeCrane, 0)) || outrigs[0] || null;
   // ground pressure: the maker's leg load when typed, else the biggest leg load (calculated, or typed by hand for an illustration)
   let ground = null;
@@ -601,11 +668,31 @@ function outriggerSpan(crane, chart) {
   const a = m ? +m[1] : num(crane.outLong, 7), b = m ? +m[2] : num(crane.outTrans, 7);
   return [Math.max(a, b), Math.min(a, b)];
 }
+// v9 Fit-Filter: weight, reach and (optionally) an obstruction the boom must clear — height h at x m from the crane — plus the lift side.
+// Every chart column is screened on its chart value first (the same reading computeLoad makes); only columns that can carry the hook load
+// get the full geometry run (headroom, boom over the obstruction, side). A crane with nothing that works keeps its strongest column so the
+// list can say how close it gets. ~0.1 s for the whole fleet.
 function findCranes(req, cranes, settings, opts = {}) {
   const out = [];
-  const lim = num(opts.maxUtil, num(settings?.utilMax, 90));
+  const lim = num(opts.maxUtil, num(settings?.utilMax, 90)); const S = { ...settings, utilMax: lim };
+  const R = num(req.R), oh = num(req.obst?.h);
+  const site = oh > 0 ? { ...(req.site || {}), obstacles: [...(req.site?.obstacles || []), { type: 'wall', x: r2(Math.max(0.5, num(req.obst.x) > 0 ? num(req.obst.x) : R * 0.6)), y: 0, w: 0.3, h: oh, label: 'OBSTRUCTION' }] } : req.site;
+  const side = sideOf(req.side);
   for (const crane of cranes) {
     if (opts.craneIds && !opts.craneIds.includes(crane.id)) continue;
+    const hb = req.hb > 0 ? num(req.hb) : num(crane.hookBlock);
+    const need = (num(req.w) * (1 + num(req.cont) / 100) + num(req.tk) + hb) * 100 / lim; // chart value a column needs at this reach
+    let okN = 0, best = null;
+    const run = (o) => {
+      const plan = { craneId: crane.id, chartIdx: o.chi, colIdx: o.ci, site, hookAllowance: req.hookAllowance, rigging: { height: req.rigH } };
+      const load = { name: 'LOAD', w: req.w, hb, tk: req.tk, cont: req.cont, R, h: req.h, rigH: req.rigH, landY: req.landY ?? '', side };
+      const r = computeLoad(plan, crane, load, S);
+      if (r.cap == null || !r.geo.ok) return null;
+      const fails = r.checks.filter(c => c.s === 'fail');
+      if (!o.fits) fails.push({ s: 'fail', t: 'Outrigger space', m: `outriggers ${o.span[0]} × ${o.span[1]} m need more than the ${o.sp[0]} × ${o.sp[1]} m available` });
+      const res = { crane, chi: o.chi, ci: o.ci, col: o.col, chart: o.ch, r, ok: fails.length === 0, fails, span: o.span, fits: o.fits };
+      out.push(res); return res;
+    };
     (crane.charts || []).forEach((ch, chi) => {
       if (!opts.allowJib && ch.kind && ch.kind !== 'main') return;
       const p = getChart(ch); if (!p) return;
@@ -613,26 +700,25 @@ function findCranes(req, cranes, settings, opts = {}) {
       const sp = opts.space && num(opts.space.L) > 0 && num(opts.space.W) > 0 ? [Math.max(num(opts.space.L), num(opts.space.W)), Math.min(num(opts.space.L), num(opts.space.W))] : null;
       const fits = !sp || (span[0] <= sp[0] + 1e-6 && span[1] <= sp[1] + 1e-6);
       p.cols.forEach((col, ci) => {
-        const plan = { craneId: crane.id, chartIdx: chi, colIdx: ci, site: req.site, hookAllowance: req.hookAllowance, rigging: { height: req.rigH } };
-        const load = { name: 'LOAD', w: req.w, hb: req.hb > 0 ? req.hb : crane.hookBlock, tk: req.tk, cont: req.cont, R: req.R, h: req.h, rigH: req.rigH, landY: req.landY ?? '', side: sideOf(req.side) };
-        const r = computeLoad(plan, crane, load, { ...settings, utilMax: lim });
-        if (r.cap == null || !r.geo.ok) return;
-        const fails = r.checks.filter(c => c.s === 'fail');
-        if (!fits) fails.push({ s: 'fail', t: 'Outrigger space', m: `outriggers ${span[0]} × ${span[1]} m need more than the ${sp[0]} × ${sp[1]} m available` });
-        out.push({ crane, chi, ci, col, chart: ch, r, ok: fails.length === 0, fails, span, fits });
+        const q = lookupCap(p, ci, R, S.lookup); if (q.cap == null) return;
+        const o = { chi, ci, col, ch, span, sp, fits, cap: q.cap };
+        if (q.cap + 1e-9 >= need && chartCoversSide(ch, side)) { const r = run(o); if (r && r.ok) okN++; }
+        else if (!best || q.cap > best.cap) best = o;
       });
     });
+    if (!okN && best) run(best);
   }
   out.sort((a, b) => (b.ok - a.ok) || (a.crane.cls - b.crane.cls) || (a.r.util - b.r.util));
   return out;
 }
-// best configuration per crane: main boom before jibs, least counterweight, shortest boom
+// best configuration per crane: main boom before jibs, least counterweight, shortest boom. A crane that can't do the lift shows its
+// strongest configuration (how close it gets).
 function bestPerCrane(res) {
   const by = new Map();
-  const rank = (o) => [o.ok ? 0 : 1, (o.chart.kind || 'main') === 'main' ? 0 : 1, num(o.chart.cwt, 999), o.col.L, o.r.util];
-  const better = (a, b) => { const x = rank(a), y = rank(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i]; return false; };
+  const rank = (o) => o.ok ? [0, (o.chart.kind || 'main') === 'main' ? 0 : 1, num(o.chart.cwt, 999), o.col.L, o.r.util] : [1, -num(o.r.cap), o.r.util];
+  const better = (a, b) => { const x = rank(a), y = rank(b); for (let i = 0; i < Math.max(x.length, y.length); i++) if (x[i] !== y[i]) return (x[i] ?? 0) < (y[i] ?? 0); return false; };
   for (const o of res) { const cur = by.get(o.crane.id); if (!cur || better(o, cur)) by.set(o.crane.id, o); }
   return [...by.values()].sort((a, b) => (b.ok - a.ok) || (a.crane.cls - b.crane.cls) || (a.r.util - b.r.util));
 }
 
-if (typeof module !== 'undefined') module.exports = { LIFT_SIDES, SIDE_OFFSET, SIDE_WORD, SIDE_NAME, sideOf, normDeg, degDiff, carrierHeadingFor, boomHeadingFor, sideFromHeadings, chartSectorsOf, chartCoversSide, chartSectorLabel, bestChartForSide, boomLayout, boomSpec, teleFor, jibRange, accState, ACC_LABELS, windAt, evalWeather, weatherWindow, WX_CODES, geoSetup, slingInfo, RIG_TYPES, LIFT_TYPES, angleFromRadius, bestPerCrane, outriggerSpan, radiusFromAngle, objExtent, OBJ_TYPES, parseChart, chartToText, getChart, lookupCap, solveGeometry, computeLoad, computePlan, findCranes, clearanceToSegment, surfaceAt, groundAt, num, r2, colName };
+if (typeof module !== 'undefined') module.exports = { curveCap, windTabOf, LIFT_SIDES, SIDE_OFFSET, SIDE_WORD, SIDE_NAME, sideOf, normDeg, degDiff, carrierHeadingFor, boomHeadingFor, sideFromHeadings, chartSectorsOf, chartCoversSide, chartSectorLabel, bestChartForSide, boomLayout, boomSpec, teleFor, jibRange, accState, ACC_LABELS, windAt, evalWeather, weatherWindow, WX_CODES, geoSetup, slingInfo, RIG_TYPES, LIFT_TYPES, angleFromRadius, bestPerCrane, outriggerSpan, radiusFromAngle, objExtent, OBJ_TYPES, parseChart, chartToText, getChart, lookupCap, solveGeometry, computeLoad, computePlan, findCranes, clearanceToSegment, surfaceAt, groundAt, num, r2, colName };

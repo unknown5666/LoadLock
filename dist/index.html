@@ -1318,7 +1318,7 @@ const DEFAULT_SETTINGS = {
     'NO DIMENSIONS TO BE SCALED OFF, ONLY WRITTEN DIMENSIONS ARE TO BE FOLLOWED.',
     '"TYPICAL" MEANS THE REFERENCED DETAIL SHALL APPLY FOR ALL SIMILAR CONDITIONS UNLESS OTHERWISE NOTED.'
   ],
-  utilWarn:75, utilMax:90, minClearance:1.0, lookup:'conservative', outriggerFactor:0.8,
+  utilWarn:75, utilMax:90, minClearance:1.0, lookup:'conservative', outriggerFactor:0.8, tandemDerate:80, pUnit:'t',
   defaultDrawnBy:'HABIB', headerStyle:'yellow'
 };
 
@@ -1430,7 +1430,7 @@ function chartToText(p) {
   return [h, ...p.rows.map(r => r[0] + ': ' + r.slice(1).map(v => v == null ? '-' : v).join(' '))].join('\n');
 }
 
-const _chartCache = new Map();
+const _chartCache = new Map(); let _chartRev = 0; // _chartRev: bumped whenever a chart may have changed (app.js wraps _chartCache.clear)
 function getChart(ch) {
   if (!ch) return null;
   const key = ch.src;
@@ -1450,7 +1450,25 @@ function lookupCap(parsed, ci, R, mode = 'conservative') {
   if (exact) return { cap: exact[1], row: exact[0] };
   const hi = pts.find(p => p[0] > R); const lo = [...pts].reverse().find(p => p[0] < R);
   if (mode === 'interpolate' && lo && hi) return { cap: r2(lo[1] + (hi[1] - lo[1]) * (R - lo[0]) / (hi[0] - lo[0])), row: R, interp: true };
+  if (mode === 'curve' && lo && hi) return { cap: r2(curveCap(pts, R)), row: R, interp: true, curve: true };
   return { cap: hi[1], row: hi[0], rounded: true };
+}
+// v9 curve fit between chart radii: a monotone cubic (Fritsch–Carlson / PCHIP) through the column, so the curve bends the way a load chart
+// does instead of cutting straight across. Never more than the straight line between the two neighbouring points, never less than the next
+// radius up — it sits between the "safe step" and plain interpolation.
+function curveCap(pts, R) {
+  const n = pts.length; let k = 0; while (k < n - 2 && pts[k + 1][0] < R) k++;
+  const x = pts.map(p => p[0]), y = pts.map(p => p[1]); const h = [], d = [];
+  for (let i = 0; i < n - 1; i++) { h.push(x[i + 1] - x[i]); d.push((y[i + 1] - y[i]) / (x[i + 1] - x[i])); }
+  const slope = (i) => {
+    if (n < 3 || i === 0) return d[0]; if (i === n - 1) return d[n - 2];
+    if (d[i - 1] * d[i] <= 0) return 0;
+    const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1]; return (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+  };
+  const t = (R - x[k]) / h[k], t2 = t * t, t3 = t2 * t;
+  const v = (2 * t3 - 3 * t2 + 1) * y[k] + (t3 - 2 * t2 + t) * h[k] * slope(k) + (-2 * t3 + 3 * t2) * y[k + 1] + (t3 - t2) * h[k] * slope(k + 1);
+  const lin = y[k] + (y[k + 1] - y[k]) * t;
+  return Math.max(Math.min(y[k], y[k + 1]), Math.min(v, lin, Math.max(y[k], y[k + 1])));
 }
 
 // crane side-view drawing (CAD library) for a crane record, following old keys
@@ -1595,7 +1613,12 @@ function teleFor(spec, L, manualFr) {
   const f = Math.max(0, Math.min(1, (L - spec.Lmin) / Math.max(1e-6, spec.Lmax - spec.Lmin)));
   return { fr: Array(spec.tele).fill(f), L: r2(spec.Lmin + f * (spec.Lmax - spec.Lmin)) };
 }
-function chartLengths(crane) { const out = []; for (const ch of crane?.charts || []) { if (ch.kind === 'luffing' || ch.kind === 'fixedjib') { if (ch.mainLen) out.push(num(ch.mainLen)); } else { const p = getChart(ch); if (p) for (const c of p.cols) out.push(c.L); } } return out; }
+// every main-boom length the crane's charts use (boomSpec only needs the shortest and longest). v9: kept per crane record —
+// the big Liebherrs carry 100–380 charts and this ran several times per lift on every redraw.
+const _lenCache = new WeakMap();
+function chartLengths(crane) { if (!crane || typeof crane !== 'object') return []; const hit = _lenCache.get(crane); if (hit && hit.charts === crane.charts && hit.n === (crane.charts || []).length && hit.rev === _chartRev) return hit.out;
+  const all = chartLengthsAll(crane).filter(L => L > 0); const out = all.length ? [Math.min(...all), Math.max(...all)] : []; _lenCache.set(crane, { charts: crane.charts, n: (crane.charts || []).length, rev: _chartRev, out }); return out; }
+function chartLengthsAll(crane) { const out = []; for (const ch of crane?.charts || []) { if (ch.kind === 'luffing' || ch.kind === 'fixedjib') { if (ch.mainLen) out.push(num(ch.mainLen)); } else { const p = getChart(ch); if (p) for (const c of p.cols) out.push(c.L); } } return out; }
 // jib length range the crane really has (from its jib charts) or a sensible default
 function jibRange(crane, type) {
   const kind = type === 'luff' ? 'luffing' : 'fixedjib'; const ls = (crane?.charts || []).filter(c => c.kind === kind).map(c => num(c.jibLen)).filter(v => v > 0);
@@ -1682,35 +1705,64 @@ function computeLoad(plan, crane, load, settings) {
   else if (heightMode) R = radiusFromAngle(crane, G.gChart, G.gCol, angleFromHeight(crane, G.gChart, G.gCol, num(load.tipH, 20), G.boomOv), G.boomOv);
   else R = num(load.R);
   const empty = !!load.empty; const stack = tackleStack(load);
+  const boomOv = G.boomOv;
+  // geometry first (v9: the hoist-rope deduction needs the boom-head height; nothing here depends on the weights)
+  const g = solveGeometry(crane || {}, G.gChart, G.gCol, R, boomOv);
+  if (!chartDef && !G.manual && boomOv > 0) { g.L = boomOv; }
   const W = empty ? 0 : num(load.w), contOn = load.contOn !== false && !empty, cont = contOn ? num(load.cont) : 0;
   const hb = (load.hb === '' || load.hb == null) ? num(crane?.hookBlock) : num(load.hb);
   const tk = empty && !load.emptyRig ? 0 : stack && stack.w > 0 ? stack.w : num(load.tk), ex = empty ? 0 : num(load.extra);
   const contW = r2(W * cont / 100);
-  const total = r2(W + contW + hb + tk + ex);
+  // v9 net-capacity deductions the load chart asks for: a fly jib / extension carried folded on the boom (not when a jib is in use),
+  // and the hoist rope hanging between the boom head and the hook block (falls × length × kg/m) once the crane's rope weight is entered
+  const jibInUse = !!G.manual || !!(chartDef?.kind && chartDef.kind !== 'main');
+  const jd = !jibInUse && num(plan.jibDed) > 0 ? r2(num(plan.jibDed)) : 0;
+  const hookYpre = (() => { const lg = load.landY !== '' && load.landY != null ? num(load.landY) : surfaceAt(plan.site, R); const sl0 = stack ? null : slingInfo(load); return lg + num(load.h, 1.5) + (stack ? stack.H : sl0 && sl0.rigH != null ? sl0.rigH : num(load.rigH, num(plan.rigging?.height, 3))); })();
+  const falls = num(plan.falls) > 0 ? Math.round(num(plan.falls)) : num(col?.falls) > 0 ? num(col.falls) : 0;
+  const ropeKgM = num(plan.ropeKgM); const ropeLen = g.tip ? r2(Math.max(0, g.tip.y - hookYpre - 1)) : 0;
+  const rope = ropeKgM > 0 && falls > 0 ? r2(falls * ropeLen * ropeKgM / 1000) : 0;
+  const total = r2(W + contW + hb + tk + ex + jd + rope);
   const Dd = load.daf || {}; const daf = Dd.on ? (Dd.mode === 'manual' ? Math.max(1, num(Dd.v, 1.1)) : dafAuto(Dd)) : null;
   const design = daf ? r2(total * daf) : total;
-  const res = { R, W, contW, cont, contOn, hb, tk, ex, total, daf, dafAuto: Dd.on && Dd.mode !== 'manual', design, empty, stack, checks: [], col, ci, chartDef, angleMode, heightMode, manualJib: G.manual, gChart: G.gChart, tele: G.tele, spec: G.spec, acc: G.acc };
-  // capacity
-  let capInfo;
-  const boomOv = G.boomOv;
-  if (load.capOverride !== '' && load.capOverride != null && num(load.capOverride) > 0) {
-    capInfo = { cap: num(load.capOverride), manual: true };
-  } else if (G.manual) {
-    capInfo = num(plan.attach?.swl) > 0 ? { cap: num(plan.attach.swl), manual: true, jib: true } : { cap: null, why: 'Enter the jib SWL from the ' + (G.manual === 'fly' ? 'fly-jib' : 'luffing-jib') + ' load chart' };
-  } else if (parsed && chartDef.kind === 'main' && boomOv > 0 && col && Math.abs(boomOv - col.L) > 0.05) {
-    // boom between chart columns → take the lower capacity of the bracketing lengths
-    const Ls = [...new Set(parsed.cols.map(c => c.L))].sort((a, b) => a - b);
-    const lower = [...Ls].reverse().find(L => L <= boomOv), upper = Ls.find(L => L >= boomOv);
-    if (upper == null) capInfo = { cap: null, why: `Boom ${boomOv} m is longer than the longest chart column (${Ls[Ls.length - 1]} m)` }; else {
-    const cand = parsed.cols.map((c, i) => ({ c, i })).filter(o => (o.c.L === lower || o.c.L === upper) && (o.c.label || '') === (col.label || ''));
-    const caps = cand.map(o => lookupCap(parsed, o.i, R, S.lookup)).filter(x => x.cap != null);
-    capInfo = caps.length ? { cap: Math.min(...caps.map(x => x.cap)), row: caps[0].row, between: [lower ?? upper, upper] } : { cap: null, why: 'Boom length outside chart columns' }; }
-  } else capInfo = lookupCap(parsed, ci, R, S.lookup);
+  const res = { R, W, contW, cont, contOn, hb, tk, ex, jd, rope, ropeInfo: { kgm: ropeKgM, falls, len: ropeLen }, total, daf, dafAuto: Dd.on && Dd.mode !== 'manual', design, empty, stack, checks: [], col, ci, chartDef, angleMode, heightMode, manualJib: G.manual, gChart: G.gChart, gCol: G.gCol, boomOv, tele: G.tele, spec: G.spec, acc: G.acc };
+  // capacity — capAt reads the chart at any radius the same way (used again for the wind drift)
+  const capAt = (Rq) => {
+    if (load.capOverride !== '' && load.capOverride != null && num(load.capOverride) > 0) return { cap: num(load.capOverride), manual: true };
+    if (G.manual) return num(plan.attach?.swl) > 0 ? { cap: num(plan.attach.swl), manual: true, jib: true } : { cap: null, why: 'Enter the jib SWL from the ' + (G.manual === 'fly' ? 'fly-jib' : 'luffing-jib') + ' load chart' };
+    if (parsed && chartDef.kind === 'main' && boomOv > 0 && col && Math.abs(boomOv - col.L) > 0.05) {
+      // boom between chart columns → take the lower capacity of the bracketing lengths
+      const Ls = [...new Set(parsed.cols.map(c => c.L))].sort((a, b) => a - b);
+      const lower = [...Ls].reverse().find(L => L <= boomOv), upper = Ls.find(L => L >= boomOv);
+      if (upper == null) return { cap: null, why: `Boom ${boomOv} m is longer than the longest chart column (${Ls[Ls.length - 1]} m)` };
+      const cand = parsed.cols.map((c, i) => ({ c, i })).filter(o => (o.c.L === lower || o.c.L === upper) && (o.c.label || '') === (col.label || ''));
+      const caps = cand.map(o => lookupCap(parsed, o.i, Rq, S.lookup)).filter(x => x.cap != null);
+      return caps.length ? { cap: Math.min(...caps.map(x => x.cap)), row: caps[0].row, between: [lower ?? upper, upper] } : { cap: null, why: 'Boom length outside chart columns' };
+    }
+    return lookupCap(parsed, ci, Rq, S.lookup);
+  };
+  let capInfo = capAt(R);
+  res.capChart = capInfo.cap;
+  // v9 wind on the load. A load chart's wind limit assumes about 1.2 m² of wind area per tonne on the hook (EN 13000). A load with more
+  // area (A_W = projected area × drag coefficient) may only be lifted up to v_perm = v_chart · √(1.2 · m_H / A_W). When the gust at the
+  // boom head is above that, the extra wind force pushes the hanging load out (worst case: straight away from the crane), so the chart is
+  // read again at the drifted reach.
+  const area = num(load.area);
+  if (area > 0 && !empty && g.tip) {
+    const cw = num(load.cw) > 0 ? num(load.cw) : 1.2, AW = r2(area * cw), mH = Math.max(0.05, total);
+    const vTab = windTabOf(plan); const vPerm = r2(Math.min(vTab, vTab * Math.sqrt(1.2 * mH / AW)));
+    const wx = evalWeather(plan, { tipY: g.tip.y }); const vDes = wx ? wx.maxG : null;
+    const q = (v) => 0.5 * 1.25 * v * v / 1000;                                      // kN per m² of wind area at v m/s
+    const Fdes = vDes != null ? r2(q(vDes) * AW) : null, Fref = q(vTab) * 1.2 * mH;   // the chart already allows for Fref
+    const hang = Math.max(1, g.tip.y - (hookYpre - num(load.h, 1.5) / 2));             // boom head to the middle of the load
+    const Fx = Fdes != null ? Math.max(0, Fdes - Fref) : 0; const phi = Math.atan(Fx / (mH * 9.81)); const dR = r2(hang * Math.sin(phi));
+    const w = { area, cw, AW, mH: r2(mH), vTab, vPerm, vDes, F: Fdes, Fref: r2(Fref), hang: r2(hang), dR, swing: r2(phi * R2D), src: wx ? (wx.manual ? 'typed' : 'forecast') : null };
+    if (dR > 0.005 && capInfo.cap != null && !capInfo.manual) { const c2 = capAt(R + dR); w.capWind = c2.cap; if (c2.cap == null || c2.cap < capInfo.cap) capInfo = { ...capInfo, cap: c2.cap, wind: true, why: c2.cap == null ? `The wind pushes the load ${dR.toFixed(2)} m out — beyond the chart` : capInfo.why }; }
+    res.wind = w;
+  }
   res.cap = capInfo.cap; res.capInfo = capInfo;
   if (res.cap != null && res.cap > 0) { res.util = r2(design / res.cap * 100); res.sf = Math.round(res.cap / design * 10000) / 10000; }
-  // geometry
-  const g = solveGeometry(crane || {}, G.gChart, G.gCol, R, boomOv);
-  if (!chartDef && !G.manual && boomOv > 0) { g.L = boomOv; }
+  // net capacity: what the load itself (with its margin) may weigh once the hook, tackles and deductions come off the chart value
+  if (res.cap != null) { res.ded = r2(hb + tk + ex + jd + rope); res.netCap = r2(res.cap / (daf || 1) - res.ded); res.margin = res.cap > 0 ? r2((res.cap - design) / res.cap * 100) : null; }
   if (chartDef && chartDef.verify) res.checks.push({ s: 'warn', t: 'Load chart', m: 'This chart was transcribed from a public datasheet (' + (chartDef.source || 'unverified') + ') — check it against the crane\'s own chart before issuing' });
   if (G.tele.mode === 'manual' && !G.tele.locked) res.checks.push({ s: 'info', t: 'Telescoping', m: `Sections set by hand (${G.tele.fr.map(f => Math.round(f * 100)).join(' / ')} %) → ${G.tele.L} m boom. Capacity is read for that length; check the crane's telescoping sequence gives the same chart` });
   res.geo = g;
@@ -1735,9 +1787,13 @@ function computeLoad(plan, crane, load, settings) {
   const lim = num(S.utilMax, 85), warn = num(S.utilWarn, 75);
   if (res.cap == null) res.checks.push({ s: 'fail', t: 'Chart capacity', m: capInfo.why || 'No capacity' });
   else {
-    const note = capInfo.jib ? ' (jib SWL entered manually)' : capInfo.manual ? ' (entered manually)' : capInfo.between ? ` (lower of ${capInfo.between.join(' / ')} m columns)` : capInfo.rounded ? ` (taken at ${capInfo.row} m — next chart radius up)` : capInfo.interp ? ' (interpolated)' : '';
+    const note = capInfo.jib ? ' (jib SWL entered manually)' : capInfo.manual ? ' (entered manually)' : capInfo.wind ? ` (read at ${(R + res.wind.dR).toFixed(2)} m — the wind pushes the load ${res.wind.dR.toFixed(2)} m out)` : capInfo.between ? ` (lower of ${capInfo.between.join(' / ')} m columns)` : capInfo.rounded ? ` (taken at ${capInfo.row} m — next chart radius up)` : capInfo.curve ? ' (curve fit between chart radii)' : capInfo.interp ? ' (interpolated)' : '';
     res.checks.push({ s: res.util > 100 ? 'fail' : res.util > lim ? 'fail' : res.util > warn ? 'warn' : 'ok', t: 'Capacity utilisation', m: `${res.util.toFixed(2)}% of ${res.cap.toFixed(2)} t${note}${daf ? ` — with DAF ${daf} (${design.toFixed(2)} t design load)` : ''}` + (res.util > lim && res.util <= 100 ? ` — over the ${lim}% limit` : res.util > warn && res.util <= lim ? ` — critical lift (> ${warn}%)` : '') });
   }
+  if (jd || rope) res.checks.push({ s: 'info', t: 'Deductions', m: [jd ? `folded jib ${jd.toFixed(2)} t` : '', rope ? `hoist rope ${rope.toFixed(2)} t (${falls} falls × ${ropeLen.toFixed(1)} m × ${ropeKgM} kg/m)` : ''].filter(Boolean).join(' and ') + ' counted in the hook load, as the load chart asks' });
+  if (res.wind) { const w = res.wind;
+    if (w.vDes != null) res.checks.push({ s: w.vDes > w.vPerm ? 'fail' : w.vDes > 0.8 * w.vPerm ? 'warn' : 'ok', t: 'Wind on the load', m: `${w.AW.toFixed(1)} m² wind area on ${w.mH.toFixed(1)} t: lift only up to ${w.vPerm.toFixed(1)} m/s (chart ${w.vTab} m/s). Gust at the boom head ${w.vDes.toFixed(1)} m/s` + (w.vDes > w.vPerm ? ` — too windy for this load${w.dR > 0 ? `; it would swing ${w.dR.toFixed(2)} m out` : ''}` : w.vDes > 0.8 * w.vPerm ? ' — close to the limit, use tag lines' : '') });
+    else res.checks.push({ s: w.vPerm < w.vTab ? 'warn' : 'info', t: 'Wind on the load', m: `${w.AW.toFixed(1)} m² wind area on ${w.mH.toFixed(1)} t: stop lifting above ${w.vPerm.toFixed(1)} m/s at the boom head` + (w.vPerm < w.vTab ? ` (the chart allows ${w.vTab} m/s for normal loads)` : '') + '. Add the weather to check the forecast.' }); }
   if (!g.ok) g.msgs.forEach(m => res.checks.push({ s: 'fail', t: 'Geometry', m }));
   else g.msgs.forEach(m => res.checks.push({ s: 'warn', t: 'Geometry', m }));
   if (g.tip) {
@@ -1792,6 +1848,9 @@ function surfaceAt(site, x) {
   return y;
 }
 
+// v9: the load chart's wind limit (m/s at the boom head): the weather card's limit, else the crane's own entry, else 9.8 m/s (a common chart value)
+function windTabOf(plan) { const a = num(plan?.weather?.limit), b = num(plan?.windTab); return a > 0 ? a : b > 0 ? b : 9.8; }
+
 // radius produced by a given boom (telescopic) / jib (luffing) / main-boom (fly jib) angle
 function tipFromAngle(crane, chartDef, col, ang, boomOv) {
   const P = geoPivot(crane || {});
@@ -1820,24 +1879,32 @@ function angleFromRadius(crane, chartDef, col, R, boomOv) {
 }
 
 // several cranes per plan: the top-level crane fields are the active crane; the others are parked in plan.cranes[i]
-const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan'];
+const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan', 'jibDed', 'ropeKgM', 'windTab'];
 function rigOf(plan, i) { const a = num(plan.activeCrane, 0); if (i === a || !plan.cranes?.[i]) return plan; return { ...plan, ...plan.cranes[i] }; }
 function rigIndexOf(plan, l) { const i = Math.round(num(l?.crane, 0)); return plan.cranes?.[i] || i === num(plan.activeCrane, 0) ? i : num(plan.activeCrane, 0); }
 function computePlan(plan, cranes, settings) {
   const crane = cranes.find(c => c.id === plan.craneId) || cranes[0];
   const rigs = new Map();
-  const loads = (plan.loads || []).map(l => {
+  const loads = (plan.loads || []).map((l, li) => {
     const ri = rigIndexOf(plan, l); const pv = rigOf(plan, ri); const cr = cranes.find(c => c.id === pv.craneId) || crane;
     if (!rigs.has(ri)) rigs.set(ri, { i: ri, crane: cr, pv });
-    const r = computeLoad(pv, cr, l, settings); r.crane = cr; r.rigI = ri; return r;
+    // v9: a tandem lift (2–4 cranes on this load) — the lift's own crane carries its share, tandem.js works out every crane
+    const r = typeof computeTandem === 'function' && typeof tandemOf === 'function' && tandemOf(l) ? computeTandem(plan, cranes, settings, l, li) : computeLoad(pv, cr, l, settings);
+    r.crane = cr; r.rigI = ri; return r;
   });
+  // the other cranes of a tandem stand on their own legs too: their share goes into their outrigger model
+  const extra = new Map();
+  loads.forEach((res, li) => { for (const pk of res.tandem?.picks?.slice(1) || []) { if (!rigs.has(pk.crane)) rigs.set(pk.crane, { i: pk.crane, crane: pk.res.crane, pv: rigOf(plan, pk.crane) }); if (!extra.has(pk.crane)) extra.set(pk.crane, []); extra.get(pk.crane).push({ li, res: pk.res }); } });
   // outrigger (leg) loads per crane — outrig.js; the active crane's result drives the ground table
   const op = plan.outrigger || {};
   const outrigs = [];
   if (typeof outriggerCrane === 'function') for (const rg of rigs.values()) {
-    const O = outriggerCrane(rg.pv, rg.crane, loads.map((res, li) => ({ li, res })).filter(x => x.res.rigI === rg.i), op);
-    O.rigI = rg.i; O.crane = rg.crane; O.checks = outriggerChecks(O, rg.crane, loads); outrigs.push(O);
+    const ex = extra.get(rg.i) || [];
+    const O = outriggerCrane(rg.pv, rg.crane, [...loads.map((res, li) => ({ li, res })).filter(x => x.res.rigI === rg.i), ...ex], op);
+    const lr = loads.slice(); for (const x of ex) lr[x.li] = x.res;                     // a tandem crane's leg checks land on its own result
+    O.rigI = rg.i; O.crane = rg.crane; O.checks = outriggerChecks(O, rg.crane, lr); outrigs.push(O);
   }
+  if (typeof tandemMergeChecks === 'function') for (const l of loads) if (l.tandem) tandemMergeChecks(l);
   const outr = outrigs.find(o => o.rigI === num(plan.activeCrane, 0)) || outrigs[0] || null;
   // ground pressure: the maker's leg load when typed, else the biggest leg load (calculated, or typed by hand for an illustration)
   let ground = null;
@@ -1925,11 +1992,31 @@ function outriggerSpan(crane, chart) {
   const a = m ? +m[1] : num(crane.outLong, 7), b = m ? +m[2] : num(crane.outTrans, 7);
   return [Math.max(a, b), Math.min(a, b)];
 }
+// v9 Fit-Filter: weight, reach and (optionally) an obstruction the boom must clear — height h at x m from the crane — plus the lift side.
+// Every chart column is screened on its chart value first (the same reading computeLoad makes); only columns that can carry the hook load
+// get the full geometry run (headroom, boom over the obstruction, side). A crane with nothing that works keeps its strongest column so the
+// list can say how close it gets. ~0.1 s for the whole fleet.
 function findCranes(req, cranes, settings, opts = {}) {
   const out = [];
-  const lim = num(opts.maxUtil, num(settings?.utilMax, 90));
+  const lim = num(opts.maxUtil, num(settings?.utilMax, 90)); const S = { ...settings, utilMax: lim };
+  const R = num(req.R), oh = num(req.obst?.h);
+  const site = oh > 0 ? { ...(req.site || {}), obstacles: [...(req.site?.obstacles || []), { type: 'wall', x: r2(Math.max(0.5, num(req.obst.x) > 0 ? num(req.obst.x) : R * 0.6)), y: 0, w: 0.3, h: oh, label: 'OBSTRUCTION' }] } : req.site;
+  const side = sideOf(req.side);
   for (const crane of cranes) {
     if (opts.craneIds && !opts.craneIds.includes(crane.id)) continue;
+    const hb = req.hb > 0 ? num(req.hb) : num(crane.hookBlock);
+    const need = (num(req.w) * (1 + num(req.cont) / 100) + num(req.tk) + hb) * 100 / lim; // chart value a column needs at this reach
+    let okN = 0, best = null;
+    const run = (o) => {
+      const plan = { craneId: crane.id, chartIdx: o.chi, colIdx: o.ci, site, hookAllowance: req.hookAllowance, rigging: { height: req.rigH } };
+      const load = { name: 'LOAD', w: req.w, hb, tk: req.tk, cont: req.cont, R, h: req.h, rigH: req.rigH, landY: req.landY ?? '', side };
+      const r = computeLoad(plan, crane, load, S);
+      if (r.cap == null || !r.geo.ok) return null;
+      const fails = r.checks.filter(c => c.s === 'fail');
+      if (!o.fits) fails.push({ s: 'fail', t: 'Outrigger space', m: `outriggers ${o.span[0]} × ${o.span[1]} m need more than the ${o.sp[0]} × ${o.sp[1]} m available` });
+      const res = { crane, chi: o.chi, ci: o.ci, col: o.col, chart: o.ch, r, ok: fails.length === 0, fails, span: o.span, fits: o.fits };
+      out.push(res); return res;
+    };
     (crane.charts || []).forEach((ch, chi) => {
       if (!opts.allowJib && ch.kind && ch.kind !== 'main') return;
       const p = getChart(ch); if (!p) return;
@@ -1937,24 +2024,23 @@ function findCranes(req, cranes, settings, opts = {}) {
       const sp = opts.space && num(opts.space.L) > 0 && num(opts.space.W) > 0 ? [Math.max(num(opts.space.L), num(opts.space.W)), Math.min(num(opts.space.L), num(opts.space.W))] : null;
       const fits = !sp || (span[0] <= sp[0] + 1e-6 && span[1] <= sp[1] + 1e-6);
       p.cols.forEach((col, ci) => {
-        const plan = { craneId: crane.id, chartIdx: chi, colIdx: ci, site: req.site, hookAllowance: req.hookAllowance, rigging: { height: req.rigH } };
-        const load = { name: 'LOAD', w: req.w, hb: req.hb > 0 ? req.hb : crane.hookBlock, tk: req.tk, cont: req.cont, R: req.R, h: req.h, rigH: req.rigH, landY: req.landY ?? '', side: sideOf(req.side) };
-        const r = computeLoad(plan, crane, load, { ...settings, utilMax: lim });
-        if (r.cap == null || !r.geo.ok) return;
-        const fails = r.checks.filter(c => c.s === 'fail');
-        if (!fits) fails.push({ s: 'fail', t: 'Outrigger space', m: `outriggers ${span[0]} × ${span[1]} m need more than the ${sp[0]} × ${sp[1]} m available` });
-        out.push({ crane, chi, ci, col, chart: ch, r, ok: fails.length === 0, fails, span, fits });
+        const q = lookupCap(p, ci, R, S.lookup); if (q.cap == null) return;
+        const o = { chi, ci, col, ch, span, sp, fits, cap: q.cap };
+        if (q.cap + 1e-9 >= need && chartCoversSide(ch, side)) { const r = run(o); if (r && r.ok) okN++; }
+        else if (!best || q.cap > best.cap) best = o;
       });
     });
+    if (!okN && best) run(best);
   }
   out.sort((a, b) => (b.ok - a.ok) || (a.crane.cls - b.crane.cls) || (a.r.util - b.r.util));
   return out;
 }
-// best configuration per crane: main boom before jibs, least counterweight, shortest boom
+// best configuration per crane: main boom before jibs, least counterweight, shortest boom. A crane that can't do the lift shows its
+// strongest configuration (how close it gets).
 function bestPerCrane(res) {
   const by = new Map();
-  const rank = (o) => [o.ok ? 0 : 1, (o.chart.kind || 'main') === 'main' ? 0 : 1, num(o.chart.cwt, 999), o.col.L, o.r.util];
-  const better = (a, b) => { const x = rank(a), y = rank(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i]; return false; };
+  const rank = (o) => o.ok ? [0, (o.chart.kind || 'main') === 'main' ? 0 : 1, num(o.chart.cwt, 999), o.col.L, o.r.util] : [1, -num(o.r.cap), o.r.util];
+  const better = (a, b) => { const x = rank(a), y = rank(b); for (let i = 0; i < Math.max(x.length, y.length); i++) if (x[i] !== y[i]) return (x[i] ?? 0) < (y[i] ?? 0); return false; };
   for (const o of res) { const cur = by.get(o.crane.id); if (!cur || better(o, cur)) by.set(o.crane.id, o); }
   return [...by.values()].sort((a, b) => (b.ok - a.ok) || (a.crane.cls - b.crane.cls) || (a.r.util - b.r.util));
 }
@@ -2077,6 +2163,52 @@ function outSolve(pads, W, xc, yc, k) {
     active.splice(R.indexOf(min), 1);                                              // the most negative pad lifts off
   }
 }
+// ---------- v9 fast path (same maths, ~10× quicker — the 360° sweeps run on every drag) ----------
+// The plane matrix depends only on where the pads are, so its inverse is worked out once per set of pads in contact and kept on the
+// pads array. Symmetric 3×3 inverse by cofactors: [i11 i12 i13 i22 i23 i33]; null when the pads are in a line.
+function outPlaneInv(pads, idx) {
+  let memo = pads.__inv; if (!memo) { memo = new Map(); Object.defineProperty(pads, '__inv', { value: memo, enumerable: false }); }
+  const key = idx.join(''); if (memo.has(key)) return memo.get(key);
+  let a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+  for (const i of idx) { const p = pads[i]; a += 1; b += p.x; c += p.y; d += p.x * p.x; e += p.x * p.y; f += p.y * p.y; }
+  const C11 = d * f - e * e, C12 = c * e - b * f, C13 = b * e - c * d, C22 = a * f - c * c, C23 = b * c - a * e, C33 = a * d - b * b;
+  const det = a * C11 + b * C12 + c * C13;
+  const inv = Math.abs(det) < 1e-12 ? null : [C11 / det, C12 / det, C13 / det, C22 / det, C23 / det, C33 / det];
+  memo.set(key, inv); return inv;
+}
+// outSolve with the cached inverse (identical states, lift-off order and thresholds); edges of the pad polygon are kept as unit normals
+function outEdges(pads) {
+  if (pads.__edges) return pads.__edges;
+  const E = pads.map((a, i) => { const b = pads[(i + 1) % pads.length]; const L = Math.hypot(b.x - a.x, b.y - a.y) || 1; return [a.x, a.y, (b.x - a.x) / L, (b.y - a.y) / L]; });
+  Object.defineProperty(pads, '__edges', { value: E, enumerable: false }); return E;
+}
+function outSolveFast(pads, W, xc, yc) {
+  let margin = Infinity; for (const [ax, ay, ux, uy] of outEdges(pads)) { const m = ux * (yc - ay) - uy * (xc - ax); if (m < margin) margin = m; }
+  const n = pads.length; const zero = new Array(n).fill(0);
+  if (margin < -1e-9) return { R: zero, state: 'tipped', lifted: [], margin };
+  const active = []; for (let i = 0; i < n; i++) active.push(i);
+  for (;;) {
+    const inv = outPlaneInv(pads, active); const R = new Array(active.length); let min = Infinity, at = -1;
+    if (!inv) { R.fill(NaN); min = NaN; }
+    else { const c0 = W * (inv[0] + inv[1] * xc + inv[2] * yc), c1 = W * (inv[1] + inv[3] * xc + inv[4] * yc), c2 = W * (inv[2] + inv[4] * xc + inv[5] * yc);
+      for (let j = 0; j < active.length; j++) { const p = pads[active[j]]; const v = c0 + c1 * p.x + c2 * p.y; R[j] = v; if (v < min) { min = v; at = j; } } }
+    if (min >= -1e-9 * Math.max(1, W)) {
+      const out = zero.slice(); const lifted = [];
+      for (let j = 0; j < active.length; j++) out[active[j]] = Math.max(0, R[j]);
+      for (let i = 0; i < n; i++) if (!active.includes(i)) lifted.push(pads[i].id);
+      return { R: out, state: margin < 1e-3 ? 'tipping-limit' : lifted.length ? '3-point' : '4-point', lifted, margin };
+    }
+    if (active.length <= 3) return { R: zero, state: 'tipped', lifted: [], margin };
+    active.splice(at < 0 ? -1 : at, 1);
+  }
+}
+// the parts that turn with the boom all sit on the boom line, so together they are one mass m at moment s (= Σ mᵢ·rᵢ) along it
+function outSlewSum(mm, geo, hookT, R) {
+  const bc = outBoomCog(mm, geo); let m = 0, s = 0; const add = (mi, r) => { if (mi > 0) { m += mi; s += mi * r; } };
+  add(mm.sup, mm.supR); add(mm.cwt, mm.cwtR); add(mm.boom, bc.r); if (bc.jib) add(bc.jib.m, bc.jib.r); add(Math.max(0, num(hookT)), num(R));
+  return { m, s };
+}
+
 // one slew angle: total mass, centre of gravity and the four pad reactions
 function outAt(mm, pads, geo, theta, hookT, R) {
   const c = outCog(outMasses(mm, geo, theta, hookT, R)); const s = outSolve(pads, c.M, c.x, c.y);
@@ -2085,7 +2217,8 @@ function outAt(mm, pads, geo, theta, hookT, R) {
 }
 // gross hook load that brings the centre of gravity onto the pad polygon edge at slew θ (bisection; brief §5.1). Infinity = never tips.
 function outTipHook(mm, pads, geo, theta, R) {
-  const inside = (m) => { const c = outCog(outMasses(mm, geo, theta, m, R)); return outMargin(c.x, c.y, pads) >= 0; };
+  const base = outSlewSum(mm, geo, 0, R), t = theta * D2R, ct = Math.cos(t), st = Math.sin(t), Rr = num(R);
+  const inside = (m) => { const M = mm.carrier + base.m + m, s = base.s + m * Rr; return outMargin(M > 0 ? (mm.carrier * mm.carrierX + s * ct) / M : 0, M > 0 ? s * st / M : 0, pads) >= 0; };
   if (!inside(0)) return 0;
   let lo = 0, hi = 25; while (inside(hi)) { lo = hi; hi *= 2; if (hi > 1e5) return Infinity; }
   for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (inside(m)) lo = m; else hi = m; }
@@ -2095,11 +2228,12 @@ function outTipHook(mm, pads, geo, theta, R) {
 function outSweep(mm, pads, geo, hookT, R, step = 5) {
   const max = {}; for (const p of pads) max[p.id] = { v: 0, th: 0 };
   let minMargin = Infinity, thMin = 0, tipped = false, lifted = false;
+  const sl = outSlewSum(mm, geo, hookT, R), M = mm.carrier + sl.m, mx = mm.carrier * mm.carrierX;
   for (let th = 0; th < 360; th += step) {
-    const a = outAt(mm, pads, geo, th, hookT, R);
+    const t = th * D2R; const a = outSolveFast(pads, M, M > 0 ? (mx + sl.s * Math.cos(t)) / M : 0, M > 0 ? sl.s * Math.sin(t) / M : 0);
     if (a.state === 'tipped') tipped = true; else if (a.lifted.length) lifted = true;
     if (a.margin < minMargin) { minMargin = a.margin; thMin = th; }
-    for (const p of pads) if (a.R[p.id] > max[p.id].v) max[p.id] = { v: a.R[p.id], th };
+    pads.forEach((p, i) => { if (a.R[i] > max[p.id].v) max[p.id] = { v: a.R[i], th }; });
   }
   return { max, minMargin, thMin, tipped, lifted };
 }
@@ -2182,6 +2316,225 @@ function outriggerChecks(O, crane, liftsRes) {
   if (O.mm.padMax > 0) { const over = OUT_PADS.filter(id => O.used[id] > O.mm.padMax); if (over.length) plan.push({ s: 'fail', t: 'Outrigger force', m: `${over.join(', ')} over the maker's ${O.mm.padMax} t maximum leg force` }); }
   return plan;
 }
+
+
+// ===== v9 tandem lift: 2–4 cranes on one load — load share, live load transfer, hoist-line angles. Pure functions =====
+// The load's pick line runs along `axis` (plan heading, degrees CCW from east, like sitePlan.rot). Pick k sits x m along that line and
+// z m to its left. Crane k stands R m from its pick, out along heading `psi`, with its boom pointing back at the pick. Pick 0 is the lead
+// crane: it is the plan's own crane position (sitePlan.cx/cy), so the other cranes are placed from it.
+// Shares: with plumb hoist lines the load splits by the lever rule (2 picks), by a straight-line spread along the line (3–4 picks in a
+// line) or by a rigid plane (picks spread in plan). With two cranes the "what if" moves (boom up / down, swing, hoist) are solved for real:
+// the load hangs from two lines of fixed length anchored at the boom heads, settles where its centre of gravity is lowest, and the line
+// tensions come from force and moment balance — so a crane that booms up, swings or hoists shifts load onto (or off) the other one.
+// Tonnes, metres, degrees. A planning model: the Appointed Person's tandem method statement and the maker's charts govern.
+
+const TANDEM_DERATE = 80;                 // % of each crane's chart a tandem lift may use unless set (BS 7121-1 / ASME B30.5 guidance 75–80 %)
+const TANDEM_LINE = [1, 3];               // hoist line out of plumb: careful above 1°, stop above 3°
+const TANDEM_TILT = 5;                    // load tilt (°) worth a warning
+
+function tandemOf(load) { const t = load?.tandem; return t && t.on && Array.isArray(t.picks) && t.picks.length >= 2 ? t : null; }
+
+// sensible starting set-up for n cranes on a load of length len: picks spread along the load, the lead crane where the plan has it,
+// the second crane beyond the far end facing back (the classic two-crane tandem), a third / fourth crane on alternate sides
+function tandemDefault(load, n, R0, axis) {
+  const len = Math.max(1, num(load?.l, 10)); const k = Math.max(2, Math.min(4, Math.round(n)));
+  const xs = Array.from({ length: k }, (_, i) => r2(len * 0.1 + (len * 0.8) * i / (k - 1)));
+  return {
+    on: true, axis: r2(normDeg(axis)), cog: r2((xs[0] + xs[k - 1]) / 2), cogZ: 0, cogH: r2(-num(load?.h, 1.5) / 2), derate: '',
+    picks: xs.map((x, i) => ({ crane: i, x, z: 0, R: r2(num(R0, 10)), psi: i === 0 ? r2(normDeg(axis + 180)) : i === k - 1 ? r2(normDeg(axis)) : r2(normDeg(axis + (i % 2 ? 90 : -90))), side: 'rear', tk: 0, hb: '', mv: { boom: 0, swing: 0, hoist: 0 } }))
+  };
+}
+
+// ---------- static share (plumb lines) ----------
+function tandemCollinear(P) {
+  if (P.length < 3) return true;
+  const a = P[0]; let far = P[1], d = 0; for (const p of P) { const dd = Math.hypot(p.x - a.x, p.z - a.z); if (dd > d) { d = dd; far = p; } }
+  if (d < 1e-6) return true; const ux = (far.x - a.x) / d, uz = (far.z - a.z) / d;
+  return P.every(p => Math.abs((p.x - a.x) * uz - (p.z - a.z) * ux) < 0.05);
+}
+// W = load weight (t, with margin); (cx, cz) = its centre of gravity in plan, in the pick frame. Returns the share per pick (t).
+function tandemStatic(picks, W, cx, cz) {
+  const act = picks.map((_, i) => i);
+  for (;;) {
+    const P = act.map(i => picks[i]); let sh;
+    if (P.length === 1) sh = [W];
+    else if (tandemCollinear(P)) { // s_i = a + b·x_i with Σs = W and Σs·x = W·cx — for two picks this is exactly the lever rule
+      const n = P.length, sx = P.reduce((s, p) => s + p.x, 0), sxx = P.reduce((s, p) => s + p.x * p.x, 0), det = n * sxx - sx * sx;
+      if (Math.abs(det) < 1e-9) sh = P.map(() => W / n);
+      else { const a = W * (sxx - sx * cx) / det, b = W * (n * cx - sx) / det; sh = P.map(p => a + b * p.x); }
+    } else sh = outPlane(P.map(p => ({ x: p.x, y: p.z })), W, cx, cz);
+    const min = Math.min(...sh);
+    if (!(min < -1e-9 * Math.max(1, W)) || act.length <= 1) return picks.map((_, i) => { const j = act.indexOf(i); return j < 0 ? 0 : Math.max(0, sh[j]); });
+    act.splice(sh.indexOf(min), 1);
+  }
+}
+
+// ---------- two cranes: the load hanging from two lines (vertical plane of the pick line) ----------
+// A = boom heads [{s, y}] (s along the pick line), L = line lengths boom head → pick, p = picks along the load [x0, x1],
+// g = centre of gravity { c: along the load, e: above the pick line (negative = below) }. Returns the settled pose or null.
+function tandemPose(A, L, p, g) {
+  // parameter: the angle of line 1 from plumb. Its pick sits on a circle round boom head 1; pick 2 is |p1 − p0| further along the load
+  // and on a circle round boom head 2 (the lower crossing — lines hang down, the load never flips end for end). Searching the line angle
+  // rather than the load's tilt also covers the "parallelogram" case (equal plumb lines, picks as far apart as the boom heads).
+  const dv = p[1] - p[0];
+  const at = (ph) => {
+    const P1 = { s: A[0].s + L[0] * Math.sin(ph), y: A[0].y - L[0] * Math.cos(ph) };
+    const dx = A[1].s - P1.s, dy = A[1].y - P1.y, d = Math.hypot(dx, dy);
+    if (d < 1e-12 || d > dv + L[1] + 1e-9 || d < Math.abs(dv - L[1]) - 1e-9) return null;
+    const a = (dv * dv - L[1] * L[1] + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, dv * dv - a * a));
+    const mx = P1.s + a * dx / d, my = P1.y + a * dy / d;
+    let P2 = null;
+    for (const c of [{ s: mx + hh * dy / d, y: my - hh * dx / d }, { s: mx - hh * dy / d, y: my + hh * dx / d }])
+      if (c.s - P1.s > 1e-9 && c.y <= A[1].y + 1e-9 && (!P2 || c.y < P2.y)) P2 = c;
+    if (!P2) return null;
+    const al = Math.atan2(P2.y - P1.y, P2.s - P1.s), ca = Math.cos(al), sa = Math.sin(al);
+    const G = { s: P1.s + (g.c - p[0]) * ca - g.e * sa, y: P1.y + (g.c - p[0]) * sa + g.e * ca };
+    return { al, ph, P: [P1, P2], G };
+  };
+  // coarse scan for the lowest centre of gravity, then golden-section refine around it
+  let best = null; const N = 320, lo0 = -1.4, hi0 = 1.4;
+  for (let i = 0; i <= N; i++) { const q = at(lo0 + (hi0 - lo0) * i / N); if (q && (!best || q.G.y < best.G.y)) best = q; }
+  if (!best) return null;
+  let lo = best.ph - (hi0 - lo0) / N, hi = best.ph + (hi0 - lo0) / N; const gr = (Math.sqrt(5) - 1) / 2;
+  const f = (ph) => { const q = at(ph); return q ? q.G.y : Infinity; };
+  let x1 = hi - gr * (hi - lo), x2 = lo + gr * (hi - lo), f1 = f(x1), f2 = f(x2);
+  for (let i = 0; i < 70; i++) { if (f1 <= f2) { hi = x2; x2 = x1; f2 = f1; x1 = hi - gr * (hi - lo); f1 = f(x1); } else { lo = x1; x1 = x2; f1 = f2; x2 = lo + gr * (hi - lo); f2 = f(x2); } }
+  const q = at((lo + hi) / 2); return q && q.G.y <= best.G.y + 1e-9 ? q : best;
+}
+// line tensions for a settled pose: force balance (along, up) and moment balance, least squares (exact at equilibrium)
+function tandemTension(pose, A, W) {
+  const u = pose.P.map((P, k) => { const ds = A[k].s - P.s, dy = A[k].y - P.y, n = Math.hypot(ds, dy) || 1; return { s: ds / n, y: dy / n }; });
+  const m = pose.P.map((P, k) => P.s * u[k].y - P.y * u[k].s);
+  const rows = [[u[0].s, u[1].s, 0], [u[0].y, u[1].y, W], [m[0], m[1], W * pose.G.s]];
+  let a = 0, b = 0, c = 0, r1 = 0, r2_ = 0; for (const [x, y, z] of rows) { a += x * x; b += x * y; c += y * y; r1 += x * z; r2_ += y * z; }
+  const det = a * c - b * b; if (Math.abs(det) < 1e-12) return null;
+  const T = [(c * r1 - b * r2_) / det, (a * r2_ - b * r1) / det];
+  const res = Math.max(...rows.map(([x, y, z]) => Math.abs(x * T[0] + y * T[1] - z)));
+  return { T, u, res };
+}
+// the two-line solve with slack handling: if one line would have to push, it goes slack and the load hangs from the other alone
+function tandemHang(A, L, p, g, W) {
+  if (p[1] < p[0]) { // solve with the pick line pointing the other way, then mirror back
+    const m = tandemHang(A.map(a => ({ s: -a.s, y: a.y })), L, p.map(x => -x), { c: -g.c, e: g.e }, W); if (!m) return null;
+    return { ...m, pose: { ...m.pose, al: -m.pose.al, P: m.pose.P.map(q => ({ s: -q.s, y: q.y })), G: { s: -m.pose.G.s, y: m.pose.G.y } }, u: m.u.map(u => ({ s: -u.s, y: u.y })) };
+  }
+  const pose = tandemPose(A, L, p, g);
+  const tn = pose ? tandemTension(pose, A, W) : null;
+  if (pose && tn && tn.T[0] >= -1e-6 * W && tn.T[1] >= -1e-6 * W) return { pose, ...tn, slack: -1 };
+  for (const j of [0, 1]) { // hang from line j alone: its pick straight under its boom head, the centre of gravity straight under the pick
+    const o = 1 - j, Pj = { s: A[j].s, y: A[j].y - L[j] }, dc = g.c - p[j];
+    // tilt α that puts G under Pj: (g.c − p_j)·cosα − g.e·sinα = 0, taking the root with G below the pick
+    let al = Math.atan2(dc, g.e); if (dc * Math.sin(al) + g.e * Math.cos(al) > 0) al += Math.PI; al = Math.atan2(Math.sin(al), Math.cos(al));
+    const Po = { s: Pj.s + (p[o] - p[j]) * Math.cos(al), y: Pj.y + (p[o] - p[j]) * Math.sin(al) };
+    if (Math.hypot(A[o].s - Po.s, A[o].y - Po.y) <= L[o] + 1e-6)
+      return { pose: { al, P: j === 0 ? [Pj, Po] : [Po, Pj], G: { s: Pj.s, y: Pj.y - Math.hypot(dc, g.e) } }, T: j === 0 ? [W, 0] : [0, W], u: [{ s: 0, y: 1 }, { s: 0, y: 1 }], res: 0, slack: o };
+  }
+  return null;
+}
+
+// ---------- the whole tandem for one lift ----------
+// Returns the lead crane's lift result (pick 0, carrying its share) with `.tandem` holding every crane's numbers and the checks.
+function computeTandem(plan, craneList, settings, load, li) {
+  const T = tandemOf(load); if (!T) return null;
+  const S = settings || DEFAULT_SETTINGS; const derate = num(T.derate) > 0 ? num(T.derate) : num(S.tandemDerate, TANDEM_DERATE);
+  const contOn = load.contOn !== false && !load.empty; const Wl = load.empty ? 0 : r2(num(load.w) * (1 + (contOn ? num(load.cont) : 0) / 100));
+  const axis = num(T.axis) * D2R, ax = { x: Math.cos(axis), y: Math.sin(axis) }, nx = { x: -ax.y, y: ax.x };
+  const lead = sitePlanStateT(plan);                                                    // where the lead crane stands
+  const picks = T.picks.slice(0, 4).map((pk, k) => ({ k, crane: Math.max(0, Math.round(num(pk.crane, k))), x: num(pk.x), z: num(pk.z), R: Math.max(1, num(pk.R, 10)), psi: num(pk.psi), side: sideOf(pk.side), tk: num(pk.tk), hb: pk.hb, cap: pk.cap, mv: { boom: num(pk.mv?.boom), swing: num(pk.mv?.swing), hoist: num(pk.mv?.hoist) } }));
+  const out = { derate, W: Wl, picks: [], checks: [], axis: num(T.axis), cog: { x: num(T.cog), z: num(T.cogZ), h: num(T.cogH) } };
+  // pick 0 is the lift itself: the lead crane is the lift's crane (load.crane), stands where the plan puts it and lifts over the lift's side
+  picks[0].crane = rigIndexOf(plan, load); picks[0].side = sideOf(load); picks[0].psi = normDeg(boomHeadingFor(plan, load) + 180); picks[0].own = true;
+  const P0 = { x: lead.cx + picks[0].R * Math.cos((picks[0].psi + 180) * D2R), y: lead.cy + picks[0].R * Math.sin((picks[0].psi + 180) * D2R) };
+  const seen = new Set(); let dup = false; for (const pk of picks) { if (seen.has(pk.crane)) dup = true; seen.add(pk.crane); }
+  if (dup) out.checks.push({ s: 'fail', t: 'Tandem cranes', m: 'Each lifting point needs its own crane — two points use the same crane.' });
+  const nR = Math.max(1, (plan.cranes || []).length); const gone = picks.filter(pk => pk.crane >= nR);
+  if (gone.length) { out.checks.push({ s: 'fail', t: 'Tandem cranes', m: `Crane ${gone.map(g => g.crane + 1).join(', ')} is no longer on the plan — pick another crane for that lifting point.` }); gone.forEach(pk => { pk.crane = picks[0].crane; }); }
+  // each crane's own set-up (its parked fields), its record and its geometry at the planned reach
+  const view = (pk) => { const pv = rigOf(plan, pk.crane); const cr = craneList.find(c => c.id === pv.craneId) || craneList[0]; return { pv, cr }; };
+  // pick 0 keeps the lift's own positioning (reach, boom angle or tip height held) and its own tackles; the others hang at their reach
+  const baseLoad = (pk, w, R) => pk.own && R == null ? { ...load, tandem: null, w: r2(w), cont: 0, contOn: false, area: 0, empty: false }
+    : { ...load, tandem: null, w: r2(w), cont: 0, contOn: false, tackles: pk.own ? load.tackles : [], tk: pk.own ? load.tk : pk.tk, hb: pk.own ? load.hb : pk.hb ?? '', extra: pk.own ? load.extra : 0, R: r2(R), by: 'radius', side: pk.side, area: 0, capOverride: pk.own ? load.capOverride : pk.cap ?? '', empty: false, colIdx: pk.own ? load.colIdx : '' };
+  for (const pk of picks) { const { pv, cr } = view(pk); pk.pv = pv; pk.cr = cr; pk.g0 = computeLoad(pv, cr, baseLoad(pk, 0, pk.own ? null : pk.R), S); if (pk.own) pk.R = pk.g0.R; }
+  { const P0b = { x: lead.cx + picks[0].R * Math.cos((picks[0].psi + 180) * D2R), y: lead.cy + picks[0].R * Math.sin((picks[0].psi + 180) * D2R) }; P0.x = P0b.x; P0.y = P0b.y; }
+  for (const pk of picks) {
+    const along = pk.x - picks[0].x, across = pk.z - picks[0].z;
+    pk.pos = { x: P0.x + along * ax.x + across * nx.x, y: P0.y + along * ax.y + across * nx.y };
+    pk.base = { x: pk.pos.x + pk.R * Math.cos(pk.psi * D2R), y: pk.pos.y + pk.R * Math.sin(pk.psi * D2R) }; // the crane's slew centre
+    pk.boomHd = normDeg(pk.psi + 180);                                                 // boom heading: crane → pick
+  }
+  // static shares (plumb lines) — the plan as drawn
+  const cx = num(T.cog), cz = num(T.cogZ), e = num(T.cogH);
+  const inside = picks.length === 2 ? cx >= Math.min(picks[0].x, picks[1].x) - 1e-6 && cx <= Math.max(picks[0].x, picks[1].x) + 1e-6 : true;
+  const st = tandemStatic(picks.map(p => ({ x: p.x, z: p.z })), Wl, cx, cz);
+  picks.forEach((pk, k) => { pk.static = r2(st[k]); });
+  // two cranes: solve the moves for real
+  let live = null;
+  if (picks.length === 2 && picks.every(p => p.g0.geo?.tip)) {
+    const anchor = (pk, moved) => {
+      const g0 = pk.g0; const ang0 = g0.gChart?.kind === 'luffing' ? g0.geo.gamma : g0.geo.theta;
+      let R = pk.R, y = g0.geo.tip.y;
+      if (moved && pk.mv.boom) { const tp = tipFromAngle(pk.cr, g0.gChart, g0.gCol, ang0 + pk.mv.boom, g0.boomOv); R = tp.x; y = tp.y; }
+      const hd = (pk.boomHd + (moved ? pk.mv.swing : 0)) * D2R; const tip = { x: pk.base.x + R * Math.cos(hd), y: pk.base.y + R * Math.sin(hd) };
+      const d = { x: tip.x - pk.pos.x, y: tip.y - pk.pos.y };
+      return { R, tipY: y, tip, s: pk.x + d.x * ax.x + d.y * ax.y, n: d.x * nx.x + d.y * nx.y };
+    };
+    const pickY = Math.min(...picks.map(p => p.g0.geo.tip.y)) - Math.max(3, ...picks.map(p => num(p.g0.rigH, 3) + 2));
+    const L0 = picks.map(p => p.g0.geo.tip.y - pickY);
+    const A1 = picks.map(p => anchor(p, true)); const L1 = L0.map((L, k) => Math.max(0.5, L - picks[k].mv.hoist));
+    const sol = tandemHang(A1.map(a => ({ s: a.s, y: a.tipY })), L1, picks.map(p => p.x), { c: cx, e }, Wl);
+    if (sol) {
+      const tiltDeg = r2(sol.pose.al * R2D);
+      live = { tilt: tiltDeg, slack: sol.slack, res: sol.res, rise: r2(sol.pose.G.y - (pickY + e)), anchors: A1, L: L1, pickY, pose: sol.pose };
+      picks.forEach((pk, k) => {
+        const u = sol.u[k], Tk = Math.max(0, sol.T[k]);
+        pk.share = r2(Tk * u.y); pk.line = r2(Tk); pk.horiz = r2(Tk * u.s); pk.lineAng = r2(Math.atan2(u.s, u.y) * R2D);
+        pk.across = r2(A1[k].n); pk.Rnow = r2(A1[k].R); pk.tipYnow = r2(A1[k].tipY);
+        const bd = { x: Math.cos(pk.boomHd * D2R), y: Math.sin(pk.boomHd * D2R) }; const along = ax.x * bd.x + ax.y * bd.y; // the pick line seen by this boom
+        pk.radial = r2(pk.horiz * along); pk.sideLoad = r2(Math.abs(pk.horiz * Math.sqrt(Math.max(0, 1 - along * along))));
+      });
+    }
+  }
+  if (!live) picks.forEach(pk => { pk.share = pk.static; pk.line = pk.static; pk.horiz = 0; pk.lineAng = 0; pk.Rnow = pk.R; pk.radial = 0; pk.sideLoad = 0; });
+  // each crane's own lift check with its share (at the reach it has after the move)
+  for (const pk of picks) {
+    const moved = pk.mv.boom || pk.mv.swing || pk.mv.hoist;
+    pk.res = computeLoad(pk.pv, pk.cr, baseLoad(pk, pk.share, pk.own && !moved ? null : pk.Rnow), S); pk.res.crane = pk.cr; pk.res.rigI = pk.crane;
+    pk.util = pk.res.util; pk.cap = pk.res.cap; pk.pct = Wl > 0 ? r2(pk.share / Wl * 100) : 0; pk.shift = r2(pk.share - pk.static);
+    const nm = `Crane ${pk.crane + 1}`;
+    if (pk.res.cap == null) out.checks.push({ s: 'fail', t: `Tandem · ${nm}`, m: `No capacity at ${(+pk.Rnow).toFixed(2)} m — ${pk.res.capInfo?.why || 'out of the chart'}` });
+    else out.checks.push({ s: pk.util > derate ? 'fail' : pk.util > derate * 0.9 ? 'warn' : 'ok', t: `Tandem · ${nm}`, m: `${pk.share.toFixed(2)} t of the load (${pk.pct.toFixed(0)}%) + hook and rigging = ${pk.res.design.toFixed(2)} t: ${pk.util.toFixed(1)}% of its ${pk.cap.toFixed(2)} t — tandem limit ${derate}%` });
+    if (Math.abs(pk.lineAng) > TANDEM_LINE[0]) out.checks.push({ s: Math.abs(pk.lineAng) > TANDEM_LINE[1] ? 'fail' : 'warn', t: `Hoist line · ${nm}`, m: `${Math.abs(pk.lineAng).toFixed(1)}° out of plumb — pulls ${Math.abs(pk.horiz).toFixed(2)} t sideways on the boom head` + (pk.sideLoad > 0.01 ? ` (${pk.sideLoad.toFixed(2)} t across the boom)` : '') + '. Keep the hoist lines plumb.' });
+  }
+  if (!inside) out.checks.push({ s: 'fail', t: 'Tandem balance', m: 'The centre of gravity is outside the lifting points — the load would tip. Move the lifting points or the slings.' });
+  if (live) {
+    if (live.slack >= 0) out.checks.push({ s: 'fail', t: 'Tandem balance', m: `Crane ${picks[live.slack].crane + 1}'s line goes slack — the other crane takes the whole load. Undo the last move.` });
+    if (Math.abs(live.tilt) > TANDEM_TILT) out.checks.push({ s: 'warn', t: 'Load tilt', m: `The load tilts ${Math.abs(live.tilt).toFixed(1)}° — level it before moving off.` });
+    const moved = picks.some(p => p.mv.boom || p.mv.swing || p.mv.hoist);
+    if (moved) { const big = picks.reduce((a, p) => (Math.abs(p.shift) > Math.abs(a.shift) ? p : a), picks[0]); out.checks.push({ s: 'info', t: 'Load transfer', m: picks.map(p => `Crane ${p.crane + 1} ${p.static.toFixed(2)} → ${p.share.toFixed(2)} t`).join(' · ') + (Math.abs(big.shift) > 0.005 ? ` (${big.shift > 0 ? '+' : ''}${big.shift.toFixed(2)} t on crane ${big.crane + 1})` : '') }); }
+  } else if (picks.length > 2) out.checks.push({ s: 'info', t: 'Tandem share', m: picks.map(p => `Crane ${p.crane + 1} ${p.share.toFixed(2)} t`).join(' · ') + ' — hoist lines kept plumb (moves are worked out for two cranes)' });
+  out.live = live; out.picks = picks.map(pk => ({ k: pk.k, crane: pk.crane, model: pk.cr?.model, x: pk.x, z: pk.z, R: pk.R, Rnow: pk.Rnow, psi: pk.psi, boomHd: pk.boomHd, side: pk.side, pos: pk.pos, base: pk.base,
+    static: pk.static, share: pk.share, pct: pk.pct, shift: pk.shift, line: pk.line, lineAng: pk.lineAng, horiz: pk.horiz, radial: pk.radial, sideLoad: pk.sideLoad, util: pk.util, cap: pk.cap, design: pk.res.design, hb: pk.res.hb, tk: pk.res.tk,
+    across: pk.across || 0, tipY: pk.tipYnow ?? pk.g0.geo?.tip?.y, mv: pk.mv, res: pk.res }));
+  out.status = out.checks.some(c => c.s === 'fail') ? 'fail' : out.checks.some(c => c.s === 'warn') ? 'warn' : 'ok';
+  out.maxUtil = Math.max(0, ...out.picks.map(p => p.util || 0));
+  // the lead crane's result stands for the lift; each crane's own capacity line is replaced by its tandem line (against the tandem limit)
+  const res = out.picks[0].res; res.tandem = out; res.tandemLead = true;
+  res.checks = res.checks.filter(c => c.t !== 'Capacity utilisation'); for (const c of out.checks) res.checks.push(c);
+  tandemMergeChecks(res);
+  return res;
+}
+// copy the other cranes' problems (geometry, headroom, clearance, their leg loads …) into the lead result with their crane number.
+// Called again by computePlan once the leg checks exist; each check is copied once.
+function tandemMergeChecks(res) {
+  const T = res.tandem; if (!T) return;
+  for (const p of T.picks.slice(1)) for (const c of p.res.checks) {
+    if (c._copied || (c.s !== 'fail' && c.s !== 'warn') || c.t === 'Capacity utilisation') continue;
+    c._copied = true; res.checks.push({ ...c, t: `Crane ${p.crane + 1} · ${c.t}` });
+  }
+  res.status = res.checks.some(c => c.s === 'fail') ? 'fail' : res.checks.some(c => c.s === 'warn') ? 'warn' : 'ok';
+}
+// sitePlanState lives in draw.js (loaded later in the bundle, absent in some Node tests) — the lead crane's position only
+function sitePlanStateT(plan) { const sp = plan?.sitePlan || {}; return { cx: num(sp.cx), cy: num(sp.cy) }; }
 
 
 // ===== Client drawings: DXF / PDF / image import, scale, storage =====
@@ -3272,7 +3625,18 @@ function drawSitePlan(P, box, plan, calc, ctx = {}) {
   const a = T(0, 0), b_ = T(1, 1); const inv = (px, py) => [(px - a[0]) / (b_[0] - a[0]), (py - a[1]) / (b_[1] - a[1])];
   const w0 = inv(box.x, box.y + box.h), w1 = inv(box.x + box.w, box.y);
   drawEnv(P, T, plan, 'plan', { x0: w0[0], x1: w1[0], y0: w0[1], y1: w1[1] });
-  drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, Math.max(1, num(load?.l, 2)), ctx.livery, typeof outExtOf === 'function' ? outExtOf(plan) : null);
+  drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, res?.tandem ? 0.01 : Math.max(1, num(load?.l, 2)), ctx.livery, typeof outExtOf === 'function' ? outExtOf(plan) : null);
+  // v9 tandem: the other cranes where they stand, and the one load between the lifting points with each crane's share
+  const TD = res?.tandem;
+  if (TD) {
+    for (const pk of TD.picks.slice(1)) { const cr = pk.res?.crane; if (!cr) continue; const bh = normDeg(pk.boomHd + num(pk.mv?.swing));
+      drawCraneFootprint(P, T, k, cr, { cx: pk.base.x, cy: pk.base.y, boom: bh, carrier: normDeg(bh - SIDE_OFFSET[sideOf(pk.side)]) }, pk.Rnow ?? pk.R, 0.01, ctx.livery, typeof outExtOf === 'function' ? outExtOf(rigOf(plan, pk.crane)) : null); }
+    const ax = num(TD.axis) * D2R, p0 = TD.picks[0], xs = TD.picks.map(q => q.x); const x0 = Math.min(...xs) - 0.6, x1 = Math.max(...xs) + 0.6, hw = Math.max(0.6, num(load?.h, 1.5) * 0.6);
+    const at = (s, n) => { const d = s - p0.x; return T(p0.pos.x + d * Math.cos(ax) - n * Math.sin(ax), p0.pos.y + d * Math.sin(ax) + n * Math.cos(ax)); };
+    P.poly([at(x0, -hw), at(x1, -hw), at(x1, hw), at(x0, hw)], { closed: true, stroke: '#7a007a', w: 0.35, fill: '#f1d5f1', layer: 'SITE-LOAD' });
+    for (const pk of TD.picks) { const q = at(pk.x, num(pk.z) - num(p0.z)); P.circle(q[0], q[1], 0.8, { fill: '#7a007a', stroke: 'none', layer: 'SITE-LOAD' });
+      P.text(q[0], q[1] - 2.4, `C${pk.crane + 1} ${(+pk.share).toFixed(1)}T`, { size: 2.8, bold: true, anchor: 'middle', color: '#7a007a', bg: '#ffffff', layer: 'SITE-LOAD' }); }
+  }
   if (!ctx.fixed) {
     P.text(box.x + 6, box.y + 8, 'SITE PLAN', { size: 5.5, layer: 'TITLE' });
     P.text(box.x + 6, box.y + 13.5, 'LIFT OVER ' + SIDE_NAME[sp.side], { size: 3.4, bold: true, layer: 'TITLE' });
@@ -4281,6 +4645,61 @@ const WX = {
   }
 };
 
+// ===== v9 site map: a true-scale satellite picture of the job under the top view =====
+// Web-Mercator tiles are stitched into one north-up picture centred on the crane. Its scale comes from the map itself
+// (metres per pixel = 156 543.03 · cos(latitude) / 2^zoom for 256-px tiles), so it lands at true size; "Set the scale from two points"
+// can still fine-tune it against a distance measured on site. Imagery: Esri World Imagery (no key, credit printed on the picture), or
+// Mapbox Satellite when a Mapbox token is saved in Settings. Needs the internet at the moment it is fetched; afterwards it is saved
+// with the plan like any client drawing.
+const GIS = {
+  providers: {
+    esri: { name: 'Esri World Imagery', tile: 256, max: 19, credit: 'Imagery © Esri, Maxar, Earthstar Geographics', url: (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}` },
+    mapbox: { name: 'Mapbox Satellite', tile: 512, max: 21, credit: '© Mapbox © Maxar', url: (z, x, y, tok) => `https://api.mapbox.com/v4/mapbox.satellite/${z}/${x}/${y}@2x.jpg90?access_token=${encodeURIComponent(tok || '')}` }
+  },
+  // metres per pixel of a 256-px tile pyramid at this latitude and zoom
+  mpp(lat, z) { return 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z); },
+  // fractional tile (x, y) of a point at zoom z
+  tileXY(lat, lon, z) { const n = Math.pow(2, z), la = Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI / 180; return { x: (lon + 180) / 360 * n, y: (1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2 * n }; },
+  // zoom and tile range for a square of `size` metres round (lat, lon) that stays under maxPx pixels across
+  layout(lat, lon, size, prov, maxPx = 1800) {
+    const P = GIS.providers[prov] || GIS.providers.esri; const k = P.tile / 256;
+    let z = P.max; while (z > 1 && size / (GIS.mpp(lat, z) / k) > maxPx) z--;
+    const mpp = GIS.mpp(lat, z) / k; const c = GIS.tileXY(lat, lon, z); const halfT = size / 2 / (mpp * P.tile);
+    const x0 = Math.floor(c.x - halfT), x1 = Math.floor(c.x + halfT), y0 = Math.floor(c.y - halfT), y1 = Math.floor(c.y + halfT);
+    const px = Math.round(size / mpp);
+    return { z, mpp, tile: P.tile, c, x0, x1, y0, y1, px, n: (x1 - x0 + 1) * (y1 - y0 + 1) };
+  },
+  // "24.4539, 54.3773" or "24.4539 54.3773" → { lat, lon }
+  parseLatLon(s) { const m = /^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(String(s || '')); if (!m) return null; const lat = +m[1], lon = +m[2]; return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon } : null; },
+  // fetch + stitch (browser): returns { canvas, mpp, w, h, z, credit }
+  async fetchMap(lat, lon, size, prov = 'esri', token = '', onProgress) {
+    const P = GIS.providers[prov] || GIS.providers.esri; if (prov === 'mapbox' && !token) throw new Error('Add your Mapbox token in Settings first');
+    const L = GIS.layout(lat, lon, size, prov); if (L.n > 64) throw new Error('That area is too big — pick a smaller one');
+    const cv = document.createElement('canvas'); cv.width = cv.height = L.px; const g = cv.getContext('2d');
+    g.fillStyle = '#7d858c'; g.fillRect(0, 0, L.px, L.px);
+    const ox = L.px / 2 - (L.c.x - L.x0) * L.tile, oy = L.px / 2 - (L.c.y - L.y0) * L.tile; // canvas position of tile (x0, y0)
+    const jobs = []; let done = 0, failed = 0; const n2 = Math.pow(2, L.z);
+    for (let ty = L.y0; ty <= L.y1; ty++) for (let tx = L.x0; tx <= L.x1; tx++) {
+      jobs.push(new Promise((res) => {
+        const im = new Image(); im.crossOrigin = 'anonymous'; im.decoding = 'async';
+        im.onload = () => { g.drawImage(im, ox + (tx - L.x0) * L.tile, oy + (ty - L.y0) * L.tile, L.tile, L.tile); done++; onProgress?.(done, L.n); res(); };
+        im.onerror = () => { failed++; done++; onProgress?.(done, L.n); res(); };
+        im.src = P.url(L.z, ((tx % n2) + n2) % n2, ty, token);
+      }));
+    }
+    await Promise.all(jobs);
+    if (failed === L.n) throw new Error('The map could not load — check the internet connection');
+    // credit + north arrow, burnt into the picture so they travel with it onto the sheet
+    const fs = Math.max(11, Math.round(L.px / 90)); g.font = `600 ${fs}px Arial, sans-serif`; const tw = g.measureText(P.credit).width;
+    g.fillStyle = 'rgba(255,255,255,.78)'; g.fillRect(L.px - tw - fs * 1.2, L.px - fs * 1.8, tw + fs * 1.2, fs * 1.8); g.fillStyle = '#222'; g.fillText(P.credit, L.px - tw - fs * 0.6, L.px - fs * 0.55);
+    const ax = fs * 2.2, ay = fs * 3.6; g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.arc(ax, ay - fs * 0.6, fs * 1.6, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#d70015'; g.beginPath(); g.moveTo(ax, ay - fs * 1.9); g.lineTo(ax + fs * 0.6, ay - fs * 0.2); g.lineTo(ax - fs * 0.6, ay - fs * 0.2); g.closePath(); g.fill();
+    g.fillStyle = '#111'; g.font = `800 ${fs}px Arial, sans-serif`; g.textAlign = 'center'; g.fillText('N', ax, ay + fs * 0.75); g.textAlign = 'start';
+    return { canvas: cv, mpp: L.mpp, w: L.px, h: L.px, z: L.z, credit: P.credit, failed };
+  }
+};
+
+
 // ===== 3D: procedural crane + site (three.js r147). Cinematic night site for the sign-in, live digital twin for the studio =====
 const C3D = {};
 C3D.ok = () => { try { if (typeof THREE === 'undefined') return false; const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } };
@@ -4667,85 +5086,198 @@ C3D.hero = (host, hud, o = {}) => {
 };
 
 // ---------- TWIN: the plan in 3D ----------
-C3D.twin = (host) => {
+// v9: one live scene serves the full 3D view and the small 3D window over the drawing (mount() moves the canvas; the WebGL context stays).
+// Updates are deltas: a crane is rebuilt only when its make-up changes, site objects only when they change, rings and labels are moved
+// in place, and nothing is redrawn while nothing moves. The camera eases toward where the fingers put it (one finger turns, two fingers
+// pinch and pan, double-tap re-frames). On a slow device the resolution steps down while the picture moves and comes back sharp when it
+// stops. opts.onPad(x, y, phase): the magenta landing ring was dragged to plan point (x, y) — reach and swing follow the finger.
+C3D.twin = (host0, opts = {}) => {
+  let host = host0;
   const W0 = () => host.clientWidth || 800, H0 = () => host.clientHeight || 500;
-  const r = C3D.makeRenderer(host, { aa: true, exposure: 1.0, maxDpr: 2, shadows: true, keep: true });
+  const coarse = window.matchMedia('(pointer: coarse)').matches; const dprMax = Math.min(window.devicePixelRatio || 1, 2); let dpr = dprMax;
+  const r = C3D.makeRenderer(host, { aa: !coarse || dprMax < 2, exposure: 1.0, maxDpr: dprMax, shadows: true });
+  r.domElement.classList.add('twin-cv');
   const scene = new THREE.Scene(); scene.background = C3D.gradTex([[0, '#0b0f15'], [0.55, '#18212b'], [1, '#2a3440']]); scene.fog = new THREE.Fog(C3D.lin('#1f2833'), 220, 700);
   const cam = new THREE.PerspectiveCamera(38, W0() / H0(), 0.3, 3000);
   scene.add(new THREE.HemisphereLight(C3D.lin('#c4d6ee'), C3D.lin('#3a3128'), 0.85));
-  const sun = new THREE.DirectionalLight(C3D.lin('#fff0d8'), 1.45); sun.position.set(-70, 120, 80); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004;
+  const sun = new THREE.DirectionalLight(C3D.lin('#fff0d8'), 1.45); sun.position.set(-70, 120, 80); sun.castShadow = true; sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048); sun.shadow.bias = -0.0004;
   Object.assign(sun.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, near: 10, far: 420 }); scene.add(sun);
   const fill = new THREE.DirectionalLight(C3D.lin('#8fb6ff'), 0.35); fill.position.set(80, 40, -60); scene.add(fill);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), C3D.mat({ color: '#3a4048', roughness: 0.95 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   const grid = new THREE.GridHelper(400, 80, C3D.lin('#5e7891'), C3D.lin('#465564')); grid.position.y = 0.02; grid.material.transparent = true; grid.material.opacity = 0.55; scene.add(grid);
-  const site = new THREE.Group(); scene.add(site);
-  let g = null, sig = '', raf = 0, alive = true, dirty = true;
-  const orb = { az: -0.75, el: 0.42, dist: 90, tx: 10, ty: 12, tz: 0, phS: 0 };
-  const applyCam = () => { cam.position.set(orb.tx + orb.dist * Math.cos(orb.el) * Math.cos(orb.az), orb.ty + orb.dist * Math.sin(orb.el), orb.tz + orb.dist * Math.cos(orb.el) * Math.sin(orb.az)); cam.lookAt(orb.tx, orb.ty, orb.tz); dirty = true; };
-  const el = r.domElement; el.style.touchAction = 'none'; const ptrs = new Map(); let drag = null, pinch = null;
-  el.addEventListener('pointerdown', (e) => { ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); el.setPointerCapture(e.pointerId); if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), dist: orb.dist }; drag = null; return; } drag = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, o: { ...orb } }; });
-  el.addEventListener('pointermove', (e) => { if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pinch && ptrs.size === 2) { const [a, b] = [...ptrs.values()]; orb.dist = Math.max(12, Math.min(600, pinch.dist * pinch.d / Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)))); applyCam(); return; }
-    if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (drag.b === 2 || drag.sh) { const s = orb.dist / 600; orb.tx = drag.o.tx - dx * Math.sin(orb.az) * s; orb.tz = drag.o.tz + dx * Math.cos(orb.az) * s; orb.ty = Math.max(0, drag.o.ty + dy * s); }
-    else { orb.az = drag.o.az + dx * 0.006; orb.el = Math.max(0.03, Math.min(1.5, drag.o.el + dy * 0.005)); } applyCam(); });
-  const up = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; drag = null; };
+  const site = new THREE.Group(), dyn = new THREE.Group(), tand = new THREE.Group(); scene.add(site, dyn, tand);
+  // shared materials (made once — the old twin made new ones on every update and never freed them)
+  const M = { conc: C3D.mat({ color: '#8a9097', roughness: 0.9 }), dark: C3D.mat({ color: '#454b52', roughness: 0.7 }), tm: C3D.mat({ color: '#d4a51e', metalness: 0.4, roughness: 0.5 }), cont: C3D.mat({ color: '#2f6fb3', roughness: 0.6, metalness: 0.4 }), box: C3D.mat({ color: '#9b7bc6' }), shed: C3D.mat({ color: '#c8b48c' }), trunk: C3D.mat({ color: '#5a3a1e' }), leaf: C3D.mat({ color: '#2f6b2f', roughness: 1 }), load: C3D.mat({ color: '#9aa1a8', metalness: 0.1, roughness: 0.85 }) };
+  const ringM = (col, op) => new THREE.MeshBasicMaterial({ color: C3D.lin(col), transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false });
+  const ringR = new THREE.Mesh(new THREE.BufferGeometry(), ringM('#4fe0ff', 0.9)), ringT = new THREE.Mesh(new THREE.BufferGeometry(), ringM('#ffb81c', 0.85));
+  const pad = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.85, 40), ringM('#e040e0', 0.95)), padDot = new THREE.Mesh(new THREE.CircleGeometry(0.42, 28), ringM('#e040e0', 0.55));
+  const padHit = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ visible: false })); // a bigger target for the finger
+  for (const m of [ringR, ringT, pad, padDot, padHit]) { m.rotation.x = -Math.PI / 2; dyn.add(m); }
+  const tLoad = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), M.load); tLoad.castShadow = tLoad.receiveShadow = true; const tSling = C3D.lines('#d13b2a'); tand.add(tLoad, tSling); tand.visible = false;
+  let g = null, sig = '', siteSig = '', raf = 0, alive = true, dirty = true, framed = false, lastR = -1, lastTail = -1; const extra = new Map();
+  // camera: `to` is where the gestures put it, `orb` eases toward it
+  const to = { az: -0.75, el: 0.42, dist: 90, tx: 10, ty: 12, tz: 0 }; const orb = { ...to }; let phS = 0, easing = false;
+  const applyCam = () => { cam.position.set(orb.tx + orb.dist * Math.cos(orb.el) * Math.cos(orb.az), orb.ty + orb.dist * Math.sin(orb.el), orb.tz + orb.dist * Math.cos(orb.el) * Math.sin(orb.az)); cam.lookAt(orb.tx, orb.ty, orb.tz); };
+  const go = (snap) => { if (snap || reduceMotion3()) { Object.assign(orb, to); applyCam(); } easing = !snap; dirty = true; };
+  function reduceMotion3() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  // ---- gestures ----
+  const el = r.domElement; el.style.touchAction = 'none'; const ptrs = new Map(); let drag = null, pinch = null, lastTap = 0, moving = false;
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const groundAtPtr = (e, y) => { const b = el.getBoundingClientRect(); ndc.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1); ray.setFromCamera(ndc, cam); const d = ray.ray.direction, o = ray.ray.origin; if (Math.abs(d.y) < 1e-6) return null; const t = (y - o.y) / d.y; return t > 0 ? o.clone().addScaledVector(d, t) : null; };
+  const hitPad = (e) => { if (!opts.onPad || !padHit.visible) return false; const b = el.getBoundingClientRect(); ndc.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1); ray.setFromCamera(ndc, cam); return ray.intersectObject(padHit).length > 0; };
+  el.addEventListener('pointerdown', (e) => {
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { el.setPointerCapture(e.pointerId); } catch {} moving = true;
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, o: { ...to } }; drag = null; return; }
+    const now = performance.now(); if (now - lastTap < 300 && e.pointerType !== 'mouse') { framed = false; opts.onReframe?.(); lastTap = 0; return; } lastTap = now;
+    if (e.button === 0 && !e.shiftKey && hitPad(e)) { drag = { kind: 'pad', y: pad.position.y }; el.style.cursor = 'grabbing'; return; }
+    drag = { kind: e.button === 2 || e.shiftKey ? 'pan' : 'orbit', x: e.clientX, y: e.clientY, o: { ...to } };
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!ptrs.size) { if (opts.onPad) el.style.cursor = hitPad(e) ? 'grab' : ''; return; }
+    if (pinch && ptrs.size === 2) { // pinch zooms, moving both fingers pans
+      const [a, b] = [...ptrs.values()]; to.dist = Math.max(12, Math.min(600, pinch.o.dist * pinch.d / Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))));
+      const s = to.dist / 600, dx = (a.x + b.x) / 2 - pinch.mx, dy = (a.y + b.y) / 2 - pinch.my;
+      to.tx = pinch.o.tx - dx * Math.sin(to.az) * s; to.tz = pinch.o.tz + dx * Math.cos(to.az) * s; to.ty = Math.max(0, pinch.o.ty + dy * s); go(); return;
+    }
+    if (!drag) return;
+    if (drag.kind === 'pad') { const w = groundAtPtr(e, drag.y); if (w) opts.onPad(w.x + orbBase.cx, -w.z + orbBase.cy, 'move'); return; }
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (drag.kind === 'pan') { const s = to.dist / 600; to.tx = drag.o.tx - dx * Math.sin(to.az) * s; to.tz = drag.o.tz + dx * Math.cos(to.az) * s; to.ty = Math.max(0, drag.o.ty + dy * s); }
+    else { to.az = drag.o.az + dx * 0.006; to.el = Math.max(0.03, Math.min(1.5, drag.o.el + dy * 0.005)); }
+    go();
+  });
+  const up = (e) => { ptrs.delete(e.pointerId); if (drag?.kind === 'pad') { opts.onPad?.(0, 0, 'end'); el.style.cursor = ''; } if (ptrs.size < 2) pinch = null; drag = null; if (!ptrs.size) moving = false; };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('contextmenu', (e) => e.preventDefault());
-  el.addEventListener('wheel', (e) => { e.preventDefault(); orb.dist = Math.max(12, Math.min(600, orb.dist * Math.exp(e.deltaY * 0.0012))); applyCam(); }, { passive: false });
+  el.addEventListener('dblclick', () => { framed = false; opts.onReframe?.(); });
+  el.addEventListener('wheel', (e) => { e.preventDefault(); to.dist = Math.max(12, Math.min(600, to.dist * Math.exp(e.deltaY * 0.0012))); go(); }, { passive: false });
+  const orbBase = { cx: 0, cy: 0 };                                                    // plan point at the scene origin (the lead crane)
+  // ---- size, render loop, quality governor ----
   const resize = () => { const w = W0(), h = H0(); r.setSize(w, h, false); cam.aspect = w / Math.max(1, h); cam.updateProjectionMatrix(); dirty = true; };
-  const ro = new ResizeObserver(resize); ro.observe(host); resize(); applyCam();
-  const loop = () => { if (!alive) return; raf = requestAnimationFrame(loop); if (!dirty || host.offsetParent === null) return; dirty = false; r.render(scene, cam); };
+  let ro = new ResizeObserver(resize); ro.observe(host); resize(); applyCam();
+  let last = performance.now(), ema = 16, idleT = 0;
+  const setDpr = (v) => { if (Math.abs(v - dpr) < 0.01) return; dpr = v; r.setPixelRatio(dpr); resize(); };
+  const loop = (now) => {
+    if (!alive) return; raf = requestAnimationFrame(loop);
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (easing) { const k = 1 - Math.exp(-dt * 14); let big = 0; for (const key of ['az', 'el', 'dist', 'tx', 'ty', 'tz']) { const d = to[key] - orb[key]; orb[key] += d * k; big = Math.max(big, Math.abs(d) / (key === 'dist' ? Math.max(1, to.dist) : key.startsWith('t') ? Math.max(1, to.dist * 0.05) : 1)); }
+      if (big < 2e-4) { Object.assign(orb, to); easing = false; } applyCam(); dirty = true; }
+    if (!dirty || host.offsetParent === null) { if (!moving && !easing && dpr < dprMax && (idleT += dt) > 0.3) { setDpr(dprMax); dirty = true; } return; }
+    dirty = false; idleT = 0; r.render(scene, cam);
+    if (moving || easing) ema = ema * 0.85 + dt * 1000 * 0.15;                          // frame interval while the picture moves
+    if ((moving || easing) && ema > 24 && dpr > 1) setDpr(Math.max(1, dpr - 0.25));     // too slow while moving: fewer pixels
+  };
   raf = requestAnimationFrame(loop);
-  const clearSite = () => { while (site.children.length) { const c = site.children.pop(); c.traverse?.((m) => { m.geometry?.dispose?.(); }); } };
-  const label = (text, col = '#e9eef2') => { const F = '700 44px "Martian Mono", ui-monospace, monospace'; const c = document.createElement('canvas'); let x = c.getContext('2d'); x.font = F; const w = Math.ceil(x.measureText(text).width + 44); c.width = w; c.height = 96; x = c.getContext('2d'); x.font = F; x.fillStyle = 'rgba(8,11,15,.82)'; x.fillRect(0, 10, w, 76); x.fillStyle = col; x.fillRect(0, 10, 6, 76); x.textBaseline = 'middle'; x.fillText(text, 22, 50); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); s.scale.set(w * 1.5 / 96, 1.5, 1); s.center.set(Math.min(0.5, 40 / w), 0); s.renderOrder = 10; return s; };
-  return {
+  const vis = () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else if (!raf && alive) { last = performance.now(); dirty = true; raf = requestAnimationFrame(loop); } };
+  document.addEventListener('visibilitychange', vis);
+  // ---- labels (rebuilt only when their text changes) ----
+  const labels = {};
+  const label = (key, text, col = '#e9eef2') => {
+    const old = labels[key]; if (old && old.userData.text === text) return old;
+    if (old) { dyn.remove(old); old.material.map.dispose(); old.material.dispose(); }
+    const F = '700 44px "Martian Mono", ui-monospace, monospace'; const c = document.createElement('canvas'); let x = c.getContext('2d'); x.font = F; const w = Math.ceil(x.measureText(text).width + 44); c.width = w; c.height = 96; x = c.getContext('2d'); x.font = F; x.fillStyle = 'rgba(8,11,15,.82)'; x.fillRect(0, 10, w, 76); x.fillStyle = col; x.fillRect(0, 10, 6, 76); x.textBaseline = 'middle'; x.fillText(text, 22, 50);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); s.scale.set(w * 1.5 / 96, 1.5, 1); s.center.set(Math.min(0.5, 40 / w), 0); s.renderOrder = 10; s.userData.text = text;
+    labels[key] = s; dyn.add(s); return s;
+  };
+  const dropLabel = (key) => { const o = labels[key]; if (o) { dyn.remove(o); o.material.map.dispose(); o.material.dispose(); delete labels[key]; } };
+  const ringGeo = (mesh, rad, w, seg) => { mesh.geometry.dispose(); mesh.geometry = new THREE.RingGeometry(Math.max(0.01, rad - w), rad + w, seg); };
+  const disposeTree = (o) => o.traverse?.((m) => { m.geometry?.dispose?.(); });
+  const P2W = (x, y) => new THREE.Vector3(x - orbBase.cx, 0, -(y - orbBase.cy));       // plan point → world (scene origin = lead crane)
+  // ---- the site objects (rebuilt only when they change) ----
+  const buildSite = (plan, sp) => {
+    while (site.children.length) { const c = site.children.pop(); disposeTree(c); }
+    const dir = new THREE.Vector3(Math.cos(sp.boom * D2R), 0, -Math.sin(sp.boom * D2R));
+    const place = (m, along) => { m.position.x = dir.x * along; m.position.z = dir.z * along; m.rotation.y = sp.boom * D2R; };
+    for (const o of plan.site?.obstacles || []) {
+      const e = objExtent(plan.site, o); const len = Math.max(0.3, e.x1 - e.x0), hgt = Math.max(0.2, e.top - e.b), dep = num(o.d) || (o.type === 'building' ? Math.max(12, len * 0.8) : o.type === 'wall' ? 12 : Math.max(2.4, len * 0.5));
+      let m;
+      if (o.type === 'tree') { m = new THREE.Group(); const tr2 = C3D.cyl(0.25, 0.3, hgt * 0.4, M.trunk); tr2.position.y = hgt * 0.2; m.add(tr2); const cn = new THREE.Mesh(new THREE.SphereGeometry(len * 0.5, 14, 10), M.leaf); cn.position.y = hgt * 0.68; cn.scale.y = 1.2; cn.castShadow = true; m.add(cn); m.position.y = e.b; place(m, num(o.x)); }
+      else if (o.type === 'pole' || o.type === 'towercrane' || o.type === 'tower') { m = new THREE.Group(); const hh = num(o.h, 10); const mast = o.type === 'pole' ? C3D.cyl(0.18, 0.22, hh, M.dark) : C3D.lattice(hh, num(o.mastW, 2), num(o.mastW, 2), M.tm, { bay: 2, r: 0.06 }); if (o.type === 'pole') mast.position.y = hh / 2; else mast.rotation.z = Math.PI / 2; m.add(mast);
+        if (o.type === 'towercrane' && num(o.jib) > 0) { const jb = C3D.lattice(num(o.jib), 1.5, 1.2, M.tm, { bay: 2, r: 0.05, taper: 0.3 }); jb.position.y = hh + 0.5; m.add(jb); }
+        m.position.y = e.b; place(m, num(o.x)); }
+      else { const mat = o.type === 'container' ? M.cont : o.type === 'trailer' || o.type === 'truck' ? M.dark : o.type === 'box' ? M.box : o.type === 'shed' ? M.shed : M.conc;
+        m = C3D.box(len, hgt, dep, mat); m.position.y = e.b + hgt / 2; place(m, (e.x0 + e.x1) / 2); }
+      site.add(m);
+    }
+    for (const en of plan.env || []) { if (en.view !== 'plan' || en.hidden) continue; const gm = typeof ENV_CACHE !== 'undefined' ? ENV_CACHE[en.id] : null; if (!gm) continue; const f = envXf(en);
+      if (gm.img) { // a photo / satellite map lies on the ground as a texture
+        const tex = new THREE.TextureLoader().load(gm.img, () => { dirty = true; }); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+        const w = gm.w * num(en.sc, 0.001), h = gm.h * num(en.sc, 0.001); const pl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: num(en.opacity, 1) < 1, opacity: num(en.opacity, 1), depthWrite: false }));
+        const c = f(gm.w / 2, gm.h / 2); pl.rotation.x = -Math.PI / 2; pl.rotation.z = num(en.rot, 0) * D2R; pl.position.set(c[0] - sp.cx, 0.03, -(c[1] - sp.cy)); pl.renderOrder = -1; site.add(pl); continue; }
+      const pts = [];
+      for (const [, flat] of gm.polys) { for (let i = 2; i < flat.length; i += 2) { const a = f(flat[i - 2], flat[i - 1]), b = f(flat[i], flat[i + 1]); pts.push(a[0] - sp.cx, 0.04, -(a[1] - sp.cy), b[0] - sp.cx, 0.04, -(b[1] - sp.cy)); } if (pts.length > 600000) break; }
+      const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); site.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: C3D.lin('#ff8a6a'), transparent: true, opacity: 0.85 })));
+    }
+  };
+  // ---- one crane of the scene (the lead, or a tandem crane): rebuilt only when its make-up changes ----
+  const craneSig = (crane, pv, livery) => JSON.stringify([crane.id, crane.color, livery, pv.cwt, pv.matSize, crane.sections, crane.boomMin, crane.boomMax, pv.outExt, crane.outTrans, crane.outTransHalf]);
+  const poseCrane = (gg, res, load, boomHd, carHd) => {
+    const geo = res.geo; gg.state.theta = geo.theta || 45; gg.state.slew = boomHd - carHd; gg.state.L = geo.kind === 'main' ? geo.L : geo.Lb; gg.state.fr = res.tele?.fr || gg.state.fr; gg.state.acc = res.acc || {};
+    gg.state.jib = geo.kind !== 'main' && geo.Lj ? { len: geo.Lj, angle: geo.gamma } : null;
+    gg.state.loadSize = [Math.max(0.6, num(load.l, 2)), Math.max(0.3, num(load.h, 1.5)), Math.max(0.6, num(load.l, 2) * 0.6)]; gg.state.rig = res.rigH || 3;
+    gg.state.empty = !!res.empty; gg.state.hookY = res.empty && res.hookY != null ? res.hookY + 0.95 : res.landY + num(load.h, 1.5) + (res.rigH || 3) + 0.95 + 0.5;
+    gg.root.rotation.y = carHd * D2R; C3D.pose(gg, gg.state, scene);
+  };
+  const api = {
     update(plan, calc, crane, livery) {
-      const li = Math.min(calc.loads.length - 1, plan.activeLoad || 0), res = calc.loads[li], load = plan.loads[li], geo = res.geo;
-      const s2 = JSON.stringify([crane.id, crane.color, livery, plan.cwt, plan.matSize, crane.sections, crane.boomMin, crane.boomMax, plan.outExt, crane.outTrans, crane.outTransHalf]);
-      if (s2 !== sig) { if (g) scene.remove(g.root, g.hook, g.rope, g.slings, g.load); g = C3D.buildCrane(C3D.paramsFor(crane, plan, calc, livery)); g._hung = false; scene.add(g.root); sig = s2; }
-      const sp = sitePlanState(plan, load);
-      const L = geo.kind === 'main' ? geo.L : geo.Lb;
-      // headings follow the lift side: the carrier faces phC (cab = local +x), the boom is carrier + 180 (rear) / +90 (left) / −90 (right)
-      const phS = sp.boom, phC = sp.carrier;
-      g.state.theta = geo.theta || 45; g.state.slew = phS - phC; g.state.L = L; g.state.fr = res.tele?.fr || g.state.fr; g.state.acc = res.acc || {};
-      g.state.jib = geo.kind !== 'main' && geo.Lj ? { len: geo.Lj, angle: geo.gamma } : null;
-      g.state.loadSize = [Math.max(0.6, num(load.l, 2)), Math.max(0.3, num(load.h, 1.5)), Math.max(0.6, num(load.l, 2) * 0.6)]; g.state.rig = res.rigH || 3;
-      g.state.empty = !!res.empty; g.state.hookY = res.empty && res.hookY != null ? res.hookY + 0.95 : res.landY + num(load.h, 1.5) + (res.rigH || 3) + 0.95 + 0.5;
-      orb.phS = phS; g.root.rotation.y = phC * D2R;
-      C3D.pose(g, g.state, scene);
-      clearSite(); const dir = new THREE.Vector3(Math.cos(phS * D2R), 0, -Math.sin(phS * D2R));
-      const place = (m, along) => { m.position.x = dir.x * along; m.position.z = dir.z * along; m.rotation.y = phS * D2R; };
-      const conc = C3D.mat({ color: '#8a9097', roughness: 0.9 }), dark = C3D.mat({ color: '#454b52', roughness: 0.7 }), tm = C3D.mat({ color: '#d4a51e', metalness: 0.4, roughness: 0.5 });
-      for (const o of plan.site?.obstacles || []) {
-        const e = objExtent(plan.site, o); const len = Math.max(0.3, e.x1 - e.x0), hgt = Math.max(0.2, e.top - e.b), dep = num(o.d) || (o.type === 'building' ? Math.max(12, len * 0.8) : o.type === 'wall' ? 12 : Math.max(2.4, len * 0.5));
-        let m;
-        if (o.type === 'tree') { m = new THREE.Group(); const tr2 = C3D.cyl(0.25, 0.3, hgt * 0.4, C3D.mat({ color: '#5a3a1e' })); tr2.position.y = hgt * 0.2; m.add(tr2); const cn = new THREE.Mesh(new THREE.SphereGeometry(len * 0.5, 14, 10), C3D.mat({ color: '#2f6b2f', roughness: 1 })); cn.position.y = hgt * 0.68; cn.scale.y = 1.2; cn.castShadow = true; m.add(cn); m.position.y = e.b; place(m, num(o.x)); }
-        else if (o.type === 'pole' || o.type === 'towercrane' || o.type === 'tower') { m = new THREE.Group(); const hh = num(o.h, 10); const mast = o.type === 'pole' ? C3D.cyl(0.18, 0.22, hh, dark) : C3D.lattice(hh, num(o.mastW, 2), num(o.mastW, 2), tm, { bay: 2, r: 0.06 }); if (o.type === 'pole') mast.position.y = hh / 2; else mast.rotation.z = Math.PI / 2; m.add(mast);
-          if (o.type === 'towercrane' && num(o.jib) > 0) { const jb = C3D.lattice(num(o.jib), 1.5, 1.2, tm, { bay: 2, r: 0.05, taper: 0.3 }); jb.position.y = hh + 0.5; m.add(jb); }
-          m.position.y = e.b; place(m, num(o.x)); }
-        else { const mat = o.type === 'container' ? C3D.mat({ color: '#2f6fb3', roughness: 0.6, metalness: 0.4 }) : o.type === 'trailer' || o.type === 'truck' ? dark : o.type === 'box' ? C3D.mat({ color: '#9b7bc6' }) : o.type === 'shed' ? C3D.mat({ color: '#c8b48c' }) : conc;
-          m = C3D.box(len, hgt, dep, mat); m.position.y = e.b + hgt / 2; place(m, (e.x0 + e.x1) / 2); }
-        site.add(m);
-      }
-      // rings: radius (cyan), tail swing (amber); landing pad; labels
-      const ringM = (col, op) => new THREE.MeshBasicMaterial({ color: C3D.lin(col), transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false });
-      const ring = new THREE.Mesh(new THREE.RingGeometry(res.R - 0.14, res.R + 0.14, 180), ringM('#4fe0ff', 0.9)); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; site.add(ring);
-      const tl = num(crane.tail, 5); const tail = new THREE.Mesh(new THREE.RingGeometry(tl - 0.09, tl + 0.09, 96), ringM('#ffb81c', 0.85)); tail.rotation.x = -Math.PI / 2; tail.position.y = 0.05; site.add(tail);
-      const pad = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.85, 40), ringM('#e040e0', 0.95)); pad.rotation.x = -Math.PI / 2; pad.position.set(dir.x * res.R, res.landY + 0.06, dir.z * res.R); site.add(pad);
-      const lb = label(`R ${res.R.toFixed(2)} m · OVER ${SIDE_NAME[sp.side]}`, '#4fe0ff'); lb.position.set(dir.x * res.R + 1, 0.8, dir.z * res.R); site.add(lb);
-      if (res.tipY != null && g.tipW) { const lt = label(`TIP ${res.tipY.toFixed(1)} m · ${(geo.kind === 'luffing' ? geo.gamma : geo.theta).toFixed(1)}°`, '#ffb81c'); lt.position.copy(g.tipW).add(new THREE.Vector3(0, 1.6, 0)); site.add(lt); }
-      for (const en of plan.env || []) { if (en.view !== 'plan' || en.hidden) continue; const gm = typeof ENV_CACHE !== 'undefined' ? ENV_CACHE[en.id] : null; if (!gm || gm.img) continue; const f = envXf(en); const pts = [];
-        for (const [, flat] of gm.polys) { for (let i = 2; i < flat.length; i += 2) { const a = f(flat[i - 2], flat[i - 1]), b = f(flat[i], flat[i + 1]); pts.push(a[0] - sp.cx, 0.04, -(a[1] - sp.cy), b[0] - sp.cx, 0.04, -(b[1] - sp.cy)); } if (pts.length > 600000) break; }
-        const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); site.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: C3D.lin('#ff8a6a'), transparent: true, opacity: 0.85 }))); }
-      if (!this._framed) { const reach = Math.max(20, res.R, (geo.tip?.y || 20)); orb.dist = reach * 2.3; orb.az = Math.PI / 2 - phS * D2R - 0.75; orb.el = 0.36; orb.tx = res.R * 0.45 * dir.x; orb.tz = res.R * 0.45 * dir.z; orb.ty = Math.max(6, (geo.tip?.y || 20) * 0.38); applyCam(); this._framed = true; }
+      const li = Math.min(calc.loads.length - 1, plan.activeLoad || 0), res = calc.loads[li], load = plan.loads[li], geo = res.geo; if (!geo?.tip) return;
+      const s2 = craneSig(crane, plan, livery);
+      if (s2 !== sig) { if (g) { scene.remove(g.root, g.hook, g.rope, g.slings, g.load); disposeTree(g.root); } g = C3D.buildCrane(C3D.paramsFor(crane, plan, calc, livery)); g._hung = false; scene.add(g.root); sig = s2; }
+      const sp = sitePlanState(plan, load); orbBase.cx = num(sp.cx); orbBase.cy = num(sp.cy);
+      phS = sp.boom; poseCrane(g, res, load, sp.boom, sp.carrier);
+      // site objects
+      const ss = JSON.stringify([plan.site?.obstacles, plan.site?.stepX, plan.site?.targetGround, Math.round(sp.boom * 10), sp.cx, sp.cy, (plan.env || []).filter(e => e.view === 'plan').map(e => [e.id, e.hidden, e.x, e.y, e.sc, e.rot, e.opacity, !!(typeof ENV_CACHE !== 'undefined' && ENV_CACHE[e.id])])]);
+      if (ss !== siteSig) { siteSig = ss; buildSite(plan, sp); }
+      // rings, landing pad, labels — moved in place
+      const dir = new THREE.Vector3(Math.cos(sp.boom * D2R), 0, -Math.sin(sp.boom * D2R));
+      if (Math.abs(res.R - lastR) > 0.004) { lastR = res.R; ringGeo(ringR, res.R, 0.14, 180); } ringR.position.y = 0.05;
+      const tl = num(crane.tail, 5); if (tl !== lastTail) { lastTail = tl; ringGeo(ringT, tl, 0.09, 96); } ringT.position.y = 0.05;
+      const T = res.tandem; const padOn = !T;
+      pad.visible = padDot.visible = padHit.visible = padOn;
+      pad.position.set(dir.x * res.R, res.landY + 0.06, dir.z * res.R); padDot.position.copy(pad.position); padHit.position.copy(pad.position); padHit.scale.setScalar(Math.max(1.6, res.R * 0.07));
+      const lb = label('R', `R ${res.R.toFixed(2)} m · OVER ${SIDE_NAME[sp.side]}`, '#4fe0ff'); lb.position.set(dir.x * res.R + 1, 0.8, dir.z * res.R);
+      if (res.tipY != null && g.tipW) { const lt = label('tip', `TIP ${res.tipY.toFixed(1)} m · ${(geo.kind === 'luffing' ? geo.gamma : geo.theta).toFixed(1)}°`, '#ffb81c'); lt.position.copy(g.tipW).add(new THREE.Vector3(0, 1.6, 0)); } else dropLabel('tip');
+      // tandem: the other cranes, one shared load, a sling from every hook to its lifting point
+      const seen = new Set();
+      if (T) {
+        g.load.visible = g.slings.visible = false;
+        T.picks.slice(1).forEach((pk) => {
+          const pv = rigOf(plan, pk.crane), cr = pk.res.crane || crane; const ks = craneSig(cr, pv, livery) + '|' + pk.k; seen.add(pk.k);
+          let ex = extra.get(pk.k); if (!ex || ex.sig !== ks) { if (ex) { scene.remove(ex.g.root, ex.g.hook, ex.g.rope, ex.g.slings, ex.g.load); disposeTree(ex.g.root); } ex = { sig: ks, g: C3D.buildCrane(C3D.paramsFor(cr, pv, calc, livery)) }; ex.g._hung = false; scene.add(ex.g.root); extra.set(pk.k, ex); }
+          const bh = normDeg(pk.boomHd + num(pk.mv?.swing)); ex.g.root.position.copy(P2W(pk.base.x, pk.base.y));
+          poseCrane(ex.g, pk.res, load, bh, normDeg(bh - SIDE_OFFSET[sideOf(pk.side)])); ex.g.load.visible = ex.g.slings.visible = false; ex.g.root.visible = ex.g.hook.visible = ex.g.rope.visible = true;
+        });
+        const hooks = [g, ...T.picks.slice(1).map(p => extra.get(p.k)?.g)].filter(Boolean);
+        const pickY = g.hook.position.y - 0.95 - Math.max(1.2, res.rigH || 3); const tilt = num(T.live?.tilt) * D2R; const ax = num(T.axis) * D2R; const a = new THREE.Vector3(Math.cos(ax), 0, -Math.sin(ax));
+        const xs = T.picks.map(p => p.x), x0 = Math.min(...xs), x1 = Math.max(...xs), mid = (x0 + x1) / 2; const p0 = T.picks[0];
+        const origin = P2W(p0.pos.x, p0.pos.y); origin.y = pickY;
+        const at = (x, z) => { const d = x - mid, c = Math.cos(tilt), s = Math.sin(tilt); const base = origin.clone().addScaledVector(a, mid - p0.x); const n = new THREE.Vector3(-a.z, 0, a.x).multiplyScalar(-(num(z) - num(p0.z))); return base.addScaledVector(a, d * c).add(new THREE.Vector3(0, d * s, 0)).add(n); };
+        const lh = Math.max(0.3, num(load.h, 1.5)), lw = Math.max(1.2, Math.min(4, lh * 1.4)); tLoad.scale.set(x1 - x0 + 1.2, lh, lw);
+        tLoad.rotation.set(0, ax, tilt, 'YZX'); tLoad.position.copy(at(mid, p0.z)).add(new THREE.Vector3(0, -lh / 2, 0).applyEuler(tLoad.rotation)); // the lifting points are on top of the load
+        const sl = []; T.picks.forEach((pk, i) => { const hk = hooks[i]; if (!hk) return; const q = at(pk.x, pk.z); for (const dz of [-0.35, 0.35]) { const qq = q.clone().add(new THREE.Vector3(-a.z * dz, 0, a.x * dz)); sl.push(hk.hook.position.x, hk.hook.position.y - 1.0, hk.hook.position.z, qq.x, qq.y, qq.z); } });
+        C3D.setLines(tSling, sl); tand.visible = true;
+        T.picks.forEach((pk, i) => { const hk = hooks[i]; if (!hk) return; const lb = label('tc' + i, `C${pk.crane + 1} · ${(+pk.share).toFixed(1)} t · ${Math.round(num(pk.util))}%`, pk.util == null || pk.util > T.derate ? '#ff6961' : '#4fe0ff'); lb.position.copy(hk.hook.position).add(new THREE.Vector3(0.9, 1.4, 0)); });
+        for (let i = T.picks.length; i < 4; i++) dropLabel('tc' + i);
+      } else { tand.visible = false; g.load.visible = g.slings.visible = !res.empty; for (let i = 0; i < 4; i++) dropLabel('tc' + i); }
+      for (const [k, ex] of extra) if (!seen.has(k)) { ex.g.root.visible = ex.g.hook.visible = ex.g.rope.visible = ex.g.slings.visible = ex.g.load.visible = false; }
+      { const reach = Math.max(20, res.R, (geo.tip?.y || 20), ...(T ? T.picks.map(p => Math.hypot(p.base.x - sp.cx, p.base.y - sp.cy) * 0.6) : []));
+        api._auto = { dist: reach * 2.3, az: Math.PI / 2 - phS * D2R - 0.75, el: 0.36, tx: res.R * 0.45 * dir.x, tz: res.R * 0.45 * dir.z, ty: Math.max(6, (geo.tip?.y || 20) * 0.38) }; }
+      if (!framed) { Object.assign(to, api._auto); go(!api._shown); framed = true; api._shown = true; }
       dirty = true;
     },
-    reframe() { this._framed = false; dirty = true; },
-    zoom(f) { orb.dist = Math.max(12, Math.min(600, orb.dist / f)); applyCam(); },
-    view(kind) { const a0 = Math.PI / 2 - num(orb.phS) * D2R; if (kind === 'side') { orb.az = a0; orb.el = 0.04; } else if (kind === 'top') { orb.az = a0; orb.el = 1.5; } else { orb.az = a0 - 0.75; orb.el = 0.36; } applyCam(); },
-    snapshot() { r.render(scene, cam); return r.domElement.toDataURL('image/jpeg', 0.92); },
-    dispose() { alive = false; cancelAnimationFrame(raf); ro.disconnect(); try { r.dispose(); r.forceContextLoss(); } catch {} host.innerHTML = ''; }
+    reframe() { framed = false; dirty = true; },
+    zoom(f) { to.dist = Math.max(12, Math.min(600, to.dist / f)); go(); },
+    view(kind) { const a0 = Math.PI / 2 - num(phS) * D2R; if (kind === 'side') { to.az = a0; to.el = 0.04; } else if (kind === 'top') { to.az = a0; to.el = 1.5; } else { to.az = a0 - 0.75; to.el = 0.36; } go(); },
+    // move the canvas into another box (full view ↔ the small window); the scene and the WebGL context stay
+    mount(h2) { if (!h2 || h2 === host) return; host = h2; h2.appendChild(r.domElement); ro.disconnect(); ro = new ResizeObserver(resize); ro.observe(h2); resize(); dirty = true; },
+    host: () => host,
+    // a still for the PDF: rendered once at the size asked, then the screen size is put back
+    snapshot(w = 1600, h = 1000, auto) { const ow = W0(), oh = H0(), od = dpr, keep = { ...orb }; Object.assign(orb, auto && api._auto ? api._auto : to); applyCam(); r.setPixelRatio(1); r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); r.render(scene, cam); const url = r.domElement.toDataURL('image/jpeg', 0.9); if (auto) { Object.assign(orb, keep); applyCam(); } r.setPixelRatio(od); r.setSize(ow, oh, false); cam.aspect = ow / Math.max(1, oh); cam.updateProjectionMatrix(); dirty = true; return url; },
+    stats: () => ({ dpr, ema: Math.round(ema * 10) / 10, calls: r.info.render.calls, tris: r.info.render.triangles, geos: r.info.memory.geometries, tex: r.info.memory.textures }),
+    dispose() { alive = false; cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener('visibilitychange', vis); try { r.dispose(); r.forceContextLoss(); } catch {} r.domElement.remove(); }
   };
+  return api;
 };
 
 // ===== Studio canvas: live elevation / site plan / sheet, to scale, with drag handles =====
@@ -5334,10 +5866,18 @@ const state = {
   savedAt: null, dirty: false, wx: { q: '', res: null, busy: false, err: '' }, twin: null, started: false
 };
 
+// v9: the fleet list is built once and reused until the fleet changes. Deep-cloning every default crane (hundreds of LICCON charts)
+// on each call took ~15 ms per redraw, which made dragging stutter on phones. Every fleet edit goes through _chartCache.clear()
+// (saveCrane, fleetCommit, the db snapshot, reset), so that bumps the revision; adding / removing / hiding changes the key itself.
+let CRANES_REV = 0; const CRANES_MEMO = { key: null, list: null };
+{ const clr = _chartCache.clear.bind(_chartCache); _chartCache.clear = () => { CRANES_REV++; _chartRev++; clr(); }; }
 function cranes() {
+  const key = CRANES_REV + '|' + Object.keys(state.userCranes).join(',') + '|' + state.hiddenCranes.join(',');
+  if (CRANES_MEMO.key === key && CRANES_MEMO.u === state.userCranes) return CRANES_MEMO.list;
   const map = new Map(DEFAULT_CRANES.map(c => [c.id, clone(c)]));
   for (const [id, c] of Object.entries(state.userCranes)) map.set(id, c);
-  return [...map.values()].filter(c => !state.hiddenCranes.includes(c.id)).sort((a, b) => a.cls - b.cls || a.model.localeCompare(b.model)).map(c => withImgs(c));
+  const list = [...map.values()].filter(c => !state.hiddenCranes.includes(c.id)).sort((a, b) => a.cls - b.cls || a.model.localeCompare(b.model)).map(c => withImgs(c));
+  Object.assign(CRANES_MEMO, { key, list, u: state.userCranes }); return list;
 }
 function withImgs(c) {
   const o = { ...c };

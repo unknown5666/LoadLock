@@ -115,6 +115,52 @@ function outSolve(pads, W, xc, yc, k) {
     active.splice(R.indexOf(min), 1);                                              // the most negative pad lifts off
   }
 }
+// ---------- v9 fast path (same maths, ~10× quicker — the 360° sweeps run on every drag) ----------
+// The plane matrix depends only on where the pads are, so its inverse is worked out once per set of pads in contact and kept on the
+// pads array. Symmetric 3×3 inverse by cofactors: [i11 i12 i13 i22 i23 i33]; null when the pads are in a line.
+function outPlaneInv(pads, idx) {
+  let memo = pads.__inv; if (!memo) { memo = new Map(); Object.defineProperty(pads, '__inv', { value: memo, enumerable: false }); }
+  const key = idx.join(''); if (memo.has(key)) return memo.get(key);
+  let a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+  for (const i of idx) { const p = pads[i]; a += 1; b += p.x; c += p.y; d += p.x * p.x; e += p.x * p.y; f += p.y * p.y; }
+  const C11 = d * f - e * e, C12 = c * e - b * f, C13 = b * e - c * d, C22 = a * f - c * c, C23 = b * c - a * e, C33 = a * d - b * b;
+  const det = a * C11 + b * C12 + c * C13;
+  const inv = Math.abs(det) < 1e-12 ? null : [C11 / det, C12 / det, C13 / det, C22 / det, C23 / det, C33 / det];
+  memo.set(key, inv); return inv;
+}
+// outSolve with the cached inverse (identical states, lift-off order and thresholds); edges of the pad polygon are kept as unit normals
+function outEdges(pads) {
+  if (pads.__edges) return pads.__edges;
+  const E = pads.map((a, i) => { const b = pads[(i + 1) % pads.length]; const L = Math.hypot(b.x - a.x, b.y - a.y) || 1; return [a.x, a.y, (b.x - a.x) / L, (b.y - a.y) / L]; });
+  Object.defineProperty(pads, '__edges', { value: E, enumerable: false }); return E;
+}
+function outSolveFast(pads, W, xc, yc) {
+  let margin = Infinity; for (const [ax, ay, ux, uy] of outEdges(pads)) { const m = ux * (yc - ay) - uy * (xc - ax); if (m < margin) margin = m; }
+  const n = pads.length; const zero = new Array(n).fill(0);
+  if (margin < -1e-9) return { R: zero, state: 'tipped', lifted: [], margin };
+  const active = []; for (let i = 0; i < n; i++) active.push(i);
+  for (;;) {
+    const inv = outPlaneInv(pads, active); const R = new Array(active.length); let min = Infinity, at = -1;
+    if (!inv) { R.fill(NaN); min = NaN; }
+    else { const c0 = W * (inv[0] + inv[1] * xc + inv[2] * yc), c1 = W * (inv[1] + inv[3] * xc + inv[4] * yc), c2 = W * (inv[2] + inv[4] * xc + inv[5] * yc);
+      for (let j = 0; j < active.length; j++) { const p = pads[active[j]]; const v = c0 + c1 * p.x + c2 * p.y; R[j] = v; if (v < min) { min = v; at = j; } } }
+    if (min >= -1e-9 * Math.max(1, W)) {
+      const out = zero.slice(); const lifted = [];
+      for (let j = 0; j < active.length; j++) out[active[j]] = Math.max(0, R[j]);
+      for (let i = 0; i < n; i++) if (!active.includes(i)) lifted.push(pads[i].id);
+      return { R: out, state: margin < 1e-3 ? 'tipping-limit' : lifted.length ? '3-point' : '4-point', lifted, margin };
+    }
+    if (active.length <= 3) return { R: zero, state: 'tipped', lifted: [], margin };
+    active.splice(at < 0 ? -1 : at, 1);
+  }
+}
+// the parts that turn with the boom all sit on the boom line, so together they are one mass m at moment s (= Σ mᵢ·rᵢ) along it
+function outSlewSum(mm, geo, hookT, R) {
+  const bc = outBoomCog(mm, geo); let m = 0, s = 0; const add = (mi, r) => { if (mi > 0) { m += mi; s += mi * r; } };
+  add(mm.sup, mm.supR); add(mm.cwt, mm.cwtR); add(mm.boom, bc.r); if (bc.jib) add(bc.jib.m, bc.jib.r); add(Math.max(0, num(hookT)), num(R));
+  return { m, s };
+}
+
 // one slew angle: total mass, centre of gravity and the four pad reactions
 function outAt(mm, pads, geo, theta, hookT, R) {
   const c = outCog(outMasses(mm, geo, theta, hookT, R)); const s = outSolve(pads, c.M, c.x, c.y);
@@ -123,7 +169,8 @@ function outAt(mm, pads, geo, theta, hookT, R) {
 }
 // gross hook load that brings the centre of gravity onto the pad polygon edge at slew θ (bisection; brief §5.1). Infinity = never tips.
 function outTipHook(mm, pads, geo, theta, R) {
-  const inside = (m) => { const c = outCog(outMasses(mm, geo, theta, m, R)); return outMargin(c.x, c.y, pads) >= 0; };
+  const base = outSlewSum(mm, geo, 0, R), t = theta * D2R, ct = Math.cos(t), st = Math.sin(t), Rr = num(R);
+  const inside = (m) => { const M = mm.carrier + base.m + m, s = base.s + m * Rr; return outMargin(M > 0 ? (mm.carrier * mm.carrierX + s * ct) / M : 0, M > 0 ? s * st / M : 0, pads) >= 0; };
   if (!inside(0)) return 0;
   let lo = 0, hi = 25; while (inside(hi)) { lo = hi; hi *= 2; if (hi > 1e5) return Infinity; }
   for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (inside(m)) lo = m; else hi = m; }
@@ -133,11 +180,12 @@ function outTipHook(mm, pads, geo, theta, R) {
 function outSweep(mm, pads, geo, hookT, R, step = 5) {
   const max = {}; for (const p of pads) max[p.id] = { v: 0, th: 0 };
   let minMargin = Infinity, thMin = 0, tipped = false, lifted = false;
+  const sl = outSlewSum(mm, geo, hookT, R), M = mm.carrier + sl.m, mx = mm.carrier * mm.carrierX;
   for (let th = 0; th < 360; th += step) {
-    const a = outAt(mm, pads, geo, th, hookT, R);
+    const t = th * D2R; const a = outSolveFast(pads, M, M > 0 ? (mx + sl.s * Math.cos(t)) / M : 0, M > 0 ? sl.s * Math.sin(t) / M : 0);
     if (a.state === 'tipped') tipped = true; else if (a.lifted.length) lifted = true;
     if (a.margin < minMargin) { minMargin = a.margin; thMin = th; }
-    for (const p of pads) if (a.R[p.id] > max[p.id].v) max[p.id] = { v: a.R[p.id], th };
+    pads.forEach((p, i) => { if (a.R[i] > max[p.id].v) max[p.id] = { v: a.R[i], th }; });
   }
   return { max, minMargin, thMin, tipped, lifted };
 }
