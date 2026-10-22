@@ -4,10 +4,10 @@ import re, os, sys
 src = 'src'
 rd = lambda p: open(p, encoding='utf-8').read()
 strip = lambda s: re.sub(r"\nif \(typeof module[\s\S]*$", "\n", s)
-CORE = ['data', 'engine', 'env', 'draw', 'crane2d', 'fixes', 'samples', 'weather', 'three3d', 'scene']
+CORE = ['data', 'engine', 'outrig', 'env', 'draw', 'crane2d', 'fixes', 'samples', 'weather', 'three3d', 'scene']
 TARGETS = {
     'v6': (CORE + ['wizard', 'login', 'app', 'studio', 'deck', 'pages', 'tour', 'main'], 'shell.html', 'dist/index.html'),
-    'v7': (CORE + ['app', 'v7/core', 'v7/ui', 'v7/sheets', 'v7/pages', 'v7/login', 'v7/main'], 'v7/shell.html', 'dist/v7.html'),
+    'v7': (CORE + ['app', 'v7/core', 'v7/ui', 'v7/sheets', 'v7/legs', 'v7/pages', 'v7/login', 'v7/main'], 'v7/shell.html', 'dist/v7.html'),
 }
 target = sys.argv[1] if len(sys.argv) > 1 else 'v6'
 MODULES, SHELL, OUT = TARGETS[target]

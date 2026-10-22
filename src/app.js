@@ -201,7 +201,10 @@ function normalizePlan(p) {
     out.sitePlan.carrierRot = r2(normDeg(num(out.sitePlan.rot) - SIDE_OFFSET[side0]));
   }
   out.loads.forEach(l => { l.side = legacySide ? side0 : sideOf(l); });
-  out.sheetRows = { hide: {}, show: {}, custom: [], ...(p.sheetRows || {}) };
+  out.sheetRows = { hide: {}, show: {}, custom: [], ov: {}, ...(p.sheetRows || {}) };
+  // outriggers (v8): beams per side and hand-typed leg loads are per crane; plans from before v8 have neither → full legs, nothing typed
+  const legs = (o) => { o.outExt = { left: 'full', right: 'full', ...(o.outExt && typeof o.outExt === 'object' ? o.outExt : {}) }; o.padMan = o.padMan && typeof o.padMan === 'object' ? { ...o.padMan } : {}; };
+  legs(out); out.cranes.forEach(legs);
   return out;
 }
 // ---------- several cranes on one plan ----------
@@ -209,7 +212,7 @@ function rigPick(p) { const o = {}; for (const k of CRANE_KEYS) o[k] = clone(p[k
 function rigPark(p) { if (!p.cranes) p.cranes = []; p.cranes[num(p.activeCrane, 0)] = rigPick(p); }
 function switchRig(i) { // make crane i the active (editable) crane
   const p = state.plan; i = Math.max(0, Math.min((p.cranes?.length || 1) - 1, i)); if (i === num(p.activeCrane, 0)) return false;
-  rigPark(p); const r = p.cranes[i] || {}; for (const k of CRANE_KEYS) p[k] = clone(r[k] ?? (k === 'tele' ? { mode: 'auto', fr: [] } : k === 'attach' ? { type: 'none' } : k === 'acc' ? {} : ''));
+  rigPark(p); const r = p.cranes[i] || {}; for (const k of CRANE_KEYS) p[k] = clone(r[k] ?? (k === 'tele' ? { mode: 'auto', fr: [] } : k === 'attach' ? { type: 'none' } : k === 'acc' ? {} : k === 'outExt' ? { left: 'full', right: 'full' } : k === 'padMan' ? {} : ''));
   p.activeCrane = i; Scene.views = {}; if (state.twin) state.twin.reframe(); return true;
 }
 function selectLoad(i) { const p = state.plan; p.activeLoad = Math.max(0, Math.min(p.loads.length - 1, i)); switchRig(num(p.loads[p.activeLoad].crane, 0)); }

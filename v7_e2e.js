@@ -57,6 +57,32 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await ev(() => { setCrane('ltm1080'); commit(); }); await p.waitForTimeout(300);
   ok(await ev(() => state.calc.crane.id === 'ltm1080' && state.calc.loads[0].cap != null), 'crane changed to LTM1080 with a capacity');
 
+  // v8 legs: leg loads, half out, hand-typed (illustration) values
+  await p.click('.dk[data-act="legs"]'); await p.waitForTimeout(500);
+  ok(await ev(() => V7.sheet?.kind === 'legs' && !!document.querySelector('#sheet .legs-pic') && document.querySelectorAll('#sheet .padc').length === 4), 'legs sheet: picture + four leg cards');
+  await ev(() => { state.plan.loads[0].w = 4; commit(); }); await p.waitForTimeout(300); // 18 t at 20 m overloads the LTM1080 (the model then says it tips, all legs 0)
+  ok(await ev(() => { const L = state.calc.outr.lifts[0]; return L.at.state !== 'tipped' && Math.abs(Object.values(L.at.R).reduce((s, v) => s + v, 0) - L.at.M) < 1e-6; }), 'leg loads add up to crane + load');
+  ok(await ev(() => { const r = state.calc.loads[0]; state.plan.loads[0].w = 18; commit(); return r.util > 100; }), '18 t at 20 m is over the LTM1080 chart (why the model tipped)');
+  await p.waitForTimeout(300);
+  await p.click('[data-sa="legExt"][data-side="left"][data-v="half"]'); await p.waitForTimeout(400);
+  ok(await ev(() => state.plan.outExt.left === 'half' && state.calc.outr.half), 'left legs half out');
+  ok(await ev(() => state.calc.loads[0].checks.some(c => c.t === 'Outriggers' && c.s === 'fail')), 'half legs with a full-leg chart is a STOP');
+  await p.click('[data-sa="legExt"][data-side="left"][data-v="full"]'); await p.waitForTimeout(400);
+  ok(await ev(() => state.plan.outExt.left === 'full' && !state.calc.loads[0].checks.some(c => c.t === 'Outriggers')), 'back to full legs');
+  await p.click('#sheet [data-sa-sw="legMan"]', { force: true }).catch(() => ev(() => { const i = document.querySelector('#sheet [data-sa-sw="legMan"]'); i.checked = true; i.dispatchEvent(new Event('change', { bubbles: true })); }));
+  await p.waitForTimeout(400);
+  await p.fill('#sheet input[data-k="padMan.FL"]', '44'); await p.press('#sheet input[data-k="padMan.FL"]', 'Enter'); await p.waitForTimeout(500);
+  ok(await ev(() => state.calc.outr.illus && state.calc.outr.used.FL === 44), 'typed FL 44 t used');
+  ok(await ev(() => /Illustration only/i.test(document.querySelector('#sheet').textContent) && allChecks(state.calc).some(c => /ILLUSTRATION ONLY/.test(c.m))), 'illustration warning on screen and in the checks');
+  await ev(() => { state.plan.padMan = {}; V7.legMan = false; commit({ sheet: true }); closeSheet(true); }); await p.waitForTimeout(300);
+  // v8 sheet values typed over
+  await ev(() => openSheet('print')); await p.waitForTimeout(400); await p.click('[data-sa="open"][data-k="sheetData"]'); await p.waitForTimeout(500);
+  ok(await ev(() => V7.sheet?.kind === 'sheetData' && document.querySelectorAll('#sheet [data-ov]').length > 10), 'sheet values panel lists the printed rows');
+  await p.fill('#sheet input[data-ov="l0.cap#0"]', '25'); await p.press('#sheet input[data-ov="l0.cap#0"]', 'Enter'); await p.waitForTimeout(500);
+  ok(await ev(() => state.plan.sheetRows.ov['l0.cap#0'] === '25' && state.calc.sheetOv.some(x => x.id === 'l0.cap#0' && x.safety)), 'chart capacity typed over and flagged');
+  ok(await ev(() => sheetBlocks(state.plan, state.calc, settingsEff()).flatMap(b => b.rows).find(r => r.id === 'l0.cap#0').v === '25'), 'the sheet prints the typed value');
+  await ev(() => { state.plan.sheetRows.ov = {}; commit(); closeSheet(true); }); await p.waitForTimeout(300);
+
   // second lift
   await p.click('[data-act="liftAdd"]'); await p.waitForTimeout(300);
   ok(await ev(() => state.plan.loads.length) === 2, 'second lift added');

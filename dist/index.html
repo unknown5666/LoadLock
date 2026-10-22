@@ -1820,7 +1820,7 @@ function angleFromRadius(crane, chartDef, col, R, boomOv) {
 }
 
 // several cranes per plan: the top-level crane fields are the active crane; the others are parked in plan.cranes[i]
-const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind'];
+const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan'];
 function rigOf(plan, i) { const a = num(plan.activeCrane, 0); if (i === a || !plan.cranes?.[i]) return plan; return { ...plan, ...plan.cranes[i] }; }
 function rigIndexOf(plan, l) { const i = Math.round(num(l?.crane, 0)); return plan.cranes?.[i] || i === num(plan.activeCrane, 0) ? i : num(plan.activeCrane, 0); }
 function computePlan(plan, cranes, settings) {
@@ -1831,17 +1831,28 @@ function computePlan(plan, cranes, settings) {
     if (!rigs.has(ri)) rigs.set(ri, { i: ri, crane: cr, pv });
     const r = computeLoad(pv, cr, l, settings); r.crane = cr; r.rigI = ri; return r;
   });
-  // outrigger / ground pressure
+  // outrigger (leg) loads per crane — outrig.js; the active crane's result drives the ground table
   const op = plan.outrigger || {};
+  const outrigs = [];
+  if (typeof outriggerCrane === 'function') for (const rg of rigs.values()) {
+    const O = outriggerCrane(rg.pv, rg.crane, loads.map((res, li) => ({ li, res })).filter(x => x.res.rigI === rg.i), op);
+    O.rigI = rg.i; O.crane = rg.crane; O.checks = outriggerChecks(O, rg.crane, loads); outrigs.push(O);
+  }
+  const outr = outrigs.find(o => o.rigI === num(plan.activeCrane, 0)) || outrigs[0] || null;
+  // ground pressure: the maker's leg load when typed, else the biggest leg load (calculated, or typed by hand for an illustration)
   let ground = null;
-  if (op.enabled) {
+  if (op.enabled || num(op.allow) > 0) {
     const maxT = Math.max(0, ...loads.map(l => l.total || 0));
     const est = r2(num(settings.outriggerFactor, 0.8) * (num(crane.mass) + num(plan.cwt ?? crane.cwt) + maxT));
-    const P = num(op.maxLoad) > 0 ? num(op.maxLoad) : est;
+    const maker = num(op.maxLoad) > 0;
+    const P = maker ? num(op.maxLoad) : outr?.any || outr?.illus ? outr.Pmax.v : est;
+    const src = maker ? 'maker' : outr?.illus && outr.Pmax.manual ? 'illus' : outr?.any ? 'calc' : 'est';
     const [a, b] = String(op.mat || plan.matSize || '1.0x1.0').toLowerCase().replace('m', '').split('x').map(v => num(v, 1));
-    const area = r2(a * b), self = num(op.matSelf, 0);
-    const press = r2((P + self) / area);
-    ground = { P, est: !(num(op.maxLoad) > 0), estVal: est, self, mat: `${a.toFixed(1)}x${b.toFixed(1)}M`, area, press, allow: num(op.allow, 0) };
+    const area = r2(a * b), self = num(op.matSelf, 0), eff = Math.max(0.05, Math.min(1, num(op.matEff, 1)));
+    const press = r2((P + self) / (area * eff));
+    ground = { P, est: src === 'est', src, illus: !maker && !!outr?.illus, estVal: est, self, mat: `${a.toFixed(1)}x${b.toFixed(1)}M`, area, eff, press, allow: num(op.allow, 0) };
+    if (outr) ground.pads = Object.fromEntries(OUT_PADS.map(id => [id, r2((outr.used[id] + self) / (area * eff))]));
+    if (ground.allow > 0) ground.side = r2(Math.sqrt((P + self) / (ground.allow * eff)));
     ground.status = ground.allow > 0 ? (press > ground.allow ? 'fail' : press > 0.9 * ground.allow ? 'warn' : 'ok') : 'info';
   }
   // rigging
@@ -1860,10 +1871,13 @@ function computePlan(plan, cranes, settings) {
     rig.shackleUtil = rig.shackleWLL > 0 ? r2(T / rig.shackleWLL * 100) : null;
     rig.status = (rig.slingUtil > 100 || rig.shackleUtil > 100 || alpha > 60) ? 'fail' : (alpha > 45 ? 'warn' : 'ok');
   }
-  const status = [...loads.map(l => l.status), ground?.status, rig?.status].includes('fail') ? 'fail' : [...loads.map(l => l.status), ground?.status, rig?.status].includes('warn') ? 'warn' : 'ok';
+  // the leg checks were added to each lift after computeLoad set its status — settle it again
+  for (const l of loads) l.status = l.checks.some(c => c.s === 'fail') ? 'fail' : l.checks.some(c => c.s === 'warn') ? 'warn' : 'ok';
+  const sts = [...loads.map(l => l.status), ground?.status, rig?.status, ...outrigs.flatMap(o => o.checks.map(c => c.s))];
+  const status = sts.includes('fail') ? 'fail' : sts.includes('warn') ? 'warn' : 'ok';
   const wx = evalWeather(plan, loads[Math.min(loads.length - 1, plan.activeLoad || 0)]);
   const st2 = wx && wx.status === 'fail' ? 'fail' : wx && wx.status === 'warn' && status === 'ok' ? 'warn' : status;
-  return { crane, loads, ground, rig, status: st2, weather: wx, rigs: [...rigs.values()].sort((a, b) => a.i - b.i) };
+  return { crane, loads, ground, rig, status: st2, weather: wx, rigs: [...rigs.values()].sort((a, b) => a.i - b.i), outr, outrigs };
 }
 
 // ---- weather: wind at boom-tip height from the 10/80/120/180 m forecast levels, rain & storms in the lift window ----
@@ -1943,6 +1957,230 @@ function bestPerCrane(res) {
   const better = (a, b) => { const x = rank(a), y = rank(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i]; return false; };
   for (const o of res) { const cur = by.get(o.crane.id); if (!cur || better(o, cur)) by.set(o.crane.id, o); }
   return [...by.values()].sort((a, b) => (b.ok - a.ok) || (a.crane.cls - b.crane.cls) || (a.r.util - b.r.util));
+}
+
+
+// ===== Outrigger loads (v8): leg (pad) reactions, lift-off, tipping and ground bearing — pure functions =====
+// Model (the outrigger brief, §2–§7): the crane is a handful of point masses (carrier, superstructure, counterweight, boom, jib, hook load);
+// the slewing ones turn with the boom. The four pads are the only supports. Four pads and three equilibrium equations is statically
+// indeterminate, so it is closed with the rigid-plane assumption (reactions vary linearly over the pads). A pad that comes out negative
+// has lifted off: it is dropped and the rest re-solved on three pads (exact). If the centre of gravity leaves the pad polygon the crane tips.
+// Frame: origin = slew centre at ground level, +x = towards the cab (front), +y = the carrier's left. Slew angle θ runs counter-clockwise
+// from +x: 0 front, 90 left side, 180 rear, 270 right side. Masses in tonnes, forces in tonnes-force (× 9.81 = kN), lengths in metres.
+// This is a planning model: the crane maker's outrigger-force data and a competent ground assessment always govern.
+const OUT_G = 9.81;
+const OUT_PADS = ['FR', 'FL', 'RL', 'RR'];                                        // counter-clockwise seen from above
+const OUT_PAD_NAME = { FR: 'Front right', FL: 'Front left', RL: 'Rear left', RR: 'Rear right' };
+const OUT_SLEW = { rear: 180, left: 90, right: 270 };                             // slew angle for each lift side
+const OUT_RATED = 0.85;                                                           // mobile crane on outriggers: rated ≤ 85 % of tipping
+// Presumed allowable bearing (BS 8004 / OBC, preliminary only) — kPa; the app works in t/m² (kPa ÷ 9.81). A site value always overrides.
+const GROUND_PRESETS = [
+  ['dgravel', 'Dense gravel, sand & gravel', 600, 'over 600 kPa'], ['mgravel', 'Medium-dense gravel', 200, '200–600 kPa'], ['lgravel', 'Loose gravel', 100, 'under 200 kPa'],
+  ['csand', 'Compact sand', 300, 'over 300 kPa'], ['msand', 'Medium-dense sand', 100, '100–300 kPa'], ['hclay', 'Very stiff / hard clay', 300, '300–600 kPa'],
+  ['sclay', 'Stiff clay', 150, '150–300 kPa'], ['fclay', 'Firm clay', 75, 'about 75 kPa'], ['soft', 'Soft clay & silt', 50, 'under 75 kPa']
+];
+
+// ---------- set-up: beam extension per side, pad positions ----------
+// pv.outExt = { left: 'full'|'half', right: 'full'|'half' } (per crane — a CRANE_KEYS field). Missing → full.
+function outExtOf(pv) { const e = pv?.outExt || {}; const f = (v) => (v === 'half' ? 'half' : 'full'); return { left: f(e.left), right: f(e.right) }; }
+function outExtHalf(ext) { return ext.left === 'half' || ext.right === 'half'; }
+// 'FULL' / 'HALF' / 'LEFT HALF, RIGHT FULL' …
+function outExtLabel(ext) { return ext.left === ext.right ? ext.left.toUpperCase() : `LEFT ${ext.left.toUpperCase()}, RIGHT ${ext.right.toUpperCase()}`; }
+// Does a load chart assume half outriggers? Read from its name / legs text ("half", "50 %", "partial", "mid").
+function chartOutExt(ch) { return /\bhalf\b|50\s*%|partial|\bmid\b/i.test(`${ch?.name || ''} ${ch?.outrigger || ''}`) ? 'half' : 'full'; }
+// Spans in metres. outLong = front-to-rear pad spacing, outTrans = full width across, outTransHalf = width across at half extension
+// (crane record; else halfway between the retracted beams at the carrier sides and full). outEx = box centre ahead of the slew centre.
+function outSpans(crane, ext) {
+  const L = Math.max(1, num(crane?.outLong, 7)), T = Math.max(1, num(crane?.outTrans, 7)), W = Math.min(T, Math.max(1, num(crane?.width, 2.75)));
+  const Th = num(crane?.outTransHalf) > 0 ? Math.min(T, num(crane.outTransHalf)) : (T + W) / 2;
+  const e = ext || { left: 'full', right: 'full' };
+  return { long: L, trans: T, transHalf: r2(Th), estHalf: !(num(crane?.outTransHalf) > 0), yL: (e.left === 'half' ? Th : T) / 2, yR: (e.right === 'half' ? Th : T) / 2, ex: num(crane?.outEx, 0) };
+}
+function outPads(crane, ext) {
+  const s = outSpans(crane, ext); const a = s.long / 2;
+  return [{ id: 'FR', x: s.ex + a, y: -s.yR, ext: ext.right }, { id: 'FL', x: s.ex + a, y: s.yL, ext: ext.left }, { id: 'RL', x: s.ex - a, y: s.yL, ext: ext.left }, { id: 'RR', x: s.ex - a, y: -s.yR, ext: ext.right }];
+}
+
+// ---------- mass model ----------
+// From the crane record. When the maker's split is not entered (omCarrier / omBoom …) it is estimated from the crane weight, tail swing and
+// boom pin, and flagged `est` so every screen and the sheet can say so.
+function outMassModel(crane, cwt) {
+  const M = Math.max(1, num(crane?.mass, 40));
+  const boom = num(crane?.omBoom) > 0 ? num(crane.omBoom) : 0.25 * M;
+  const sup = num(crane?.omSuper) > 0 ? num(crane.omSuper) : 0.15 * M;
+  const carrier = num(crane?.omCarrier) > 0 ? num(crane.omCarrier) : Math.max(0, M - boom - sup);
+  const Lmin = num(crane?.boomMin, 10), Lmax = Math.max(Lmin + 1, num(crane?.boomMax, 40));
+  return {
+    est: !(num(crane?.omCarrier) > 0 && num(crane?.omBoom) > 0),
+    carrier, carrierX: crane?.omCarrierX !== '' && crane?.omCarrierX != null ? num(crane.omCarrierX) : num(crane?.outEx, 0),
+    sup, supR: crane?.omSuperR !== '' && crane?.omSuperR != null ? num(crane.omSuperR) : -1.0,
+    cwt: Math.max(0, num(cwt)), cwtR: num(crane?.omCwtR) < 0 ? num(crane.omCwtR) : -Math.max(1.5, num(crane?.tail, 4.5) - 0.7),
+    boom, jibPerM: 0.05,
+    // the boom's centre of gravity, as a fraction of its length from the foot pin: further back when it is telescoped out (light top sections)
+    boomF: (L) => 0.46 - 0.1 * Math.max(0, Math.min(1, (L - Lmin) / (Lmax - Lmin))),
+    padMax: num(crane?.padMax, 0)
+  };
+}
+// boom (and jib) centre of gravity as a signed radius from the slew centre, from the load's boom geometry (solveGeometry)
+function outBoomCog(mm, geo) {
+  const P = geo?.pivot || { x: -1.5, y: 3 }; const th = num(geo?.theta, 45) * D2R;
+  const L = geo?.kind && geo.kind !== 'main' ? num(geo.Lb, 20) : num(geo?.L, 20);
+  const r = P.x + mm.boomF(L) * L * Math.cos(th);
+  let jib = null;
+  if (geo?.kind && geo.kind !== 'main' && geo.jibFoot && geo.tip) jib = { m: mm.jibPerM * num(geo.Lj), r: (geo.jibFoot.x + geo.tip.x) / 2 };
+  return { r, jib };
+}
+// every mass placed for slew angle θ (deg). hookT = gross hook load (t, incl. hook block, tackles, DAF), R = hook radius (m)
+function outMasses(mm, geo, theta, hookT, R) {
+  const t = theta * D2R, c = Math.cos(t), s = Math.sin(t);
+  const out = [{ id: 'carrier', m: mm.carrier, x: mm.carrierX, y: 0 }];
+  const sl = (id, m, r) => { if (m > 0) out.push({ id, m, x: r * c, y: r * s }); };
+  const bc = outBoomCog(mm, geo);
+  sl('superstructure', mm.sup, mm.supR); sl('counterweight', mm.cwt, mm.cwtR); sl('boom', mm.boom, bc.r);
+  if (bc.jib) sl('jib', bc.jib.m, bc.jib.r);
+  sl('hook', Math.max(0, num(hookT)), num(R));
+  return out;
+}
+function outCog(ms) { let M = 0, x = 0, y = 0; for (const q of ms) { M += q.m; x += q.m * q.x; y += q.m * q.y; } return { M, x: M > 0 ? x / M : 0, y: M > 0 ? y / M : 0 }; }
+
+// ---------- reactions ----------
+// rigid plane over ≥ 3 pads: R_i = k_i (c0 + c1 x_i + c2 y_i), with ΣR = W, ΣR·x = W·x_cg, ΣR·y = W·y_cg  (brief §4 step 6b)
+function outPlane(pads, W, xc, yc, k) {
+  let s = 0, sx = 0, sy = 0, sxx = 0, sxy = 0, syy = 0;
+  pads.forEach((p, i) => { const w = k?.[i] ?? 1; s += w; sx += w * p.x; sy += w * p.y; sxx += w * p.x * p.x; sxy += w * p.x * p.y; syy += w * p.y * p.y; });
+  const A = [[s, sx, sy], [sx, sxx, sxy], [sy, sxy, syy]], b = [W, W * xc, W * yc];
+  const det = (m) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  const D = det(A); if (Math.abs(D) < 1e-12) return pads.map(() => NaN);
+  const c = [0, 1, 2].map(j => det(A.map((row, i) => row.map((v, jj) => (jj === j ? b[i] : v)))) / D);
+  return pads.map((p, i) => (k?.[i] ?? 1) * (c[0] + c[1] * p.x + c[2] * p.y));
+}
+// signed distance of the point from the nearest edge of the convex counter-clockwise polygon (+ inside, − outside)
+function outMargin(x, y, poly) {
+  let m = Infinity;
+  for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; const L = Math.hypot(b.x - a.x, b.y - a.y) || 1; m = Math.min(m, ((b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x)) / L); }
+  return m;
+}
+// reactions with lift-off (brief §4 step 6c). state: '4-point' | '3-point' | 'tipping-limit' | 'tipped'
+function outSolve(pads, W, xc, yc, k) {
+  const margin = outMargin(xc, yc, pads); const zero = pads.map(() => 0);
+  if (margin < -1e-9) return { R: zero, state: 'tipped', lifted: [], margin };
+  const active = pads.map((_, i) => i);
+  for (;;) {
+    const R = outPlane(active.map(i => pads[i]), W, xc, yc, active.map(i => k?.[i] ?? 1));
+    const min = Math.min(...R);
+    if (min >= -1e-9 * Math.max(1, W)) {
+      const out = zero.slice(); active.forEach((i, j) => { out[i] = Math.max(0, R[j]); });
+      const lifted = pads.filter((_, i) => !active.includes(i)).map(p => p.id);
+      return { R: out, state: margin < 1e-3 ? 'tipping-limit' : lifted.length ? '3-point' : '4-point', lifted, margin };
+    }
+    if (active.length <= 3) return { R: zero, state: 'tipped', lifted: [], margin };
+    active.splice(R.indexOf(min), 1);                                              // the most negative pad lifts off
+  }
+}
+// one slew angle: total mass, centre of gravity and the four pad reactions
+function outAt(mm, pads, geo, theta, hookT, R) {
+  const c = outCog(outMasses(mm, geo, theta, hookT, R)); const s = outSolve(pads, c.M, c.x, c.y);
+  const byId = {}; pads.forEach((p, i) => { byId[p.id] = s.R[i]; });
+  return { theta, M: c.M, cog: { x: c.x, y: c.y }, R: byId, state: s.state, lifted: s.lifted, margin: s.margin };
+}
+// gross hook load that brings the centre of gravity onto the pad polygon edge at slew θ (bisection; brief §5.1). Infinity = never tips.
+function outTipHook(mm, pads, geo, theta, R) {
+  const inside = (m) => { const c = outCog(outMasses(mm, geo, theta, m, R)); return outMargin(c.x, c.y, pads) >= 0; };
+  if (!inside(0)) return 0;
+  let lo = 0, hi = 25; while (inside(hi)) { lo = hi; hi *= 2; if (hi > 1e5) return Infinity; }
+  for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (inside(m)) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+// 360° slew sweep (brief §4 step 7): per pad the largest reaction and where it happens, plus the least stability margin
+function outSweep(mm, pads, geo, hookT, R, step = 5) {
+  const max = {}; for (const p of pads) max[p.id] = { v: 0, th: 0 };
+  let minMargin = Infinity, thMin = 0, tipped = false, lifted = false;
+  for (let th = 0; th < 360; th += step) {
+    const a = outAt(mm, pads, geo, th, hookT, R);
+    if (a.state === 'tipped') tipped = true; else if (a.lifted.length) lifted = true;
+    if (a.margin < minMargin) { minMargin = a.margin; thMin = th; }
+    for (const p of pads) if (a.R[p.id] > max[p.id].v) max[p.id] = { v: a.R[p.id], th };
+  }
+  return { max, minMargin, thMin, tipped, lifted };
+}
+
+// ---------- ground bearing (brief §7) ----------
+// mat "1.0x1.0" / "2.5 x 2.5m" → [w, l] in metres
+function outMatDims(s) { const m = /([\d.]+)\s*[x×*]\s*([\d.]+)/i.exec(String(s || '')); return m ? [num(m[1], 1), num(m[2], 1)] : null; }
+// pressure (t/m²) under a pad of load P (t) on a mat w × l with self weight `self` (t) and effectiveness eff (0–1: a stiff, centred mat is 1)
+function outPressure(P, w, l, self = 0, eff = 1) { return (num(P) + num(self)) / Math.max(1e-6, w * l * Math.max(0.05, Math.min(1, num(eff, 1)))); }
+// smallest square mat side (m) that keeps the pressure within q_allow (t/m²)
+function outMatSide(P, allow, self = 0, eff = 1) { return allow > 0 ? Math.sqrt((num(P) + num(self)) / (allow * Math.max(0.05, Math.min(1, num(eff, 1))))) : null; }
+
+// ---------- one crane on a plan: everything the screens and the sheet need ----------
+// pv = that crane's view of the plan (rigOf), crane = record, lifts = [{ li, res }] (computeLoad results for the lifts this crane does),
+// op = plan.outrigger (manual pad loads live in pv.padMan — per crane).
+function outriggerCrane(pv, crane, lifts, op = {}) {
+  const ext = outExtOf(pv); const pads = outPads(crane, ext); const spans = outSpans(crane, ext);
+  const chartDef = crane?.charts?.[pv.chartIdx ?? 0] || null;
+  const cwt = num(pv.cwt !== '' && pv.cwt != null ? pv.cwt : (chartDef?.cwt ?? crane?.cwt));
+  const mm = outMassModel(crane, cwt);
+  const out = { ext, half: outExtHalf(ext), pads, spans, mm, est: mm.est, cwt, lifts: [], checks: [] };
+  const sweepMax = {}; for (const p of pads) sweepMax[p.id] = { v: 0, th: 0, li: null, unl: false };
+  const sideMax = {}; for (const p of pads) sideMax[p.id] = { v: 0, li: null };
+  const bump = (tbl, id, v, extra) => { if (v > tbl[id].v) tbl[id] = { v, ...extra }; };
+  let anyLift = false;
+  for (const { li, res } of lifts) {
+    if (!res?.geo) continue; anyLift = true;
+    const side = res.side || 'rear', theta = OUT_SLEW[side] ?? 180, hookT = num(res.design, num(res.total)), R = num(res.R);
+    const at = outAt(mm, pads, res.geo, theta, hookT, R);
+    const tip = outTipHook(mm, pads, res.geo, theta, R);
+    const sw = outSweep(mm, pads, res.geo, hookT, R, 5);
+    // unloaded: hook block only, same boom, at the planned radius and with the boom steep (min radius) — the counterweight swings over a pad
+    const hb = num(res.hb); const steep = { ...res.geo, theta: 80 };
+    const u1 = outSweep(mm, pads, res.geo, hb, R, 5), u2 = outSweep(mm, pads, steep, hb, num(res.geo.pivot?.x, -1.5) + num(res.geo.L ?? res.geo.Lb, 20) * Math.cos(80 * D2R), 5);
+    const L = { li, side, theta, hookT, R, at, tip, rated: Number.isFinite(tip) ? tip * OUT_RATED : Infinity, stabUtil: Number.isFinite(tip) && tip > 0 ? hookT / (OUT_RATED * tip) * 100 : 0, sweep: sw, unl: { max: {} } };
+    for (const p of pads) {
+      bump(sideMax, p.id, at.R[p.id], { li });
+      bump(sweepMax, p.id, sw.max[p.id].v, { th: sw.max[p.id].th, li, unl: false });
+      const u = u1.max[p.id].v >= u2.max[p.id].v ? u1.max[p.id] : u2.max[p.id]; L.unl.max[p.id] = u;
+      bump(sweepMax, p.id, u.v, { th: u.th, li, unl: true });
+    }
+    L.unlWorse = Math.max(...pads.map(p => L.unl.max[p.id].v)) > Math.max(...pads.map(p => sw.max[p.id].v)) + 1e-6;
+    L.unlTipped = u1.tipped || u2.tipped;
+    out.lifts.push(L);
+  }
+  out.any = anyLift;
+  out.sweepMax = sweepMax; out.sideMax = sideMax;
+  out.basis = op.basis === 'side' ? 'side' : 'full';
+  const calcPad = {}; for (const p of pads) calcPad[p.id] = r2((out.basis === 'side' ? sideMax : sweepMax)[p.id].v);
+  // pad loads typed by hand (pv.padMan) — for illustration only, never real crane data
+  const man = {}; const pm = pv.padMan || {};
+  for (const p of pads) if (pm[p.id] !== '' && pm[p.id] != null && Number.isFinite(parseFloat(String(pm[p.id]).replace(',', '.')))) man[p.id] = Math.max(0, num(pm[p.id]));
+  out.manual = man; out.illus = Object.keys(man).length > 0;
+  out.calc = calcPad; out.used = {}; for (const p of pads) out.used[p.id] = man[p.id] != null ? man[p.id] : calcPad[p.id];
+  const top = pads.reduce((a, p) => (out.used[p.id] > out.used[a.id] ? p : a), pads[0]);
+  out.Pmax = { v: out.used[top.id], pad: top.id, manual: man[top.id] != null, th: sweepMax[top.id].th, unl: sweepMax[top.id].unl, li: (out.basis === 'side' ? sideMax : sweepMax)[top.id].li };
+  // rule of thumb (brief §7.3): a single leg ≈ factor × (crane + counterweight + load) — a sanity check, not a design value
+  const totMax = Math.max(0, ...out.lifts.map(l => l.at.M)); out.thumbW = r2(totMax);
+  return out;
+}
+// checks for one crane's outrigger result (pushed into each lift's checks, and plan-level ones returned)
+function outriggerChecks(O, crane, liftsRes) {
+  const plan = []; if (!O) return plan;
+  const est = O.est ? ' (estimated crane weights — check against the maker\'s data)' : '';
+  for (const L of O.lifts) {
+    const res = liftsRes[L.li]; if (!res) continue;
+    const ch = res.chartDef; const manualCap = res.capInfo?.manual;
+    if (O.half && ch && !res.manualJib && chartOutExt(ch) === 'full') {
+      const sides = O.ext.left === 'half' && O.ext.right === 'half' ? 'both sides' : O.ext.left === 'half' ? 'the left side' : 'the right side';
+      res.checks.push({ s: manualCap ? 'warn' : 'fail', t: 'Outriggers', m: `Legs are only half out on ${sides}, but this load chart is for legs fully out. ` + (manualCap ? 'You typed the capacity by hand — make sure it comes from the maker\'s half-outrigger chart.' : 'Use the maker\'s half-outrigger chart (type its capacity by hand) or put the legs fully out.') });
+    }
+    const a = L.at; const big = OUT_PADS.reduce((p, id) => (a.R[id] > a.R[p] ? id : p), 'FR');
+    if (a.state === 'tipped') res.checks.push({ s: O.est ? 'warn' : 'fail', t: 'Leg loads', m: `The model puts the crane's centre of gravity outside the legs over the ${SIDE_WORD[L.side]} — it would tip${est}` });
+    else if (a.state === 'tipping-limit') res.checks.push({ s: O.est ? 'warn' : 'fail', t: 'Leg loads', m: `At the tipping limit over the ${SIDE_WORD[L.side]} — only two legs carry the crane${est}` });
+    else if (a.lifted.length) res.checks.push({ s: O.est ? 'info' : 'warn', t: 'Leg loads', m: `${a.lifted.map(id => OUT_PAD_NAME[id].toLowerCase()).join(', ')} leg goes light (lifts off) — the crane stands on three legs. Biggest: ${OUT_PAD_NAME[big].toLowerCase()} ${a.R[big].toFixed(1)} t${est}` });
+    else res.checks.push({ s: 'ok', t: 'Leg loads', m: `All four legs down. Biggest: ${OUT_PAD_NAME[big].toLowerCase()} ${a.R[big].toFixed(1)} t over the ${SIDE_WORD[L.side]}` + (O.est ? ' (estimate)' : '') });
+    if (L.unlTipped) res.checks.push({ s: O.est ? 'warn' : 'fail', t: 'Backward stability', m: `With the hook empty and the boom steep, the counterweight pulls the centre of gravity outside the legs${est}` });
+  }
+  if (O.illus) plan.push({ s: 'warn', t: 'Leg loads typed by hand', m: `${Object.keys(O.manual).map(id => `${id} ${O.manual[id].toFixed(1)} t`).join(', ')} — ILLUSTRATION ONLY. Not real crane data and not calculated. Never use these numbers to set up a real lift.` });
+  if (O.mm.padMax > 0) { const over = OUT_PADS.filter(id => O.used[id] > O.mm.padMax); if (over.length) plan.push({ s: 'fail', t: 'Outrigger force', m: `${over.join(', ')} over the maker's ${O.mm.padMax} t maximum leg force` }); }
+  return plan;
 }
 
 
@@ -2766,7 +3004,7 @@ function liftBodyCrane(crane, side) {
   return rk ? (sideOf(side) === 'rear' ? { ...crane, drawing: rk } : { ...crane, drawing: rk, _endDeck: spec.deck ?? 2.05 }) : crane;
 }
 // carrier seen end-on (outrigger beams, jacks, mats, chassis, tyres, slewing ring) — the same end view the procedural body uses, standing under a CAD superstructure
-function drawCarrierEndView(P, T, crane, plan, deck0) {
+function drawCarrierEndView(P, T, crane, plan, deck0, side) {
   const B = BRAND[brandOf(crane)]; const paint = crane.tint ? (crane.color || '#f5c400') : '#ffffff'; const truck = /truck/i.test(crane.type || ''); // same paint rule as the CAD body
   const W = num(crane.width, 2.75), tr = truck ? 0.56 : 0.66, lift = 0.12, deck = deck0 - 0.12, oT = num(crane.outTrans, 7) / 2;
   const st = { stroke: '#1b1b1b', w: 0.2, layer: 'CRANE' };
@@ -2774,8 +3012,10 @@ function drawCarrierEndView(P, T, crane, plan, deck0) {
   const rect = (x0, y0, x1, y1, s2 = {}) => poly([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], s2);
   const line = (x1, y1, x2, y2, s2 = {}) => { const a = T(x1, y1), c = T(x2, y2); P.line(a[0], a[1], c[0], c[1], { ...st, ...s2 }); };
   const mat = matDims(plan?.matSize);
+  const spn = typeof outSpans === 'function' ? outSpans(crane, outExtOf(plan)) : null; // the boom side (+x) is the lift side; each side full or half out
+  const reach = (sx) => !spn ? oT : (sx > 0) === (side === 'left') ? spn.yL : spn.yR;
   for (const sx of [-1, 1]) {
-    const jx = sx * (oT - 0.25);
+    const jx = sx * (reach(sx) - 0.25);
     rect(jx - mat[0] / 2, 0, jx + mat[0] / 2, 0.2, { fill: '#8a6d3b', layer: 'MATS' });
     for (let i = 1; i < 4; i++) line(jx - mat[0] / 2 + i * mat[0] / 4, 0.02, jx - mat[0] / 2 + i * mat[0] / 4, 0.18, { w: 0.08, stroke: '#5c4524', layer: 'MATS' });
     poly([[jx - 0.4, 0.2], [jx + 0.4, 0.2], [jx + 0.3, 0.38], [jx - 0.3, 0.38]], { fill: '#3d3d3d' });
@@ -2876,7 +3116,7 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
   }
   drawObstacles(P, T, k, plan, { xmax: ctx.objXmax ?? ext.xmax });
   const liftSide = sideOf(load), bodyCrane = liftBodyCrane(crane, liftSide);
-  if (bodyCrane._endDeck != null) drawCarrierEndView(P, T, crane, plan, bodyCrane._endDeck); // left / right lift: carrier end-on
+  if (bodyCrane._endDeck != null) drawCarrierEndView(P, T, crane, plan, bodyCrane._endDeck, liftSide); // left / right lift: carrier end-on
   const ce = drawCraneElevation(P, T, k, bodyCrane, geo, res, plan, { livery: ctx.livery });
   const hl = drawHookAndLoad(P, T, k, crane, geo, res, load, { rigH: plan.rigging?.height, sheaveR: ce?.cad ? ce.cad.sheaveR * 0.6 : 0.25 });
   // ---- dimensions: thin, CAD style — every dimension stops on its extension lines and none run through the drawing ----
@@ -2989,14 +3229,15 @@ function sitePlanExtents(plan, calc) {
   for (const e of plan.env || []) { if (e.view !== 'plan' || e.hidden) continue; const b = envBBox(e); if (b) { x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1); y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1); } }
   return { x0, x1, y0, y1 };
 }
-function drawCraneFootprint(P, T, k, crane, sp, R, lw, livery) {
+function drawCraneFootprint(P, T, k, crane, sp, R, lw, livery, ext) {
   const cr = (sp.carrier != null ? num(sp.carrier) : (sp.carrierRot == null || sp.carrierRot === '' ? num(sp.rot) + 180 : num(sp.carrierRot) + 180)) * D2R, br = (sp.boom != null ? num(sp.boom) : num(sp.rot)) * D2R;
   const rot = (a) => (u, v) => T(sp.cx + u * Math.cos(a) - v * Math.sin(a), sp.cy + u * Math.sin(a) + v * Math.cos(a));
   const C = rot(cr), B = rot(br);
   const poly = (f, pts, o) => P.poly(pts.map(([u, v]) => f(u, v)), { closed: true, ...o });
   const Lc = num(crane.carrierLen, 12), W = num(crane.width, 2.75), oL = num(crane.outLong, 7) / 2, oT = num(crane.outTrans, 7) / 2;
   const col = crane.color || '#f5c400';
-  for (const sx of [-oL, oL]) for (const sy of [-oT, oT]) {
+  const spn = ext && typeof outSpans === 'function' ? outSpans(crane, ext) : null; // per side: full or half out (v = the carrier's left)
+  for (const sx of [-oL, oL]) for (const sy of spn ? [-spn.yR, spn.yL] : [-oT, oT]) {
     const a = C(sx, 0), b = C(sx, sy); P.line(a[0], a[1], b[0], b[1], { stroke: '#333', w: 0.6, layer: 'SITE-CRANE' });
     poly(C, [[sx - 0.75, sy - 0.75], [sx + 0.75, sy - 0.75], [sx + 0.75, sy + 0.75], [sx - 0.75, sy + 0.75]], { stroke: '#222', w: 0.2, fill: '#8a6d3b', layer: 'SITE-CRANE' });
   }
@@ -3031,7 +3272,7 @@ function drawSitePlan(P, box, plan, calc, ctx = {}) {
   const a = T(0, 0), b_ = T(1, 1); const inv = (px, py) => [(px - a[0]) / (b_[0] - a[0]), (py - a[1]) / (b_[1] - a[1])];
   const w0 = inv(box.x, box.y + box.h), w1 = inv(box.x + box.w, box.y);
   drawEnv(P, T, plan, 'plan', { x0: w0[0], x1: w1[0], y0: w0[1], y1: w1[1] });
-  drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, Math.max(1, num(load?.l, 2)), ctx.livery);
+  drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, Math.max(1, num(load?.l, 2)), ctx.livery, typeof outExtOf === 'function' ? outExtOf(plan) : null);
   if (!ctx.fixed) {
     P.text(box.x + 6, box.y + 8, 'SITE PLAN', { size: 5.5, layer: 'TITLE' });
     P.text(box.x + 6, box.y + 13.5, 'LIFT OVER ' + SIDE_NAME[sp.side], { size: 3.4, bold: true, layer: 'TITLE' });
@@ -3214,6 +3455,75 @@ const SHEET_ROWS = {
 const SHEET_ROWS_OFF = { 'load.angle': 1, 'load.tipH': 1, 'load.hookH': 1 };
 function sheetRowOn(plan, key) { const R = plan.sheetRows || {}; if (R.hide?.[key]) return false; if (SHEET_ROWS_OFF[key]) return !!R.show?.[key]; return true; }
 
+// ---------- values typed over the printed ones (Print → Change values on the sheet) ----------
+// plan.sheetRows.ov = { rowId: 'TEXT' }; an empty entry means "use the calculated value". Row ids are stable: c<crane>.<key>#<n>, l<lift>.<key>#<n>,
+// t<lift>.<tackle>, g.<key> (outrigger pressure table), w.<key> (weather table).
+function sheetOvOf(plan, id) { const v = id ? plan?.sheetRows?.ov?.[id] : null; return v != null && String(v).trim() !== '' ? String(v).toUpperCase() : null; }
+function sheetRow(plan, id, label, calcV) { const o = sheetOvOf(plan, id); return { id, label, calc: String(calcV ?? ''), v: o ?? String(calcV ?? ''), ov: o != null }; }
+// rows whose typed-over value matters for safety (they get a warning in the checks)
+const SHEET_OV_SAFETY = /^(l\d+\.(radius|weight|cont|hook|tackles|other|total|daf|design|cap|util|sf|sling)|c\d+\.(cwt|boom|outrigger)|g\.(P|press|allow|area|self|legs))/;
+// every block of the data panel: [{ head, fill, small, rows: [{ id, label, calc, v, ov, custom? }] }]
+function sheetBlocks(plan, calc, settings) {
+  const S = settings; const on = (k) => sheetRowOn(plan, k);
+  const blocks = []; const rigs = calc.rigs && calc.rigs.length ? calc.rigs : [{ i: 0, crane: calc.crane, pv: plan }];
+  const multi = rigs.length > 1;
+  for (const rg of rigs) {
+    const pv = rg.pv, crane = rg.crane, ch = crane.charts?.[pv.chartIdx ?? 0]; const parsed = ch ? getChart(ch) : null; const col0 = parsed?.cols?.[+pv.colIdx || 0];
+    const ld = plan.loads.map((l, i) => [l, calc.loads[i]]).filter(([, r]) => r.rigI === rg.i);
+    const r0 = ld.find(([, r]) => calc.loads.indexOf(r) === (plan.activeLoad || 0))?.[1] || ld[0]?.[1];
+    const G0 = geoSetup(pv, crane, ld[0]?.[0] || {}); const at = pv.attach || {};
+    const perLoadBoom = ld.some(([l]) => l.colIdx !== '' && l.colIdx != null && +l.colIdx !== +pv.colIdx);
+    const boomLen = r0?.tele?.mode === 'manual' ? r0.tele.L : G0.manual ? G0.gChart.mainLen : ch?.kind === 'luffing' || ch?.kind === 'fixedjib' ? (ch.mainLabel || ch.mainLen) : (num(pv.boomOverride) > 0 ? num(pv.boomOverride) : col0?.L);
+    const rows = []; const seen = {};
+    const add = (key, label, val) => { if (!on('crane.' + key)) return; const n = seen[key] = (seen[key] ?? -1) + 1; rows.push(sheetRow(plan, `c${rg.i}.${key}#${n}`, label, val)); };
+    add('crane', 'CRANE SELECTED', (pv.modelTxt || crane.model).toUpperCase());
+    add('config', 'CONFIG SELECTED', pv.config ?? ch?.config ?? '');
+    { const ex = typeof outExtOf === 'function' ? outExtOf(pv) : null; add('outrigger', 'OUTRIGGER', (pv.outriggerTxt || ch?.outrigger || crane.outrigger || '').toUpperCase() + 'M' + (ex && outExtHalf(ex) ? ' · ' + outExtLabel(ex) : '')); }
+    add('cwt', 'COUNTER WEIGHT', num(pv.cwt !== '' && pv.cwt != null ? pv.cwt : (ch?.cwt ?? crane.cwt)).toFixed(1) + 'T');
+    if (!perLoadBoom) add('boom', 'BOOM LENGTH', fmtM(boomLen));
+    if (r0?.tele?.mode === 'manual') add('tele', 'TELESCOPING', r0.tele.fr.map(f => Math.round(f * 100)).join('/') + ' %');
+    if (G0.manual === 'fly') add('jib', 'FLY JIB', fmtM(num(at.jibLen)) + ' @ ' + num(at.offset) + '°');
+    else if (G0.manual === 'luff') { add('jib', 'LUFFING JIB', fmtM(num(at.jibLen))); add('jib', 'MAIN BOOM ANGLE', num(at.boomAngle) + '°'); }
+    else add('jib', ch?.kind === 'luffing' || ch?.kind === 'fixedjib' ? 'JIB LENGTH' : 'FLYJIB', ch?.jibLen ? fmtM(ch.jibLen) : 'N/A');
+    if (r0?.acc?.yguy) add('acc', 'Y-GUYING', 'YES');
+    if (r0?.acc?.superlift) add('acc', 'SUPERLIFT', fmtM(r0.acc.slRadius) + ' / ' + num(r0.acc.slBallast) + 'T');
+    if (r0?.acc?.runner) add('acc', 'RUNNER', 'FITTED');
+    add('falls', 'NO. OF FALLS', ((pv.falls || col0?.falls) ? (pv.falls || col0?.falls) + ' FALLS' : '—'));
+    if (pv.matSize) add('mat', 'MAT SIZE', pv.matSize);
+    if (calc.weather) add('wind', 'WIND SPEED (MAX)', calc.weather.maxG.toFixed(1) + 'M/S'); else if (pv.wind) add('wind', 'WIND SPEED', pv.wind);
+    for (const c of (plan.sheetRows?.custom || []).filter(c => c.sec === 'crane' && (c.label || c.value))) rows.push({ id: null, label: String(c.label || '').toUpperCase(), v: String(c.value || '').toUpperCase(), custom: true });
+    const classic = S.headerStyle === 'classic' && plan.loads.length === 1 && !multi;
+    blocks.push({ head: classic ? 'CRANE DATA' : `M.CRANE DATA${multi ? ' ' : ''}${rg.i + 1}`, fill: classic ? '#ffffff' : COL.yellow, rows });
+  }
+  const merge = !!plan.mergeHook;
+  calc.loads.forEach((r, i) => {
+    const l = plan.loads[i]; const rows = []; const seen = {}; const add = (key, label, val) => { if (!on('load.' + key)) return; const n = seen[key] = (seen[key] ?? -1) + 1; rows.push(sheetRow(plan, `l${i}.${key}#${n}`, label, val)); };
+    if (l.name) add('name', 'LOAD NAME', l.name.toUpperCase());
+    if (l.liftType) add('cat', 'LIFT CATEGORY', String(l.liftType).toUpperCase());
+    if (multi) add('rig', 'CRANE', `${r.rigI + 1} · ${(rigs.find(x => x.i === r.rigI)?.pv.modelTxt || r.crane.model).toUpperCase()}`);
+    if (l.colIdx !== '' && l.colIdx != null) add('boom', 'BOOM LENGTH', fmtM(r.tele?.L ?? r.col?.L));
+    add('radius', 'RADIUS', fmtM(r.R));
+    add('side', 'LIFT SIDE', 'OVER ' + SIDE_NAME[sideOf(l)]);
+    if (r.geo?.tip) { add('angle', r.geo.kind === 'luffing' ? 'JIB ANGLE' : 'BOOM ANGLE', (r.geo.kind === 'luffing' ? r.geo.gamma : r.geo.theta).toFixed(1) + '°'); add('tipH', 'BOOM TIP HEIGHT', fmtM(r.tipY)); add('hookH', 'HOOK HEIGHT', fmtM(r.hookY)); }
+    if (r.empty) add('weight', 'LOAD WEIGHT', 'HOOK EMPTY'); else add('weight', 'LOAD WEIGHT', fmtT(r.W));
+    if (r.contOn && r.contW > 0) add('cont', `CONTINGENCY ${num(r.cont)}%`, fmtT(r.contW));
+    if (merge) add('hook', 'WEIGHT OF HOOK BLOCK + TACKLES', fmtT(r.hb + r.tk)); else { add('hook', 'WEIGHT OF HOOK BLOCK', fmtT(r.hb)); if (r.tk > 0 || !r.empty) add('tackles', 'WEIGHT OF LIFTING TACKLES', fmtT(r.tk)); }
+    if (r.ex > 0) add('other', 'OTHER DEDUCTIONS', fmtT(r.ex));
+    add('total', 'TOTAL LIFT WEIGHT', fmtT(r.total));
+    if (r.daf) { add('daf', r.dafAuto ? `DAF (EN 13001-2 ${(l.daf?.cls || 'HC1')})` : 'DAF', r.daf.toFixed(3).replace(/0$/, '')); add('design', 'DESIGN LIFT WEIGHT', fmtT(r.design)); }
+    add('cap', 'CHART CAPACITY', fmtT(r.cap)); add('util', '% CHART CAPACITY', r.util != null ? r.util.toFixed(2) + '%' : '—'); add('sf', 'SAFETY FACTOR', r.sf != null ? r.sf.toFixed(4) : '—');
+    if (r.sling) { add('sling', 'RIGGING', (RIG_TYPES[r.sling.type]?.short || '') + (r.sling.L ? ' ' + fmtM(r.sling.L) : '') + ' @' + Math.round(r.sling.ang) + '°'); add('sling', 'SLING TENSION / LEG', fmtT(r.sling.T)); }
+    else if (r.stack) { const sl = r.stack.items.filter(t => t.type === 'sling' && t.T != null); sl.forEach(t => add('sling', `${String(t.name).toUpperCase()} / LEG`, fmtT(t.T))); }
+    for (const c of (plan.sheetRows?.custom || []).filter(c => (c.sec === 'load' && (c.load == null || c.load === '' || +c.load === i)) && (c.label || c.value))) rows.push({ id: null, label: String(c.label || '').toUpperCase(), v: String(c.value || '').toUpperCase(), custom: true });
+    blocks.push({ head: S.headerStyle === 'classic' && plan.loads.length === 1 && !multi ? null : 'LOAD DATA ' + (i + 1), fill: '#9a9a9a', rows });
+    if (r.stack && on('extra.tacklesList')) blocks.push({ head: 'LIFTING TACKLES' + (plan.loads.length > 1 ? ' — LOAD ' + (i + 1) : ''), fill: '#d9d9d9', small: true, rows: r.stack.items.map((t, j) => sheetRow(plan, `t${i}.${j}`, String(t.name || '').toUpperCase(), `${t.L ? fmtM(t.L) : '—'} · ${(+t.w || 0).toFixed(2)}T${t.legs > 1 ? ' · ' + t.legs + 'L' : ''}`)) });
+  });
+  const extra = (plan.sheetRows?.custom || []).filter(c => c.sec === 'extra' && (c.label || c.value));
+  if (extra.length) blocks.push({ head: 'ADDITIONAL DATA', fill: '#d9d9d9', rows: extra.map(c => ({ id: null, label: String(c.label || '').toUpperCase(), v: String(c.value || '').toUpperCase(), custom: true })) });
+  if (blocks.length >= 2 && blocks[1].head === null) { blocks[0].rows.push(...blocks[1].rows); blocks.splice(1, 1); }
+  return blocks;
+}
+
 // ---------- title block / lifting-plan data panel ----------
 function drawTitleBlock(P, plan, calc, settings, scaleTxt) {
   const x = 712, w = 121, S = settings, X1 = x + w;
@@ -3261,62 +3571,7 @@ function drawTitleBlock(P, plan, calc, settings, scaleTxt) {
   P.text(x + w / 2, 24, 'LIFTING PLAN', { size: fitSize('LIFTING PLAN', w - 10, 10), anchor: 'middle', layer: 'TITLE' });
   P.line(x + 4, 28.5, X1 - 4, 28.5, { stroke: '#000', w: 0.3, layer: 'TITLE' });
   // ---------- data blocks ----------
-  const blocks = []; const rigs = calc.rigs && calc.rigs.length ? calc.rigs : [{ i: 0, crane: calc.crane, pv: plan }];
-  const multi = rigs.length > 1;
-  for (const rg of rigs) {
-    const pv = rg.pv, crane = rg.crane, ch = crane.charts?.[pv.chartIdx ?? 0]; const parsed = ch ? getChart(ch) : null; const col0 = parsed?.cols?.[+pv.colIdx || 0];
-    const ld = plan.loads.map((l, i) => [l, calc.loads[i]]).filter(([, r]) => r.rigI === rg.i);
-    const r0 = ld.find(([, r]) => calc.loads.indexOf(r) === (plan.activeLoad || 0))?.[1] || ld[0]?.[1];
-    const G0 = geoSetup(pv, crane, ld[0]?.[0] || {}); const at = pv.attach || {};
-    const perLoadBoom = ld.some(([l]) => l.colIdx !== '' && l.colIdx != null && +l.colIdx !== +pv.colIdx);
-    const boomLen = r0?.tele?.mode === 'manual' ? r0.tele.L : G0.manual ? G0.gChart.mainLen : ch?.kind === 'luffing' || ch?.kind === 'fixedjib' ? (ch.mainLabel || ch.mainLen) : (num(pv.boomOverride) > 0 ? num(pv.boomOverride) : col0?.L);
-    const rows = [];
-    const add = (key, label, val) => { if (on('crane.' + key)) rows.push([label, val]); };
-    add('crane', 'CRANE SELECTED', (pv.modelTxt || crane.model).toUpperCase());
-    add('config', 'CONFIG SELECTED', pv.config ?? ch?.config ?? '');
-    add('outrigger', 'OUTRIGGER', (pv.outriggerTxt || ch?.outrigger || crane.outrigger || '').toUpperCase() + 'M');
-    add('cwt', 'COUNTER WEIGHT', num(pv.cwt !== '' && pv.cwt != null ? pv.cwt : (ch?.cwt ?? crane.cwt)).toFixed(1) + 'T');
-    if (!perLoadBoom) add('boom', 'BOOM LENGTH', fmtM(boomLen));
-    if (r0?.tele?.mode === 'manual') add('tele', 'TELESCOPING', r0.tele.fr.map(f => Math.round(f * 100)).join('/') + ' %');
-    if (G0.manual === 'fly') add('jib', 'FLY JIB', fmtM(num(at.jibLen)) + ' @ ' + num(at.offset) + '°');
-    else if (G0.manual === 'luff') { add('jib', 'LUFFING JIB', fmtM(num(at.jibLen))); add('jib', 'MAIN BOOM ANGLE', num(at.boomAngle) + '°'); }
-    else add('jib', ch?.kind === 'luffing' || ch?.kind === 'fixedjib' ? 'JIB LENGTH' : 'FLYJIB', ch?.jibLen ? fmtM(ch.jibLen) : 'N/A');
-    if (r0?.acc?.yguy) add('acc', 'Y-GUYING', 'YES');
-    if (r0?.acc?.superlift) add('acc', 'SUPERLIFT', fmtM(r0.acc.slRadius) + ' / ' + num(r0.acc.slBallast) + 'T');
-    if (r0?.acc?.runner) add('acc', 'RUNNER', 'FITTED');
-    add('falls', 'NO. OF FALLS', ((pv.falls || col0?.falls) ? (pv.falls || col0?.falls) + ' FALLS' : '—'));
-    if (pv.matSize) add('mat', 'MAT SIZE', pv.matSize);
-    if (calc.weather) add('wind', 'WIND SPEED (MAX)', calc.weather.maxG.toFixed(1) + 'M/S'); else if (pv.wind) add('wind', 'WIND SPEED', pv.wind);
-    for (const c of (plan.sheetRows?.custom || []).filter(c => c.sec === 'crane' && (c.label || c.value))) rows.push([String(c.label || '').toUpperCase(), String(c.value || '').toUpperCase()]);
-    const classic = S.headerStyle === 'classic' && plan.loads.length === 1 && !multi;
-    blocks.push({ head: classic ? 'CRANE DATA' : `M.CRANE DATA${multi ? ' ' : ''}${rg.i + 1}`, fill: classic ? '#ffffff' : COL.yellow, rows });
-  }
-  const merge = !!plan.mergeHook;
-  calc.loads.forEach((r, i) => {
-    const l = plan.loads[i]; const rows = []; const add = (key, label, val) => { if (on('load.' + key)) rows.push([label, val]); };
-    if (l.name) add('name', 'LOAD NAME', l.name.toUpperCase());
-    if (l.liftType) add('cat', 'LIFT CATEGORY', String(l.liftType).toUpperCase());
-    if (multi) add('rig', 'CRANE', `${r.rigI + 1} · ${(rigs.find(x => x.i === r.rigI)?.pv.modelTxt || r.crane.model).toUpperCase()}`);
-    if (l.colIdx !== '' && l.colIdx != null) add('boom', 'BOOM LENGTH', fmtM(r.tele?.L ?? r.col?.L));
-    add('radius', 'RADIUS', fmtM(r.R));
-    add('side', 'LIFT SIDE', 'OVER ' + SIDE_NAME[sideOf(l)]);
-    if (r.geo?.tip) { add('angle', r.geo.kind === 'luffing' ? 'JIB ANGLE' : 'BOOM ANGLE', (r.geo.kind === 'luffing' ? r.geo.gamma : r.geo.theta).toFixed(1) + '°'); add('tipH', 'BOOM TIP HEIGHT', fmtM(r.tipY)); add('hookH', 'HOOK HEIGHT', fmtM(r.hookY)); }
-    if (r.empty) add('weight', 'LOAD WEIGHT', 'HOOK EMPTY'); else add('weight', 'LOAD WEIGHT', fmtT(r.W));
-    if (r.contOn && r.contW > 0) add('cont', `CONTINGENCY ${num(r.cont)}%`, fmtT(r.contW));
-    if (merge) add('hook', 'WEIGHT OF HOOK BLOCK + TACKLES', fmtT(r.hb + r.tk)); else { add('hook', 'WEIGHT OF HOOK BLOCK', fmtT(r.hb)); if (r.tk > 0 || !r.empty) add('tackles', 'WEIGHT OF LIFTING TACKLES', fmtT(r.tk)); }
-    if (r.ex > 0) add('other', 'OTHER DEDUCTIONS', fmtT(r.ex));
-    add('total', 'TOTAL LIFT WEIGHT', fmtT(r.total));
-    if (r.daf) { add('daf', r.dafAuto ? `DAF (EN 13001-2 ${(l.daf?.cls || 'HC1')})` : 'DAF', r.daf.toFixed(3).replace(/0$/, '')); add('design', 'DESIGN LIFT WEIGHT', fmtT(r.design)); }
-    add('cap', 'CHART CAPACITY', fmtT(r.cap)); add('util', '% CHART CAPACITY', r.util != null ? r.util.toFixed(2) + '%' : '—'); add('sf', 'SAFETY FACTOR', r.sf != null ? r.sf.toFixed(4) : '—');
-    if (r.sling) { add('sling', 'RIGGING', (RIG_TYPES[r.sling.type]?.short || '') + (r.sling.L ? ' ' + fmtM(r.sling.L) : '') + ' @' + Math.round(r.sling.ang) + '°'); add('sling', 'SLING TENSION / LEG', fmtT(r.sling.T)); }
-    else if (r.stack) { const sl = r.stack.items.filter(t => t.type === 'sling' && t.T != null); sl.forEach(t => add('sling', `${String(t.name).toUpperCase()} / LEG`, fmtT(t.T))); }
-    for (const c of (plan.sheetRows?.custom || []).filter(c => (c.sec === 'load' && (c.load == null || c.load === '' || +c.load === i)) && (c.label || c.value))) rows.push([String(c.label || '').toUpperCase(), String(c.value || '').toUpperCase()]);
-    blocks.push({ head: S.headerStyle === 'classic' && plan.loads.length === 1 && !multi ? null : 'LOAD DATA ' + (i + 1), fill: '#9a9a9a', rows });
-    if (r.stack && on('extra.tacklesList')) blocks.push({ head: 'LIFTING TACKLES' + (plan.loads.length > 1 ? ' — LOAD ' + (i + 1) : ''), fill: '#d9d9d9', small: true, rows: r.stack.items.map(t => [String(t.name || '').toUpperCase(), `${t.L ? fmtM(t.L) : '—'} · ${(+t.w || 0).toFixed(2)}T${t.legs > 1 ? ' · ' + t.legs + 'L' : ''}`]) });
-  });
-  const extra = (plan.sheetRows?.custom || []).filter(c => c.sec === 'extra' && (c.label || c.value));
-  if (extra.length) blocks.push({ head: 'ADDITIONAL DATA', fill: '#d9d9d9', rows: extra.map(c => [String(c.label || '').toUpperCase(), String(c.value || '').toUpperCase()]) });
-  if (blocks.length >= 2 && blocks[1].head === null) { blocks[0].rows.push(...blocks[1].rows); blocks.splice(1, 1); }
+  const blocks = sheetBlocks(plan, calc, settings);
   // sign-off box takes what is left (min 26 mm); the tables share the rest evenly
   const signOn = on('extra.signoff'), histOn = on('extra.history');
   const nRows = blocks.reduce((a, b2) => a + b2.rows.length, 0), nHead = blocks.length;
@@ -3333,7 +3588,7 @@ function drawTitleBlock(P, plan, calc, settings, scaleTxt) {
     P.rect(x, y, w, hh, { fill: bl.fill, stroke: '#000', w: LW2, layer: 'TABLE' });
     cellText(P, x + w / 2, y + hh / 2, bl.head, w - 6, Math.min(7.2, hh * 0.72), { bold: true });
     y += hh;
-    for (const [a2, v] of bl.rows) {
+    for (const { label: a2, v } of bl.rows) {
       P.rect(x, y, w, rh, { fill: 'none', stroke: '#000', w: LW, layer: 'TABLE' });
       P.line(x + lw, y, x + lw, y + rh, { stroke: '#000', w: LW, layer: 'TABLE' });
       const fs = Math.min(4.3, rh * 0.47) * (bl.small ? 0.88 : 1);
@@ -3389,6 +3644,30 @@ function drawFrame(P, settings) {
 
 function panelTitle(P, x, y, s) { P.text(x, y, s, { size: 6.2, layer: 'TITLE' }); }
 
+// the outrigger pressure table and the weather table, as rows that can be typed over (ids g.* / w.*)
+function groundRows(plan, calc) {
+  const g = calc.ground; if (!g) return []; const O = calc.outr; const tag = { maker: '', calc: ' (CALC.)', illus: ' (ILLUSTRATIVE)', est: ' (EST.)' }[g.src || (g.est ? 'est' : '')] || '';
+  const rows = [sheetRow(plan, 'g.P', 'MAX LOAD ON OUTRIGGERS' + tag, g.P.toFixed(2) + 'T')];
+  if (O) rows.push(sheetRow(plan, 'g.beams', 'OUTRIGGER BEAMS', outExtLabel(O.ext)));
+  rows.push(sheetRow(plan, 'g.self', 'SELF WEIGHT OF MAT', g.self.toFixed(2) + 'T'), sheetRow(plan, 'g.mat', 'LOAD DISTRIBUTION MAT SPECIFICATION', g.mat + (g.eff < 1 ? ' @ ' + Math.round(g.eff * 100) + '%' : '')),
+    sheetRow(plan, 'g.area', 'AREA OF LOAD DISTRIBUTION', g.area.toFixed(2) + 'M²'), sheetRow(plan, 'g.press', 'MAX LOAD TO THE GROUND', g.press.toFixed(2) + 'T/M²'));
+  if (g.allow) rows.push(sheetRow(plan, 'g.allow', 'ALLOWABLE GROUND BEARING', g.allow.toFixed(1) + 'T/M²'));
+  return rows;
+}
+function wxRows(plan, wx) {
+  if (!wx) return [];
+  return [sheetRow(plan, 'w.place', 'LOCATION', (wx.place || '—').toUpperCase().slice(0, 30)), sheetRow(plan, 'w.date', 'DATE / WINDOW', `${wx.date || '—'} ${wx.start || ''}${wx.hours ? ' +' + wx.hours + 'H' : ''}`.trim()),
+    sheetRow(plan, 'w.wind', 'MAX WIND @ TIP (' + Math.round(wx.tipH) + 'M)', wx.maxW.toFixed(1) + ' M/S'), sheetRow(plan, 'w.gust', 'MAX GUST @ TIP', wx.maxG.toFixed(1) + ' M/S'), sheetRow(plan, 'w.limit', 'PERMITTED WIND', wx.limit.toFixed(1) + ' M/S'),
+    sheetRow(plan, 'w.rain', 'RAIN CHANCE', wx.rain + '%' + (wx.prMax ? ' / ' + wx.prMax + 'MM/H' : '')), sheetRow(plan, 'w.outlook', 'OUTLOOK', (wx.outlook || '—').toUpperCase().slice(0, 26))];
+}
+// every typed-over value on the sheet (for the checks list): [{ id, label, calc, v, safety }]
+function sheetOverrides(plan, calc, settings) {
+  if (!Object.keys(plan?.sheetRows?.ov || {}).some(k => sheetOvOf(plan, k) != null)) return [];
+  const wx = calc.weather && plan.weather?.print !== false ? calc.weather : null;
+  const rows = [...sheetBlocks(plan, calc, settings).flatMap(b => b.rows), ...(plan.outrigger?.enabled ? groundRows(plan, calc) : []), ...wxRows(plan, wx)];
+  return rows.filter(r => r.ov).map(r => ({ ...r, safety: SHEET_OV_SAFETY.test(r.id) }));
+}
+
 // ---------- compose the whole sheet ----------
 function buildSheet(plan, calc, settings) {
   const P = new Prims();
@@ -3402,20 +3681,26 @@ function buildSheet(plan, calc, settings) {
   const sel = calc.loads.filter(r => (r.rigI ?? 0) === num(plan.activeCrane, 0)).map(r => ({ ci: r.ci, row: r.capInfo?.row }));
   const ov = plan.outrigger?.enabled && calc.ground;
   const drawGround = (bx) => {
-    const g = calc.ground; const rows = [['MAX LOAD ON OUTRIGGERS' + (g.est ? ' (EST.)' : ''), g.P.toFixed(2) + 'T'], ['SELF WEIGHT OF MAT', g.self.toFixed(2) + 'T'], ['LOAD DISTRIBUTION MAT SPECIFICATION', g.mat], ['AREA OF LOAD DISTRIBUTION', g.area.toFixed(2) + 'M²'], ['MAX LOAD TO THE GROUND', g.press.toFixed(2) + 'T/M²']];
-    if (g.allow) rows.push(['ALLOWABLE GROUND BEARING', g.allow.toFixed(1) + 'T/M²']);
-    const w = 108, x0 = bx.x + bx.w - w - 1, y0 = bx.y + 1;
+    const g = calc.ground, O = calc.outr; const rows = groundRows(plan, calc).map(r => [r.label, r.v]);
+    const w = 108, x0 = bx.x + bx.w - w - 1, y0 = bx.y + 1, rh = 4.6;
     P.rect(x0, y0, w, 6, { fill: '#a6a6a6', stroke: '#000', w: 0.3 }); P.text(x0 + w / 2, y0 + 3, 'OUTRIGGER PRESSURE CALCULATION', { size: 3.4, bold: true, anchor: 'middle', vAlign: 'middle' });
-    rows.forEach(([a, b], i) => { const y = y0 + 6 + i * 4.6; P.rect(x0, y, w, 4.6, { stroke: '#000', w: 0.2, fill: 'none' }); P.line(x0 + w * 0.76, y, x0 + w * 0.76, y + 4.6, { stroke: '#000', w: 0.2 }); P.text(x0 + 1, y + 2.3, a, { size: 2.4, bold: true, vAlign: 'middle', color: i === 4 ? COL.red : '#000' }); P.text(x0 + w * 0.88, y + 2.3, b, { size: 2.6, anchor: 'middle', vAlign: 'middle' }); });
-    return 6 + rows.length * 4.6 + 2;
+    let y = y0 + 6;
+    rows.forEach(([a, b]) => { const red = /^MAX LOAD TO/.test(a); P.rect(x0, y, w, rh, { stroke: '#000', w: 0.2, fill: 'none' }); P.line(x0 + w * 0.76, y, x0 + w * 0.76, y + rh, { stroke: '#000', w: 0.2 }); P.text(x0 + 1, y + rh / 2, a, { size: Math.min(2.4, fitSize(a, w * 0.76 - 2, 2.4, true)), bold: true, vAlign: 'middle', color: red ? COL.red : '#000' }); P.text(x0 + w * 0.88, y + rh / 2, b, { size: Math.min(2.6, fitSize(b, w * 0.24 - 1.5, 2.6)), anchor: 'middle', vAlign: 'middle' }); y += rh; });
+    if (O) { // the four legs: what each one carries (typed-by-hand values marked *)
+      const t = 'LEG LOADS' + (O.basis === 'side' ? ' AT THE LIFT SIDE' : ' OVER A FULL SLEW (360°)') + (g.src === 'maker' ? ' — MODEL, FOR INFORMATION' : '');
+      P.rect(x0, y, w, rh, { stroke: '#000', w: 0.2, fill: '#e6e6e6' }); P.text(x0 + w / 2, y + rh / 2, t, { size: Math.min(2.4, fitSize(t, w - 2, 2.4, true)), bold: true, anchor: 'middle', vAlign: 'middle' }); y += rh;
+      OUT_PADS.forEach((id, i) => { const cx = x0 + w / 4 * i; const man = O.manual[id] != null; const v = `${id} ${O.used[id].toFixed(1)}T${man ? ' *' : ''}`; P.rect(cx, y, w / 4, rh, { stroke: '#000', w: 0.2, fill: 'none' }); P.text(cx + w / 8, y + rh / 2, v, { size: Math.min(2.5, fitSize(v, w / 4 - 1.5, 2.5, man)), bold: man, anchor: 'middle', vAlign: 'middle', color: man ? COL.red : '#000' }); });
+      y += rh;
+      if (O.illus) { const t2 = '* ILLUSTRATIVE — TYPED BY HAND, NOT REAL CRANE DATA. NOT FOR LIFTING.'; P.rect(x0, y, w, 5, { fill: COL.red, stroke: '#000', w: 0.3 }); P.text(x0 + w / 2, y + 2.5, t2, { size: Math.min(2.6, fitSize(t2, w - 2, 2.6, true)), bold: true, anchor: 'middle', vAlign: 'middle', color: '#fff' }); y += 5; }
+      else if (g.src !== 'maker') { const t2 = 'Calculated by the planner' + (O.est ? ' from estimated crane weights' : '') + ' — check against the crane maker\'s outrigger data.'; P.text(x0, y + 2.4, t2, { size: Math.min(1.8, fitSize(t2, w, 1.8)), color: '#555' }); y += 3.6; }
+    }
+    return y - y0 + 2;
   };
   const wx = calc.weather && plan.weather?.print !== false ? calc.weather : null;
   const drawWx = (bx) => { // weather forecast table, top-left of the overview
     const w = 112, x0 = bx.x + 1, y0 = bx.y + 1;
     const col = wx.status === 'fail' ? COL.red : wx.status === 'warn' ? COL.orange : COL.green;
-    const rows = [['LOCATION', (wx.place || '—').toUpperCase().slice(0, 30)], ['DATE / WINDOW', `${wx.date || '—'} ${wx.start || ''}${wx.hours ? ' +' + wx.hours + 'H' : ''}`.trim()],
-      ['MAX WIND @ TIP (' + Math.round(wx.tipH) + 'M)', wx.maxW.toFixed(1) + ' M/S'], ['MAX GUST @ TIP', wx.maxG.toFixed(1) + ' M/S'], ['PERMITTED WIND', wx.limit.toFixed(1) + ' M/S'],
-      ['RAIN CHANCE', wx.rain + '%' + (wx.prMax ? ' / ' + wx.prMax + 'MM/H' : '')], ['OUTLOOK', (wx.outlook || '—').toUpperCase().slice(0, 26)]];
+    const rows = wxRows(plan, wx).map(r => [r.label, r.v]);
     P.rect(x0, y0, w, 6, { fill: '#a6a6a6', stroke: '#000', w: 0.3 }); P.text(x0 + w / 2, y0 + 3, 'WEATHER FORECAST' + (wx.manual ? ' (ENTERED)' : ''), { size: 3.4, bold: true, anchor: 'middle', vAlign: 'middle' });
     rows.forEach(([a, b], i) => { const y = y0 + 6 + i * 4.6; P.rect(x0, y, w, 4.6, { stroke: '#000', w: 0.2, fill: 'none' }); P.line(x0 + w * 0.55, y, x0 + w * 0.55, y + 4.6, { stroke: '#000', w: 0.2 }); P.text(x0 + 1, y + 2.3, a, { size: 2.3, bold: true, vAlign: 'middle' }); P.text(x0 + w * 0.775, y + 2.3, b, { size: 2.4, anchor: 'middle', vAlign: 'middle', color: i === 3 || i === 2 ? col : '#000' }); });
     const yv = y0 + 6 + rows.length * 4.6; P.rect(x0, yv, w, 5, { fill: col, stroke: '#000', w: 0.3 }); P.text(x0 + w / 2, yv + 2.5, wx.status === 'fail' ? 'DO NOT LIFT IN THESE CONDITIONS' : wx.status === 'warn' ? 'MARGINAL — MONITOR ON SITE' : 'WITHIN LIMITS', { size: 2.8, bold: true, anchor: 'middle', vAlign: 'middle', color: '#fff' });
@@ -3895,10 +4180,11 @@ function blankPlan() {
     id: null, name: 'New lifting plan', layout: 'chart',
     meta: { client: '', project: '', title: '', drawingNo: '', sheetNo: '01', scale: '', drawnBy: 'HABIB', checkedBy: '', date: today(), revs: [] },
     craneId: 'ltm1250', chartIdx: 0, colIdx: 6, boomOverride: '', config: null, cwt: null, falls: 4, matSize: '2.5x2.5m', wind: '7M/S',
+    outExt: { left: 'full', right: 'full' }, padMan: {}, // outrigger beams per side ('full' | 'half'); padMan = leg loads typed by hand (t) — illustration only
     hookAllowance: 3, mergeHook: false, activeLoad: 0, secondLoad: 1,
     site: { groundType: 'ground', stepX: '', targetGround: 0, obstacles: [] },
     loads: [{ name: '', w: 10, cont: 0, hb: 1.5, tk: 0.6, extra: 0, R: 20, l: 3, h: 2, rigH: 3, shape: 'box', colIdx: '', capOverride: '', landY: '', side: 'rear' }], // side: which side of the crane the load is lifted over — 'left' | 'right' | 'rear' (never the front)
-    outrigger: { enabled: false, maxLoad: '', matSelf: 0.5, mat: '', allow: '' },
+    outrigger: { enabled: false, maxLoad: '', matSelf: 0.5, mat: '', allow: '', matEff: 1, basis: 'full', ground: '' }, // basis: leg loads over the full slew ('full') or only the lift side ('side')
     rigging: { enabled: false, loadIdx: 0, legs: 4, effLegs: 3, slingL: 6, spread: 3, slingWLL: 10, shackleWLL: 12, slingDesc: '', shackleDesc: '', height: 3 },
     extraNotes: ''
   };
@@ -4062,8 +4348,9 @@ C3D.buildCrane = (p) => {
   const xs = []; for (let i = 0; i < front; i++) xs.push(xf - 2.4 - i * 1.65); for (let i = 0; i < ax - front; i++) xs.push(xr + 1.4 + i * 1.65);
   const wg = new THREE.CylinderGeometry(tr, tr, 0.6, 28); wg.rotateX(Math.PI / 2); const hg = new THREE.CylinderGeometry(tr * 0.5, tr * 0.5, 0.62, 18); hg.rotateX(Math.PI / 2);
   for (const x of xs) for (const z of [-(W / 2 - 0.3), W / 2 - 0.3]) { const w = new THREE.Mesh(wg, tyre); w.position.set(x, tr + lift, z); w.castShadow = true; root.add(w); const hh = new THREE.Mesh(hg, steel); hh.position.copy(w.position); root.add(hh); }
-  const oT = (p.outT || 7) / 2, oL = (p.outL || 7) / 2;
+  const oT0 = (p.outT || 7) / 2, oL = (p.outL || 7) / 2;
   for (const x of [oL, -oL]) for (const s of [-1, 1]) {
+    const oT = s < 0 ? (p.oTL ?? oT0) : (p.oTR ?? oT0); // this side's reach: left = −z (full or half out)
     const beamL = oT - W / 2 + 0.3; C3D.box(0.5, 0.42, beamL, paintDk, x, 1.3, s * (W / 2 + beamL / 2 - 0.3), root);
     const j = C3D.cyl(0.13, 0.13, 1.0, chrome); j.position.set(x, 0.85, s * (oT - 0.2)); root.add(j);
     C3D.box(0.55, 0.75, 0.55, paintDk, x, 1.55, s * (oT - 0.2), root);
@@ -4192,7 +4479,8 @@ C3D.paramsFor = (crane, plan, calc, livery) => {
   return { Lc: num(crane.carrierLen, 15), W: num(crane.width, 2.9), axles: num(crane.axles, 6), outT: num(crane.outTrans, 8), outL: num(crane.outLong, 8), tail: num(crane.tail, 5),
     pivX: dr ? dr.pivot[0] : num(crane.pivotX, -1.5), pivH: dr ? dr.pivot[1] : num(crane.pivotH, 3.2), D: b ? Math.max(0.8, b.qb - b.qa) : spec.D, qc: b ? (b.qa + b.qb) / 2 : null,
     paint: crane.tint || !dr ? (crane.color || '#f5c400') : (isLightFill(b?.fill) ? b.fill : '#f2f2f2'), n: spec.n, lens: spec.lens, E: spec.E, foot: spec.foot, head: spec.head, Lmin: spec.Lmin,
-    cwt: num(plan?.cwt ?? crane.cwt, 40), livery, truck: /truck/i.test(crane.type || ''), mat: matDims(plan?.matSize)[0] };
+    cwt: num(plan?.cwt ?? crane.cwt, 40), livery, truck: /truck/i.test(crane.type || ''), mat: matDims(plan?.matSize)[0],
+    ...(typeof outSpans === 'function' && plan ? (() => { const s = outSpans(crane, outExtOf(plan)); return { oTL: s.yL, oTR: s.yR }; })() : {}) };
 };
 
 // ---------- renderer shell ----------
@@ -4413,7 +4701,7 @@ C3D.twin = (host) => {
   return {
     update(plan, calc, crane, livery) {
       const li = Math.min(calc.loads.length - 1, plan.activeLoad || 0), res = calc.loads[li], load = plan.loads[li], geo = res.geo;
-      const s2 = JSON.stringify([crane.id, crane.color, livery, plan.cwt, plan.matSize, crane.sections, crane.boomMin, crane.boomMax]);
+      const s2 = JSON.stringify([crane.id, crane.color, livery, plan.cwt, plan.matSize, crane.sections, crane.boomMin, crane.boomMax, plan.outExt, crane.outTrans, crane.outTransHalf]);
       if (s2 !== sig) { if (g) scene.remove(g.root, g.hook, g.rope, g.slings, g.load); g = C3D.buildCrane(C3D.paramsFor(crane, plan, calc, livery)); g._hung = false; scene.add(g.root); sig = s2; }
       const sp = sitePlanState(plan, load);
       const L = geo.kind === 'main' ? geo.L : geo.Lb;
@@ -5234,7 +5522,10 @@ function normalizePlan(p) {
     out.sitePlan.carrierRot = r2(normDeg(num(out.sitePlan.rot) - SIDE_OFFSET[side0]));
   }
   out.loads.forEach(l => { l.side = legacySide ? side0 : sideOf(l); });
-  out.sheetRows = { hide: {}, show: {}, custom: [], ...(p.sheetRows || {}) };
+  out.sheetRows = { hide: {}, show: {}, custom: [], ov: {}, ...(p.sheetRows || {}) };
+  // outriggers (v8): beams per side and hand-typed leg loads are per crane; plans from before v8 have neither → full legs, nothing typed
+  const legs = (o) => { o.outExt = { left: 'full', right: 'full', ...(o.outExt && typeof o.outExt === 'object' ? o.outExt : {}) }; o.padMan = o.padMan && typeof o.padMan === 'object' ? { ...o.padMan } : {}; };
+  legs(out); out.cranes.forEach(legs);
   return out;
 }
 // ---------- several cranes on one plan ----------
@@ -5242,7 +5533,7 @@ function rigPick(p) { const o = {}; for (const k of CRANE_KEYS) o[k] = clone(p[k
 function rigPark(p) { if (!p.cranes) p.cranes = []; p.cranes[num(p.activeCrane, 0)] = rigPick(p); }
 function switchRig(i) { // make crane i the active (editable) crane
   const p = state.plan; i = Math.max(0, Math.min((p.cranes?.length || 1) - 1, i)); if (i === num(p.activeCrane, 0)) return false;
-  rigPark(p); const r = p.cranes[i] || {}; for (const k of CRANE_KEYS) p[k] = clone(r[k] ?? (k === 'tele' ? { mode: 'auto', fr: [] } : k === 'attach' ? { type: 'none' } : k === 'acc' ? {} : ''));
+  rigPark(p); const r = p.cranes[i] || {}; for (const k of CRANE_KEYS) p[k] = clone(r[k] ?? (k === 'tele' ? { mode: 'auto', fr: [] } : k === 'attach' ? { type: 'none' } : k === 'acc' ? {} : k === 'outExt' ? { left: 'full', right: 'full' } : k === 'padMan' ? {} : ''));
   p.activeCrane = i; Scene.views = {}; if (state.twin) state.twin.reframe(); return true;
 }
 function selectLoad(i) { const p = state.plan; p.activeLoad = Math.max(0, Math.min(p.loads.length - 1, i)); switchRig(num(p.loads[p.activeLoad].crane, 0)); }

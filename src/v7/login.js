@@ -57,7 +57,7 @@ function loginShow(onDone) {
         <button type="submit" class="lg-go tap" id="lgGo">Sign in ${ic('chev', 20, 2.6)}</button>
         <label class="lg-keep"><span>Keep me signed in</span><span class="sw"><input type="checkbox" id="lgStay" checked aria-label="Keep me signed in"><i></i></span></label>
       </form>
-      <div class="lg-foot">Designed and built by Saad Khan · © ${new Date().getFullYear()} Friendship Hall Est.</div>
+      <div class="lg-foot">Version ${APP_VERSION} · designed and built by Saad Khan · © ${new Date().getFullYear()} Friendship Hall Est.</div>
     </div>`;
   const reduce = reduceMotion();
   setTimeout(() => {

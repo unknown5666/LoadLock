@@ -46,7 +46,7 @@ function renderTopUndo() { const u = $('#tbUndo'), r = $('#tbRedo'); if (u) u.di
 
 // ---------- the panel: ring + numbers + dock ----------
 const TILES = [['R', 'Reach', 'reach', 'm', 1], ['L', 'Boom', 'boom', 'm', 1], ['A', 'Angle', 'angle', '°', 0], ['H', 'Height', 'height', 'm', 1]];
-const DOCK = [['crane', 'Crane', 'crane'], ['side', 'Side', 'side'], ['load', 'Hook', 'hook'], ['site', 'Site', 'site'], ['print', 'Print', 'print']];
+const DOCK = [['crane', 'Crane', 'crane'], ['side', 'Side', 'side'], ['legs', 'Legs', 'legs'], ['load', 'Hook', 'hook'], ['site', 'Site', 'site'], ['print', 'Print', 'print']];
 function renderPanel() {
   const el = $('#panel'); if (!el || !state.calc) return;
   const desk = isDesk(); const sig = desk ? 'd' : 'm';
@@ -83,8 +83,8 @@ function renderPanel() {
   // dock subtitles + badges
   const crane = r?.crane || calc.crane; const all = calc.loads.flatMap(x => x.checks);
   const sev = (list) => list.some(c => c.s === 'fail') ? 'fail' : list.some(c => c.s === 'warn') ? 'warn' : '';
-  const sub = { crane: crane?.model || '', side: SIDES.find(s => s[0] === sideOfLoad(l))?.[1] || '', load: (l.tackles || []).length ? `${l.tackles.length} tackle${l.tackles.length > 1 ? 's' : ''} · ${fmt(r?.tk, 2)} t` : `hook ${fmt(r?.hb ?? l.hb, 2)} t`, site: (state.plan.site.obstacles || []).length ? `${state.plan.site.obstacles.length} object${state.plan.site.obstacles.length > 1 ? 's' : ''}` : 'nothing placed', print: (state.settings.paper || 'A1') + ' sheet' };
-  const badge = { crane: sev(all.filter(c => /Geometry|chart|Chart|side/i.test(c.t))), site: sev(all.filter(c => /clearance/i.test(c.t))), load: sev(all.filter(c => /Headroom|Sling/i.test(c.t))), side: sev(all.filter(c => /side/i.test(c.t) && /chart/i.test(c.t))), print: '' };
+  const sub = { crane: crane?.model || '', side: SIDES.find(s => s[0] === sideOfLoad(l))?.[1] || '', load: (l.tackles || []).length ? `${l.tackles.length} tackle${l.tackles.length > 1 ? 's' : ''} · ${fmt(r?.tk, 2)} t` : `hook ${fmt(r?.hb ?? l.hb, 2)} t`, legs: legsDockSub(calc, r), site: (state.plan.site.obstacles || []).length ? `${state.plan.site.obstacles.length} object${state.plan.site.obstacles.length > 1 ? 's' : ''}` : 'nothing placed', print: (state.settings.paper || 'A1') + ' sheet' };
+  const badge = { crane: sev(all.filter(c => /Geometry|chart|Chart|side/i.test(c.t))), site: sev(all.filter(c => /clearance/i.test(c.t))), load: sev(all.filter(c => /Headroom|Sling/i.test(c.t))), side: sev(all.filter(c => /side/i.test(c.t) && /chart/i.test(c.t))), legs: sev([...all.filter(c => /^(Leg loads|Outriggers|Backward stability)$/.test(c.t)), ...(calc.outrigs || []).flatMap(o => o.checks), ...(calc.ground ? [calc.ground] : [])]), print: calc.sheetOv?.some(x => x.safety) ? 'warn' : '' };
   for (const [k] of DOCK) { const s = $('#ds-' + k); if (s) s.textContent = sub[k]; const b = $('#bd-' + k); if (b) { b.hidden = !badge[k]; b.className = 'badge ' + (badge[k] === 'warn' ? 'warn' : ''); b.textContent = '!'; } }
   const ck = $('#ckMini'); if (ck) { const items = allChecks(calc).filter(c => c.s === 'fail' || c.s === 'warn').slice(0, 3); ck.hidden = !items.length; ck.innerHTML = items.map(c => `<button type="button" class="ck ${c.s} tap" data-act="checks" style="text-align:left;width:100%"><span class="ci">${ic(c.s === 'fail' ? 'stop' : 'alert', 14, 3)}</span><div><b>${h(c.t)}</b><span>${h(c.m)}</span></div></button>`).join(''); }
 }
@@ -148,7 +148,7 @@ function bindUI() {
     else if (a === 'more') openSheet('more');
     else if (a === 'checks') openSheet('checks');
     else if (a === 'dial') openSheet('dial', d.k);
-    else if (['crane', 'side', 'load', 'site', 'print'].includes(a)) openSheet(a);
+    else if (['crane', 'side', 'legs', 'load', 'site', 'print'].includes(a)) openSheet(a);
     else if (a === 'selEdit') { const i = selIndex(); if (i >= 0) openSheet('obj', i); }
     else if (a === 'selDup') { const k = selIndex(); if (k >= 0) { const o = clone(p.site.obstacles[k]); const ex = objExtent(p.site, o); o.x = r2(num(o.x) + (ex.x1 - ex.x0) + 1); p.site.obstacles.push(o); state.sel = Scene.sel = 'obj:' + (p.site.obstacles.length - 1); commit(); renderSel(); } }
     else if (a === 'selDel') { const k = selIndex(); if (k >= 0) { p.site.obstacles.splice(k, 1); state.sel = Scene.sel = null; commit(); renderSel(); toast('Removed'); } }
