@@ -404,6 +404,6 @@ const DEFAULT_SETTINGS = {
     'NO DIMENSIONS TO BE SCALED OFF, ONLY WRITTEN DIMENSIONS ARE TO BE FOLLOWED.',
     '"TYPICAL" MEANS THE REFERENCED DETAIL SHALL APPLY FOR ALL SIMILAR CONDITIONS UNLESS OTHERWISE NOTED.'
   ],
-  utilWarn:75, utilMax:90, minClearance:1.0, lookup:'conservative', outriggerFactor:0.8,
+  utilWarn:75, utilMax:90, minClearance:1.0, lookup:'conservative', outriggerFactor:0.8, tandemDerate:80, pUnit:'t',
   defaultDrawnBy:'HABIB', headerStyle:'yellow'
 };

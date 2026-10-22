@@ -67,8 +67,10 @@ function renderPanel() {
   const calc = state.calc, li = activeLi(), r = calc.loads[li], l = state.plan.loads[li], S = settingsEff();
   const st = utilCls(r); const card = $('#stCard'); card.className = 'status tap st-' + st;
   const [word, vic] = VERDICT[st]; $('#vWord').textContent = word; $('#vIc').innerHTML = ic(vic, 16, 3);
-  $('#vSub').innerHTML = r?.cap != null ? (isDesk() ? `<b>${fmt(r.daf ? r.design : r.total, 1)} t</b> on hook · crane can take <b>${fmt(r.cap, 1)} t</b>` : `<b>${fmt(r.daf ? r.design : r.total, 1)}</b> of <b>${fmt(r.cap, 1)} t</b>`) : `<b>Out of reach</b>`;
-  ringTo(r?.cap != null ? r.util : null);
+  const T = r?.tandem;
+  $('#vSub').innerHTML = T ? `<b>Tandem</b> · ${T.picks.length} cranes · busiest <b>${fmt(T.maxUtil, 0)}%</b>${isDesk() ? ` of ${T.derate}% allowed` : ''}`
+    : r?.cap != null ? (isDesk() ? `<b>${fmt(r.daf ? r.design : r.total, 1)} t</b> on hook · crane can take <b>${fmt(r.cap, 1)} t</b>` : `<b>${fmt(r.daf ? r.design : r.total, 1)}</b> of <b>${fmt(r.cap, 1)} t</b>`) : `<b>Out of reach</b>`;
+  ringTo(T ? T.maxUtil : r?.cap != null ? r.util : null);
   const wv = $('#wtV'); if (wv) wv.innerHTML = l.empty ? 'Empty hook' : `${fmt(num(l.w), num(l.w) < 10 ? 2 : 1).replace(/\.?0+$/, '')}<small>t</small>`;
   $('#wtBtn')?.classList.toggle('empty', !!l.empty);
   const by = l.by === 'angle' ? 'A' : l.by === 'height' ? 'H' : 'R';
@@ -83,7 +85,7 @@ function renderPanel() {
   // dock subtitles + badges
   const crane = r?.crane || calc.crane; const all = calc.loads.flatMap(x => x.checks);
   const sev = (list) => list.some(c => c.s === 'fail') ? 'fail' : list.some(c => c.s === 'warn') ? 'warn' : '';
-  const sub = { crane: crane?.model || '', side: SIDES.find(s => s[0] === sideOfLoad(l))?.[1] || '', load: (l.tackles || []).length ? `${l.tackles.length} tackle${l.tackles.length > 1 ? 's' : ''} · ${fmt(r?.tk, 2)} t` : `hook ${fmt(r?.hb ?? l.hb, 2)} t`, legs: legsDockSub(calc, r), site: (state.plan.site.obstacles || []).length ? `${state.plan.site.obstacles.length} object${state.plan.site.obstacles.length > 1 ? 's' : ''}` : 'nothing placed', print: (state.settings.paper || 'A1') + ' sheet' };
+  const sub = { crane: r?.tandem ? `Tandem · ${r.tandem.picks.length} cranes` : crane?.model || '', side: SIDES.find(s => s[0] === sideOfLoad(l))?.[1] || '', load: (l.tackles || []).length ? `${l.tackles.length} tackle${l.tackles.length > 1 ? 's' : ''} · ${fmt(r?.tk, 2)} t` : `hook ${fmt(r?.hb ?? l.hb, 2)} t`, legs: legsDockSub(calc, r), site: (state.plan.site.obstacles || []).length ? `${state.plan.site.obstacles.length} object${state.plan.site.obstacles.length > 1 ? 's' : ''}` : 'nothing placed', print: (state.settings.paper || 'A1') + ' sheet' };
   const badge = { crane: sev(all.filter(c => /Geometry|chart|Chart|side/i.test(c.t))), site: sev(all.filter(c => /clearance/i.test(c.t))), load: sev(all.filter(c => /Headroom|Sling/i.test(c.t))), side: sev(all.filter(c => /side/i.test(c.t) && /chart/i.test(c.t))), legs: sev([...all.filter(c => /^(Leg loads|Outriggers|Backward stability)$/.test(c.t)), ...(calc.outrigs || []).flatMap(o => o.checks), ...(calc.ground ? [calc.ground] : [])]), print: calc.sheetOv?.some(x => x.safety) ? 'warn' : '' };
   for (const [k] of DOCK) { const s = $('#ds-' + k); if (s) s.textContent = sub[k]; const b = $('#bd-' + k); if (b) { b.hidden = !badge[k]; b.className = 'badge ' + (badge[k] === 'warn' ? 'warn' : ''); b.textContent = '!'; } }
   const ck = $('#ckMini'); if (ck) { const items = allChecks(calc).filter(c => c.s === 'fail' || c.s === 'warn').slice(0, 3); ck.hidden = !items.length; ck.innerHTML = items.map(c => `<button type="button" class="ck ${c.s} tap" data-act="checks" style="text-align:left;width:100%"><span class="ci">${ic(c.s === 'fail' ? 'stop' : 'alert', 14, 3)}</span><div><b>${h(c.t)}</b><span>${h(c.m)}</span></div></button>`).join(''); }
@@ -118,7 +120,7 @@ function renderFloats() {
   const tl = $('#fTL'), tr = $('#fTR'); if (!tl || !tr) return;
   tl.innerHTML = `<div class="pill-bar" role="tablist" aria-label="View">${VIEWS.map(([k, t, icn]) => `<button type="button" role="tab" class="vs tap" data-act="view" data-v="${k}" aria-selected="${state.view === k}">${ic(icn, 20)}<span>${t}</span></button>`).join('')}</div>`;
   if (state.view === '3d') tr.innerHTML = `<div class="pill-bar">${[['iso', 'Angle'], ['side', 'Side'], ['top', 'Top']].map(([v, t]) => `<button type="button" class="fbtn tap" data-act="tw" data-v="${v}" aria-label="${t} view" style="width:auto;padding:0 10px;font-size:13px;font-weight:600">${t}</button>`).join('')}<button type="button" class="fbtn tap" data-act="twFit" aria-label="Fit">${ic('fit', 20)}</button></div>`;
-  else tr.innerHTML = `<div class="pill-bar">${isDesk() ? `<button type="button" class="fbtn tap" data-act="zout" aria-label="Zoom out">${ic('zout', 20)}</button><button type="button" class="fbtn tap" data-act="zin" aria-label="Zoom in">${ic('zin', 20)}</button>` : ''}${state.view !== 'sheet' ? `<button type="button" class="fbtn tap" data-act="measure" aria-pressed="${Scene.tool?.kind === 'measure'}" aria-label="Measure">${ic('measure', 20)}</button>` : ''}<button type="button" class="fbtn tap" data-act="fit" aria-label="Fit to screen">${ic('fit', 20)}</button></div>`;
+  else tr.innerHTML = `<div class="pill-bar">${isDesk() ? `<button type="button" class="fbtn tap" data-act="zout" aria-label="Zoom out">${ic('zout', 20)}</button><button type="button" class="fbtn tap" data-act="zin" aria-label="Zoom in">${ic('zin', 20)}</button>` : ''}${state.view !== 'sheet' ? `<button type="button" class="fbtn tap" data-act="measure" aria-pressed="${Scene.tool?.kind === 'measure'}" aria-label="Measure">${ic('measure', 20)}</button><button type="button" class="fbtn tap" data-act="pip" aria-pressed="${!!V7.pip}" aria-label="Live 3D window">${ic('cube', 20)}</button>` : ''}<button type="button" class="fbtn tap" data-act="fit" aria-label="Fit to screen">${ic('fit', 20)}</button></div>`;
 }
 function renderSel() {
   const el = $('#fSel'); if (!el) return;
@@ -141,6 +143,7 @@ function bindUI() {
     else if (a === 'toolOff') { sceneSetTool(null); renderFloats(); }
     else if (a === 'calibOk') applyCalib();
     else if (a === 'tw') state.twin?.view(d.v); else if (a === 'twFit') { state.twin?.reframe(); twinUpdate(); }
+    else if (a === 'pip') pipToggle();
     else if (a === 'undo') histGo(-1); else if (a === 'redo') histGo(1);
     else if (a === 'save') savePlan(false).then(() => renderTop());
     else if (a === 'pdf') exportPDF('A1');

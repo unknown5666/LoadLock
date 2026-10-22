@@ -4,10 +4,10 @@ import re, os, sys
 src = 'src'
 rd = lambda p: open(p, encoding='utf-8').read()
 strip = lambda s: re.sub(r"\nif \(typeof module[\s\S]*$", "\n", s)
-CORE = ['data', 'engine', 'outrig', 'env', 'draw', 'crane2d', 'fixes', 'samples', 'weather', 'three3d', 'scene']
+CORE = ['data', 'engine', 'outrig', 'tandem', 'env', 'draw', 'crane2d', 'fixes', 'samples', 'weather', 'gis', 'three3d', 'scene']
 TARGETS = {
     'v6': (CORE + ['wizard', 'login', 'app', 'studio', 'deck', 'pages', 'tour', 'main'], 'shell.html', 'dist/index.html'),
-    'v7': (CORE + ['app', 'v7/core', 'v7/ui', 'v7/sheets', 'v7/legs', 'v7/pages', 'v7/login', 'v7/main'], 'v7/shell.html', 'dist/v7.html'),
+    'v7': (CORE + ['app', 'v7/core', 'v7/ui', 'v7/sheets', 'v7/legs', 'v7/v9', 'v7/rams', 'v7/pages', 'v7/login', 'v7/main'], 'v7/shell.html', 'dist/v7.html'),
 }
 target = sys.argv[1] if len(sys.argv) > 1 else 'v6'
 MODULES, SHELL, OUT = TARGETS[target]
@@ -35,3 +35,10 @@ if target == 'v7':  # the deployable copy Vercel serves (vercel.json -> outputDi
     os.makedirs('public', exist_ok=True)
     open('public/index.html', 'w', encoding='utf-8', newline='\n').write(out)
     print('public/index.html', len(out))
+    # v9 offline: the service worker caches the app and its pinned libraries; its version follows the build so phones update
+    import hashlib, json
+    ver = hashlib.sha1(out.encode('utf-8')).hexdigest()[:12]
+    cdn = re.findall(r'<script src="(https://[^"]+)"', out) + re.findall(r'<link rel="stylesheet" href="(https://[^"]+)"', out)
+    sw = rd('src/v7/sw.js').replace('__VER__', ver).replace('__CDN__', json.dumps(cdn))
+    open('public/sw.js', 'w', encoding='utf-8', newline='\n').write(sw)
+    print('public/sw.js', ver, len(cdn), 'libraries')

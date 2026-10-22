@@ -9,7 +9,7 @@ async function boot() {
   const go = async () => {
     if (started) return; started = true; await storage; V7.user = authUser();
     if (!state.settings.limitsV7) { if (num(state.settings.utilWarn) === 100 && num(state.settings.utilMax) === 100) { state.settings.utilWarn = 75; state.settings.utilMax = 90; } state.settings.limitsV7 = true; saveSettings(); }
-    startStudio(); loadCustomBodies();
+    startStudio(); loadCustomBodies(); netChip(); swRegister();
     try { const pg = localStorage.getItem('lp.page'); if (['plans', 'fleet', 'settings'].includes(pg)) openPage(pg); } catch {}
   };
   const sp = $('#splash'); const unsplash = () => { if (sp) { sp.classList.add('gone'); setTimeout(() => sp.remove(), 700); } };

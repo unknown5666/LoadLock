@@ -883,7 +883,18 @@ function drawSitePlan(P, box, plan, calc, ctx = {}) {
   const a = T(0, 0), b_ = T(1, 1); const inv = (px, py) => [(px - a[0]) / (b_[0] - a[0]), (py - a[1]) / (b_[1] - a[1])];
   const w0 = inv(box.x, box.y + box.h), w1 = inv(box.x + box.w, box.y);
   drawEnv(P, T, plan, 'plan', { x0: w0[0], x1: w1[0], y0: w0[1], y1: w1[1] });
-  drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, Math.max(1, num(load?.l, 2)), ctx.livery, typeof outExtOf === 'function' ? outExtOf(plan) : null);
+  drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, res?.tandem ? 0.01 : Math.max(1, num(load?.l, 2)), ctx.livery, typeof outExtOf === 'function' ? outExtOf(plan) : null);
+  // v9 tandem: the other cranes where they stand, and the one load between the lifting points with each crane's share
+  const TD = res?.tandem;
+  if (TD) {
+    for (const pk of TD.picks.slice(1)) { const cr = pk.res?.crane; if (!cr) continue; const bh = normDeg(pk.boomHd + num(pk.mv?.swing));
+      drawCraneFootprint(P, T, k, cr, { cx: pk.base.x, cy: pk.base.y, boom: bh, carrier: normDeg(bh - SIDE_OFFSET[sideOf(pk.side)]) }, pk.Rnow ?? pk.R, 0.01, ctx.livery, typeof outExtOf === 'function' ? outExtOf(rigOf(plan, pk.crane)) : null); }
+    const ax = num(TD.axis) * D2R, p0 = TD.picks[0], xs = TD.picks.map(q => q.x); const x0 = Math.min(...xs) - 0.6, x1 = Math.max(...xs) + 0.6, hw = Math.max(0.6, num(load?.h, 1.5) * 0.6);
+    const at = (s, n) => { const d = s - p0.x; return T(p0.pos.x + d * Math.cos(ax) - n * Math.sin(ax), p0.pos.y + d * Math.sin(ax) + n * Math.cos(ax)); };
+    P.poly([at(x0, -hw), at(x1, -hw), at(x1, hw), at(x0, hw)], { closed: true, stroke: '#7a007a', w: 0.35, fill: '#f1d5f1', layer: 'SITE-LOAD' });
+    for (const pk of TD.picks) { const q = at(pk.x, num(pk.z) - num(p0.z)); P.circle(q[0], q[1], 0.8, { fill: '#7a007a', stroke: 'none', layer: 'SITE-LOAD' });
+      P.text(q[0], q[1] - 2.4, `C${pk.crane + 1} ${(+pk.share).toFixed(1)}T`, { size: 2.8, bold: true, anchor: 'middle', color: '#7a007a', bg: '#ffffff', layer: 'SITE-LOAD' }); }
+  }
   if (!ctx.fixed) {
     P.text(box.x + 6, box.y + 8, 'SITE PLAN', { size: 5.5, layer: 'TITLE' });
     P.text(box.x + 6, box.y + 13.5, 'LIFT OVER ' + SIDE_NAME[sp.side], { size: 3.4, bold: true, layer: 'TITLE' });
