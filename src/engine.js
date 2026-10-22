@@ -351,6 +351,9 @@ const DAF_HC = { HC1: [1.05, 0.17], HC2: [1.10, 0.34], HC3: [1.15, 0.51], HC4: [
 function dafAuto(D) { const t = DAF_HC[D?.cls] || DAF_HC.HC1; return Math.round((t[0] + t[1] * Math.max(0, num(D?.vh, 0.1))) * 1000) / 1000; }
 // lifting tackles below the hook, listed top → bottom: names, lengths and weights the user keeps
 const TACKLE_TYPES = { sling: 'Sling legs', shackle: 'Shackle', spreader: 'Spreader beam', beam: 'Lifting beam', chain: 'Chain block', hook: 'Hook extension', other: 'Other' };
+// v10 how a sling is used (LEEA mode factors for round / webbing slings): its safe working load = WLL × factor
+const HITCH = { straight: ['Straight pull', 1], choker: ['Choker hitch', 0.8], basket: ['Basket, legs parallel', 2], basket45: ['Basket, legs 0–45°', 1.4], basket90: ['Basket, legs 45–90°', 1] };
+function hitchOf(t) { const k = HITCH[t?.hitch] ? t.hitch : 'straight'; return { key: k, label: HITCH[k][0], mf: HITCH[k][1] }; }
 function tackleStack(load) {
   const list = (load.tackles || []).filter(t => t && (num(t.L) > 0 || num(t.w) > 0));
   if (!list.length) return null;
@@ -366,10 +369,42 @@ function tackleStack(load) {
       const hh = Math.abs(sp - top) / 2; v = L > hh ? Math.sqrt(L * L - hh * hh) : Math.max(0.2, L * 0.4); ang = hh < 1e-6 ? 90 : L > hh ? Math.asin(v / L) * R2D : 10; }
     else if (ty === 'spreader' || ty === 'beam') v = Math.max(0.15, num(t.h, 0.45));
     else v = Math.max(0, L);
-    items.push({ j: load.tackles.indexOf(t), name: t.name || TACKLE_TYPES[ty], type: ty, L, w: num(t.w), legs: Math.max(1, Math.round(num(t.legs, ty === 'sling' ? 2 : 1))), wll: num(t.wll), v: r2(v), ang: ang != null ? r2(ang) : null, span: sp });
+    const hz = ty === 'sling' ? hitchOf(t) : { key: '', label: '', mf: 1 };
+    items.push({ j: load.tackles.indexOf(t), name: t.name || TACKLE_TYPES[ty], type: ty, L, w: num(t.w), legs: Math.max(1, Math.round(num(t.legs, ty === 'sling' ? 2 : 1))), qty: Math.max(1, Math.round(num(t.qty, 1))), wll: num(t.wll), hitch: hz.key, hitchLabel: hz.label, mf: hz.mf, v: r2(v), ang: ang != null ? r2(ang) : null, span: sp });
     H += v;
   }
   return { items, H: r2(H), w: r2(w) };
+}
+
+// v10 forces at the lifting points (the plan set's load-calculation sheet). The load hangs level with the hook straight above its centre
+// of gravity; the lifting points sit on its top face, spread `along` × `across`. Reactions by the lever rule (2 points) or a rigid plane
+// (3–4 points; a point that would have to push goes slack) — tandemStatic does both. Leg tension T = R / cos(angle from vertical).
+// W = (load + contingency) × DAF, as the plan's weight table. Anything not entered is assumed and listed in `assumed`.
+function pickForces(load, res, rig) {
+  if (!res || res.empty || !load) return null;
+  const lL = Math.max(0.3, num(load.l, 2)), wd = num(load.wd) > 0 ? num(load.wd) : null, assumed = [];
+  let n = 2, along = null, H = null, src = 'assumed', name = '';
+  const sl = res.stack ? [...res.stack.items].reverse().find(t => t.type === 'sling') : null;
+  if (sl) { n = sl.legs; along = sl.span; H = sl.v; src = 'tackles'; name = sl.name; }
+  else if (res.sling) { n = res.sling.legs; H = res.sling.L > 0 ? res.sling.L * Math.sin(res.sling.ang * D2R) : null; src = 'sling'; name = res.sling.label; }
+  else if (rig) { n = rig.legs; along = num(rig.spread) > 0 ? num(rig.spread) : null; H = rig.vert; src = 'rigging'; name = 'Rigging detail'; }
+  n = Math.max(1, Math.min(4, Math.round(n)));
+  if (!(along > 0)) { along = num(load.pick) > 0 ? num(load.pick) : Math.max(0.3, lL - 0.3); if (src !== 'tackles') assumed.push(`lifting points ${along.toFixed(2)} m apart along the load`); }
+  let across = 0;
+  if (n >= 3) { across = num(load.pickW) > 0 ? num(load.pickW) : wd ? Math.max(0.3, wd - 0.3) : r2(along / 2); if (!(num(load.pickW) > 0)) assumed.push(`lifting points ${across.toFixed(2)} m apart across the load${wd ? '' : ' (load width not entered)'}`); }
+  if (!(H > 0.05) && num(res.rigH) > 0.3) { H = num(res.rigH); if (src === 'assumed') { src = 'rigH'; name = 'Sling height'; } }   // the sling height entered for the lift
+  if (!(H > 0.05)) { H = Math.max(0.5, (n === 1 ? 1 : Math.hypot(along / 2, across / 2)) * Math.tan(60 * D2R)); assumed.push('slings at 60° to the horizontal'); }
+  const a2 = along / 2, b2 = across / 2;
+  const P = n === 1 ? [[0, 0]] : n === 2 ? [[-a2, 0], [a2, 0]] : n === 3 ? [[-a2, -b2], [-a2, b2], [a2, 0]] : [[-a2, -b2], [-a2, b2], [a2, b2], [a2, -b2]];
+  const cx = num(load.cogX), cz = num(load.cogZ);
+  const daf = res.daf || 1, Wraw = r2(res.W + res.contW), W = r2(Wraw * daf);
+  const sh = n === 1 ? [W] : typeof tandemStatic === 'function' ? tandemStatic(P.map(([x, z]) => ({ x, z })), W, cx, cz) : P.map(() => W / n);
+  const pts = P.map(([x, z], i) => { const d = Math.hypot(x - cx, z - cz), beta = Math.atan2(d, H) * R2D, R = r2(sh[i]); return { id: 'R' + (i + 1), x: r2(x), z: r2(z), R, d: r2(d), beta: r2(beta), L: r2(Math.hypot(d, H)), T: r2(R / Math.cos(beta * D2R)) }; });
+  // the centre of gravity must sit inside the lifting points, or the load tips until it does
+  const inside = n === 1 ? Math.hypot(cx, cz) < 0.01 : n === 2 ? Math.abs(cx) <= a2 + 1e-6 && Math.abs(cz) < 1e-6 + 0.05 : Math.abs(cx) <= a2 + 1e-6 && (n === 4 ? Math.abs(cz) <= b2 + 1e-6 : Math.abs(cz) <= b2 * (1 - (cx + a2) / along) + 1e-6);
+  const Tmax = Math.max(...pts.map(p => p.T));
+  const Tgov = n >= 4 ? r2(Math.max(Tmax, ...pts.map(p => W / (3 * Math.cos(p.beta * D2R))))) : Tmax; // LEEA: a 4-leg sling is rated on 3 legs
+  return { n, src, name, along: r2(along), across: r2(across), H: r2(H), cx, cz, Wraw, daf, W, pts, inside, Tmax, Tgov, rigW: r2(res.tk), hookLoad: r2(W + res.tk), assumed, off: Math.abs(cx) > 1e-6 || Math.abs(cz) > 1e-6 };
 }
 
 function computeLoad(plan, crane, load, settings) {
@@ -400,7 +435,8 @@ function computeLoad(plan, crane, load, settings) {
   const total = r2(W + contW + hb + tk + ex + jd + rope);
   const Dd = load.daf || {}; const daf = Dd.on ? (Dd.mode === 'manual' ? Math.max(1, num(Dd.v, 1.1)) : dafAuto(Dd)) : null;
   const design = daf ? r2(total * daf) : total;
-  const res = { R, W, contW, cont, contOn, hb, tk, ex, jd, rope, ropeInfo: { kgm: ropeKgM, falls, len: ropeLen }, total, daf, dafAuto: Dd.on && Dd.mode !== 'manual', design, empty, stack, checks: [], col, ci, chartDef, angleMode, heightMode, manualJib: G.manual, gChart: G.gChart, gCol: G.gCol, boomOv, tele: G.tele, spec: G.spec, acc: G.acc };
+  const linePull = num(plan.linePull); const reeve = linePull > 0 && falls > 0 ? r2(linePull * falls) : null; // v10: what the hoist rope reeving can hold
+  const res = { R, W, contW, cont, contOn, hb, tk, ex, jd, rope, ropeInfo: { kgm: ropeKgM, falls, len: ropeLen }, linePull, ropeDia: num(plan.ropeDia), reeve, reeveUtil: reeve ? r2(design / reeve * 100) : null, total, daf, dafAuto: Dd.on && Dd.mode !== 'manual', design, empty, stack, checks: [], col, ci, chartDef, angleMode, heightMode, manualJib: G.manual, gChart: G.gChart, gCol: G.gCol, boomOv, tele: G.tele, spec: G.spec, acc: G.acc };
   // capacity — capAt reads the chart at any radius the same way (used again for the wind drift)
   const capAt = (Rq) => {
     if (load.capOverride !== '' && load.capOverride != null && num(load.capOverride) > 0) return { cap: num(load.capOverride), manual: true };
@@ -466,6 +502,7 @@ function computeLoad(plan, crane, load, settings) {
     const note = capInfo.jib ? ' (jib SWL entered manually)' : capInfo.manual ? ' (entered manually)' : capInfo.wind ? ` (read at ${(R + res.wind.dR).toFixed(2)} m — the wind pushes the load ${res.wind.dR.toFixed(2)} m out)` : capInfo.between ? ` (lower of ${capInfo.between.join(' / ')} m columns)` : capInfo.rounded ? ` (taken at ${capInfo.row} m — next chart radius up)` : capInfo.curve ? ' (curve fit between chart radii)' : capInfo.interp ? ' (interpolated)' : '';
     res.checks.push({ s: res.util > 100 ? 'fail' : res.util > lim ? 'fail' : res.util > warn ? 'warn' : 'ok', t: 'Capacity utilisation', m: `${res.util.toFixed(2)}% of ${res.cap.toFixed(2)} t${note}${daf ? ` — with DAF ${daf} (${design.toFixed(2)} t design load)` : ''}` + (res.util > lim && res.util <= 100 ? ` — over the ${lim}% limit` : res.util > warn && res.util <= lim ? ` — critical lift (> ${warn}%)` : '') });
   }
+  if (reeve) res.checks.push({ s: res.reeveUtil > 100 ? 'fail' : res.reeveUtil > 90 ? 'warn' : 'ok', t: 'Rope reeving', m: `${design.toFixed(2)} t on ${falls} falls of a ${linePull} t line pull = ${res.reeveUtil.toFixed(1)}% of the ${reeve.toFixed(2)} t reeving capacity` + (res.reeveUtil > 100 ? ' — reeve more falls' : '') });
   if (jd || rope) res.checks.push({ s: 'info', t: 'Deductions', m: [jd ? `folded jib ${jd.toFixed(2)} t` : '', rope ? `hoist rope ${rope.toFixed(2)} t (${falls} falls × ${ropeLen.toFixed(1)} m × ${ropeKgM} kg/m)` : ''].filter(Boolean).join(' and ') + ' counted in the hook load, as the load chart asks' });
   if (res.wind) { const w = res.wind;
     if (w.vDes != null) res.checks.push({ s: w.vDes > w.vPerm ? 'fail' : w.vDes > 0.8 * w.vPerm ? 'warn' : 'ok', t: 'Wind on the load', m: `${w.AW.toFixed(1)} m² wind area on ${w.mH.toFixed(1)} t: lift only up to ${w.vPerm.toFixed(1)} m/s (chart ${w.vTab} m/s). Gust at the boom head ${w.vDes.toFixed(1)} m/s` + (w.vDes > w.vPerm ? ` — too windy for this load${w.dR > 0 ? `; it would swing ${w.dR.toFixed(2)} m out` : ''}` : w.vDes > 0.8 * w.vPerm ? ' — close to the limit, use tag lines' : '') });
@@ -495,14 +532,22 @@ function computeLoad(plan, crane, load, settings) {
     }
   }
   if (stack && !empty) {
-    const Wl = W + contW; let below = Wl + stack.items.reduce((a, t) => a + t.w, 0);
+    // v10: every item below the hook carries a force — slings per leg, items hanging under a sling at each leg, everything else the whole
+    // load below it — and the load is factored by the DAF when one is set. Each item with a WLL is checked against its SWL (WLL × mode factor).
+    const df = daf || 1; const Wl = (W + contW) * df; let below = Wl + stack.items.reduce((a, t) => a + t.w * df, 0); let leg = null;
     for (const t of stack.items) {
-      below -= t.w;
-      if (t.type !== 'sling') continue;
-      const eff = t.legs >= 4 ? 3 : Math.max(1, t.legs); t.T = r2((below + t.w) / (eff * Math.sin(Math.max(5, t.ang) * D2R)));
-      t.util = t.wll > 0 ? r2(t.T / t.wll * 100) : null;
-      const s2 = t.ang < 30 ? 'fail' : t.util != null && t.util > 100 ? 'fail' : t.ang < 45 ? 'warn' : 'ok';
-      res.checks.push({ s: s2, t: 'Sling tension', m: `${t.name}: ${t.T.toFixed(2)} t per leg at ${Math.round(t.ang)}° to horizontal${t.wll ? ` vs WLL ${t.wll} t (${t.util.toFixed(0)}%)` : ''}` + (t.ang < 45 ? ' — angle under 45°, use longer slings or a spreader' : '') });
+      below -= t.w * df;
+      if (t.type === 'sling') {
+        const eff = t.legs >= 4 ? 3 : Math.max(1, t.legs); t.T = r2((below + t.w * df) / (eff * Math.sin(Math.max(5, t.ang) * D2R)));
+        t.swl = t.wll > 0 ? r2(t.wll * t.mf) : null; t.util = t.swl > 0 ? r2(t.T / t.swl * 100) : null; leg = t;
+        const s2 = t.ang < 30 ? 'fail' : t.util != null && t.util > 100 ? 'fail' : t.ang < 45 ? 'warn' : 'ok';
+        res.checks.push({ s: s2, t: 'Sling tension', m: `${t.name}: ${t.T.toFixed(2)} t per leg at ${Math.round(t.ang)}° to horizontal${t.wll ? ` vs ${t.mf !== 1 ? `SWL ${t.swl} t (WLL ${t.wll} t × ${t.mf} ${t.hitchLabel.toLowerCase()})` : `WLL ${t.wll} t`} (${t.util.toFixed(0)}%)` : ''}` + (daf ? ` (× DAF ${daf})` : '') + (t.ang < 45 ? ' — angle under 45°, use longer slings or a spreader' : '') });
+        continue;
+      }
+      if (t.type === 'spreader' || t.type === 'beam') { t.T = r2(below + t.w * df); leg = null; }
+      else t.T = leg ? leg.T : r2(below + t.w * df);                     // under a sling: one at each leg end, carrying that leg's tension
+      t.atLeg = !!leg; t.swl = t.wll > 0 ? r2(t.wll) : null; t.util = t.swl > 0 ? r2(t.T / t.swl * 100) : null;
+      if (t.util != null) res.checks.push({ s: t.util > 100 ? 'fail' : t.util > 90 ? 'warn' : 'ok', t: 'Tackle WLL', m: `${t.name}: ${t.T.toFixed(2)} t${t.atLeg ? ' at each leg' : ''} vs WLL ${t.wll} t (${t.util.toFixed(0)}%)` + (daf ? ` (× DAF ${daf})` : '') + (t.util > 100 ? ' — use a bigger one' : '') });
     }
   }
   if (empty) res.checks.push({ s: 'info', t: 'Empty hook', m: `Hook block only${tk ? ' + tackles' : ''} — ${total.toFixed(2)} t on the hook` });
@@ -555,7 +600,7 @@ function angleFromRadius(crane, chartDef, col, R, boomOv) {
 }
 
 // several cranes per plan: the top-level crane fields are the active crane; the others are parked in plan.cranes[i]
-const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan', 'jibDed', 'ropeKgM', 'windTab'];
+const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan', 'jibDed', 'ropeKgM', 'windTab', 'linePull', 'ropeDia', 'gridN', 'gridE'];
 function rigOf(plan, i) { const a = num(plan.activeCrane, 0); if (i === a || !plan.cranes?.[i]) return plan; return { ...plan, ...plan.cranes[i] }; }
 function rigIndexOf(plan, l) { const i = Math.round(num(l?.crane, 0)); return plan.cranes?.[i] || i === num(plan.activeCrane, 0) ? i : num(plan.activeCrane, 0); }
 function computePlan(plan, cranes, settings) {
@@ -584,7 +629,8 @@ function computePlan(plan, cranes, settings) {
   const outr = outrigs.find(o => o.rigI === num(plan.activeCrane, 0)) || outrigs[0] || null;
   // ground pressure: the maker's leg load when typed, else the biggest leg load (calculated, or typed by hand for an illustration)
   let ground = null;
-  if (op.enabled || num(op.allow) > 0) {
+  const surf = typeof groundSurface === 'function' ? groundSurface(op.ground) : null;
+  if (op.enabled || num(op.allow) > 0 || surf?.struct) {
     const maxT = Math.max(0, ...loads.map(l => l.total || 0));
     const est = r2(num(settings.outriggerFactor, 0.8) * (num(crane.mass) + num(plan.cwt ?? crane.cwt) + maxT));
     const maker = num(op.maxLoad) > 0;
@@ -597,6 +643,10 @@ function computePlan(plan, cranes, settings) {
     if (outr) ground.pads = Object.fromEntries(OUT_PADS.map(id => [id, r2((outr.used[id] + self) / (area * eff))]));
     if (ground.allow > 0) ground.side = r2(Math.sqrt((P + self) / (ground.allow * eff)));
     ground.status = ground.allow > 0 ? (press > ground.allow ? 'fail' : press > 0.9 * ground.allow ? 'warn' : 'ok') : 'info';
+    // the surface under the pads: a road, a slab or a bridge deck has its own rules (a structure needs its engineer's figure)
+    ground.pStatus = ground.status;
+    if (surf) { ground.surface = surf; ground.approval = String(op.approval || '').trim(); ground.checks = groundSurfaceChecks(op);
+      const rk = { fail: 3, warn: 2, ok: 1, info: 0 }; for (const c of ground.checks) if ((rk[c.s] ?? 0) > (rk[ground.status] ?? 0) && c.s !== 'info') ground.status = c.s; }
   }
   // rigging
   const rg = plan.rigging || {};
@@ -721,4 +771,4 @@ function bestPerCrane(res) {
   return [...by.values()].sort((a, b) => (b.ok - a.ok) || (a.crane.cls - b.crane.cls) || (a.r.util - b.r.util));
 }
 
-if (typeof module !== 'undefined') module.exports = { curveCap, windTabOf, LIFT_SIDES, SIDE_OFFSET, SIDE_WORD, SIDE_NAME, sideOf, normDeg, degDiff, carrierHeadingFor, boomHeadingFor, sideFromHeadings, chartSectorsOf, chartCoversSide, chartSectorLabel, bestChartForSide, boomLayout, boomSpec, teleFor, jibRange, accState, ACC_LABELS, windAt, evalWeather, weatherWindow, WX_CODES, geoSetup, slingInfo, RIG_TYPES, LIFT_TYPES, angleFromRadius, bestPerCrane, outriggerSpan, radiusFromAngle, objExtent, OBJ_TYPES, parseChart, chartToText, getChart, lookupCap, solveGeometry, computeLoad, computePlan, findCranes, clearanceToSegment, surfaceAt, groundAt, num, r2, colName };
+if (typeof module !== 'undefined') module.exports = { pickForces, HITCH, hitchOf, curveCap, windTabOf, LIFT_SIDES, SIDE_OFFSET, SIDE_WORD, SIDE_NAME, sideOf, normDeg, degDiff, carrierHeadingFor, boomHeadingFor, sideFromHeadings, chartSectorsOf, chartCoversSide, chartSectorLabel, bestChartForSide, boomLayout, boomSpec, teleFor, jibRange, accState, ACC_LABELS, windAt, evalWeather, weatherWindow, WX_CODES, geoSetup, slingInfo, RIG_TYPES, LIFT_TYPES, angleFromRadius, bestPerCrane, outriggerSpan, radiusFromAngle, objExtent, OBJ_TYPES, parseChart, chartToText, getChart, lookupCap, solveGeometry, computeLoad, computePlan, findCranes, clearanceToSegment, surfaceAt, groundAt, num, r2, colName };

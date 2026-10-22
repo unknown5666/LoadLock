@@ -15,7 +15,7 @@ function gbpMat(g) { if (!g?.side) return ''; const a = g.side * g.side; return 
 function tandemCur() { const l = state.plan.loads[activeLi()]; return tandemOf(l) ? l.tandem : null; }
 function tandemRes() { return state.calc?.loads?.[activeLi()]?.tandem || null; }
 // add a crane to the plan without moving the lift onto it (addRig in app.js would): park a copy, give it a model, switch back
-function tandemNewCrane() { const p = state.plan; rigPark(p); p.cranes.push(rigPick(p)); return p.cranes.length - 1; } // a copy of this lift's crane (same chart and boom) — change it from the tandem sheet
+function tandemNewCrane() { const p = state.plan; rigPark(p); const c = rigPick(p); c.gridN = ''; c.gridE = ''; p.cranes.push(c); return p.cranes.length - 1; } // a copy of this lift's crane (same chart and boom) — change it from the tandem sheet
 function tandemOn(n) {
   const p = state.plan, li = activeLi(), l = p.loads[li]; const r = state.calc.loads[li];
   const own = rigIndexOf(p, l); const others = (p.cranes || []).map((_, i) => i).filter(i => i !== own);

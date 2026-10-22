@@ -1,6 +1,6 @@
 {
   "name": "fhe-lift-planner",
-  "version": "9.0.0",
+  "version": "10.0.0",
   "private": true,
   "description": "FHE A1 crane lifting-plan studio — single-file HTML app",
   "scripts": {
@@ -9,6 +9,7 @@
     "test:outrig": "node test_outrig.js",
     "test:v9": "node test_v9.js",
     "test:v9e2e": "node v9_e2e.js && node rams_check.js",
+    "test:planset": "node test_planset.js && node planset_e2e.js && W=390 H=844 node planset_e2e.js",
     "test:e2e": "node e2e5.js",
     "test:mobile": "node e2e_mobile.js",
     "test:tour": "node tour_test.js && W=390 H=844 node tour_test.js",

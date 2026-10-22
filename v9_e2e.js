@@ -25,7 +25,7 @@ function pngTile() {
   await p.click('.lg-u[data-u="Saad"]'); await p.fill('#lgPass', '786'); await p.click('#lgGo'); await p.waitForTimeout(3000);
   ok(await ev(() => !document.body.classList.contains('locked')), 'signed in');
   await ev(() => { LS.set('lp.coach7', true); document.getElementById('coach')?.remove(); });
-  ok(await ev(() => APP_VERSION === '9.0'), 'version 9.0');
+  ok(await ev(() => /^\d+\.\d+$/.test(APP_VERSION) && +APP_VERSION >= 9), 'version 9.0 or later');
 
   // ---- speed: a full recompute + redraw per change ----
   const ms = await ev(() => { const t = performance.now(); for (let i = 0; i < 30; i++) setDial('R', 12 + (i % 10) * 0.5); return (performance.now() - t) / 30; });

@@ -1,7 +1,7 @@
 // ===== v7 core: icons, actions, refresh loop, undo history, views =====
 // The v7 interface keeps v6's engine, drawing and storage (app.js) and replaces every screen.
 
-const APP_VERSION = '9.0'; // shown on sign-in, More and Settings. v9 = tandem lifts, Fit-Filter, wind on the load, satellite site map, RAMS pack, live 3D window, offline
+const APP_VERSION = '10.0'; // shown on sign-in, More and Settings. v10 = multi-sheet lift plan set, roads / slabs / bridges under the outriggers, tandem on the A1 sheet. v9 = tandem lifts, Fit-Filter, wind on the load, satellite site map, RAMS pack, live 3D window, offline
 
 // ---------- icons (24px grid, round caps; never emoji) ----------
 const IC = {
@@ -56,7 +56,7 @@ const VERDICT = { ok: ['Safe', 'check'], warn: ['Careful', 'alert'], fail: ['Sto
 function allChecks(calc) {
   const items = []; calc.loads.forEach((x, i) => x.checks.forEach(c => items.push({ ...c, t: (calc.loads.length > 1 ? `Lift ${i + 1} · ` : '') + c.t, li: i })));
   for (const O of calc.outrigs || []) O.checks.forEach(c => items.push({ ...c, t: ((calc.outrigs.length > 1 ? `Crane ${O.rigI + 1} · ` : '') + c.t) }));
-  if (calc.ground) { const g = calc.ground; items.push({ s: g.status, t: 'Ground pressure', m: `${g.press.toFixed(2)} t/m² under the busiest leg (${g.P.toFixed(1)} t${{ maker: ' from the crane maker', illus: ' typed by hand — illustration only', calc: ', calculated', est: ', rough estimate' }[g.src] || ''})` + (g.allow ? ` — ${g.allow} t/m² allowed` + (g.side ? `. Smallest square mat: ${g.side.toFixed(2)} m` : '') : ' — add what the ground can take to check it') }); }
+  if (calc.ground) { const g = calc.ground; items.push({ s: g.pStatus || g.status, t: 'Ground pressure', m: `${g.press.toFixed(2)} t/m² under the busiest leg (${g.P.toFixed(1)} t${{ maker: ' from the crane maker', illus: ' typed by hand — illustration only', calc: ', calculated', est: ', rough estimate' }[g.src] || ''})` + (g.allow ? ` — ${g.allow} t/m² allowed` + (g.side ? `. Smallest square mat: ${g.side.toFixed(2)} m` : '') : ' — add what the ground can take to check it') }); for (const c of g.checks || []) items.push(c); }
   if (calc.sheetOv?.length) { const o = calc.sheetOv; items.push({ s: o.some(x => x.safety) ? 'warn' : 'info', t: 'Sheet values typed by hand', m: o.slice(0, 4).map(x => `${x.label} ${x.v} (worked out: ${x.calc || '—'})`).join(' · ') + (o.length > 4 ? ` · and ${o.length - 4} more` : '') + '. The sheet prints what you typed, not the calculation.' }); }
   if (calc.rig) items.push({ s: calc.rig.status, t: 'Rigging', m: `${calc.rig.T.toFixed(2)} t in each sling leg at ${calc.rig.alpha.toFixed(0)}°` + (calc.rig.alpha > 45 ? ' — too wide, use longer slings or a spreader' : '') });
   if (calc.weather) items.push({ s: calc.weather.status, t: 'Weather', m: calc.weather.msgs.join(' · ') });

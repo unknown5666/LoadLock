@@ -824,6 +824,104 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
 }
 
 
+// ---------- v10 tandem lift: every crane of a tandem in one elevation along the load ----------
+// A "developed" view: the load lies along the paper, each crane stands beyond its lifting point at its true reach, its boom in its own
+// vertical plane folded flat into the paper — so boom lengths, angles, heights and radii are all true. Each crane's share is written by it.
+function tandemLayout(plan, calc, li) {
+  const res = calc.loads[li], TD = res?.tandem; if (!TD) return null;
+  const ax = num(TD.axis) * D2R, u = [Math.cos(ax), Math.sin(ax)];
+  const cr = TD.picks.map(pk => {
+    const r = pk.res, g = r?.geo; if (!g?.tip || !pk.base || !pk.pos) return null;
+    const along = (pk.base.x - pk.pos.x) * u[0] + (pk.base.y - pk.pos.y) * u[1];
+    const dir = along > 1e-6 ? -1 : 1;                                  // +1: the crane stands before its pick and booms forward along the paper
+    return { pk, r, g, crane: r.crane, dir, s0: num(pk.x) - dir * r.R, side: sideOf(pk.side), pv: rigOf(plan, pk.crane) };
+  }).filter(Boolean);
+  return cr.length ? { TD, cr } : null;
+}
+function cogSymbol(P, x, y, r, layer = 'LOAD') { // centre of gravity: a circle with two black quarters
+  P.circle(x, y, r, { fill: '#ffffff', stroke: '#000', w: 0.2, layer });
+  const q = (a0) => { const pts = [[x, y]]; for (let a = a0; a <= a0 + 90; a += 15) pts.push([x + r * Math.cos(a * D2R), y - r * Math.sin(a * D2R)]); P.poly(pts, { closed: true, fill: '#000', stroke: 'none', layer }); };
+  q(0); q(180); P.line(x - r * 1.35, y, x + r * 1.35, y, { stroke: '#000', w: 0.15, layer }); P.line(x, y - r * 1.35, x, y + r * 1.35, { stroke: '#000', w: 0.15, layer });
+}
+function drawTandemElevation(P, box, plan, calc, li, ctx = {}) {
+  const lay = tandemLayout(plan, calc, li); const res = calc.loads[li], load = plan.loads[li];
+  if (!lay) return drawElevation(P, box, plan, calc, li, ctx);
+  const { TD, cr } = lay; const len = Math.max(1, num(load.l, 10)), lH = num(load.h, 1.5);
+  const landY = res.landY ?? 0, yTop = landY + lH;
+  // extents in the developed frame (s along the load, y up)
+  let smin = 0, smax = len, ymax = 6;
+  for (const c of cr) {
+    const ex = elevationExtents({ site: {}, loads: [] }, c.r, c.crane, c.g); const a = c.s0 + c.dir * ex.xmin, b = c.s0 + c.dir * (c.g.tip.x + 1.5);
+    smin = Math.min(smin, a, b); smax = Math.max(smax, a, b); ymax = Math.max(ymax, c.g.tip.y + 2, yTop + num(c.r.rigH, 3) + 4);
+  }
+  const ext = { xmin: smin - 1, xmax: smax + 1, ymin: -1.2, ymax };
+  const padL = 14, padR = 14, padT = ctx.padT ?? 30, padB = ctx.padB ?? 44;
+  const kRaw = Math.min((box.w - padL - padR) / (ext.xmax - ext.xmin), (box.h - padT - padB) / (ext.ymax - ext.ymin));
+  const sc = ctx.scale || niceScale(kRaw); const k = sc.k;
+  const usedW = (ext.xmax - ext.xmin) * k, usedH = (ext.ymax - ext.ymin) * k;
+  const ox = box.x + padL + Math.max(0, (box.w - padL - padR - usedW) / 2), oy = box.y + box.h - padB - Math.max(0, (box.h - padT - padB - usedH) * 0.15);
+  const T = (x, y) => [ox + (x - ext.xmin) * k, oy - (y - ext.ymin) * k];
+  const dimSize = ctx.dimSize || 4.2;
+  // ground
+  { const p = T(ext.xmin, 0), q = T(ext.xmax, -1); P.line(p[0], p[1], q[0], p[1], { stroke: '#222', w: 0.4, layer: 'GROUND' }); stipple(P, p[0], p[1] + 0.3, q[0] - p[0], q[1] - p[1] - 0.3, 5); }
+  if (landY > 0.05) { const a = T(-0.3, 0), b = T(len + 0.3, landY); P.rect(a[0], b[1], b[0] - a[0], a[1] - b[1], { fill: '#efefef', stroke: '#555', w: 0.2, layer: 'STRUCTURE' }); }
+  // the cranes (a crane booming back along the paper is drawn mirrored; its boom lettering is left off so it never reads backwards)
+  for (const c of cr) {
+    const Tc = (x, y) => T(c.s0 + c.dir * x, y); const body = liftBodyCrane(c.crane, c.side);
+    if (body._endDeck != null) drawCarrierEndView(P, Tc, c.crane, c.pv, body._endDeck, c.side);
+    c.ce = drawCraneElevation(P, Tc, k, body, c.g, c.r, c.pv, { livery: c.dir > 0 ? ctx.livery : '' });
+  }
+  // the load, lying along the paper between the lifting points
+  { const a = T(0, yTop), b = T(len, landY); P.rect(a[0], a[1], b[0] - a[0], b[1] - a[1], { fill: '#d6dbe3', stroke: '#1d1d1d', w: 0.3, layer: 'LOAD' });
+    const nm = String(load.name || 'LOAD').toUpperCase(); const m = T(len / 2, landY + lH / 2); P.text(m[0], m[1], nm, { size: Math.min(3.6, fitSize(nm, (b[0] - a[0]) * 0.8, 3.6, true), Math.max(1.6, (b[1] - a[1]) * 0.55)), bold: true, anchor: 'middle', vAlign: 'middle', layer: 'LOAD' }); }
+  // hook, rope and sling for every crane; the share over each hook
+  const sty = { stroke: '#1d1d1d', w: 0.16, layer: 'HOOK' };
+  for (const c of cr) {
+    const sx = num(c.pk.x), hk = hookOf(c.crane); const blkH = hk ? hk.h : Math.max(0.9, Math.min(2.2, 0.6 + num(c.crane.cls, 100) / 400));
+    const rig = Math.max(1.4, Math.min(8, num(c.r.rigH, 3))); const hookBot = yTop + rig, blkTop = hookBot + blkH;
+    const sheaveY = c.g.tip.y - (c.ce?.cad ? c.ce.cad.sheaveR * 0.6 : 0.25); const fall = hk ? Math.max(0.12, Math.min(0.42, hk.w * 0.2)) : 0.3;
+    for (const dx of [-fall, fall]) { const a = T(sx + dx, sheaveY), b = T(sx + dx, blkTop - 0.05); P.line(a[0], a[1], b[0], b[1], sty); }
+    if (hk) emitItems(P, hk.items, hk.pal, (x, y) => T(sx + c.dir * x * hk.s, blkTop + y * hk.s), { tint: null, w: 0.08, layer: 'HOOK' });
+    else { const a = T(sx - 0.45, blkTop), b = T(sx + 0.45, hookBot); P.rect(a[0], a[1], b[0] - a[0], b[1] - a[1], { fill: '#555', stroke: '#111', w: 0.15, layer: 'HOOK' }); }
+    const sp = Math.min(0.6, len * 0.06); const h0 = T(sx, hookBot);
+    for (const dx of [-sp, sp]) { const q = T(Math.max(0, Math.min(len, sx + dx)), yTop); P.line(h0[0], h0[1], q[0], q[1], { stroke: COL.red, w: 0.22, layer: 'RIGGING' }); }
+    const pt = T(sx, yTop); P.circle(pt[0], pt[1], 0.7, { fill: '#7a007a', stroke: 'none', layer: 'RIGGING' });
+    const tag = `C${c.pk.crane + 1}: ${(+c.pk.share).toFixed(2)}T (${Math.round(num(c.pk.pct))}%)`; const tp = T(sx, blkTop); P.text(tp[0] + (c.dir > 0 ? -2 : 2), tp[1] - 2.5, tag, { size: dimSize * 0.85, bold: true, anchor: c.dir > 0 ? 'end' : 'start', color: '#7a007a', bg: '#ffffff', layer: 'DIMTEXT' });
+  }
+  // centre of gravity
+  { const g = T(num(TD.cog.x), yTop + num(TD.cog.h)); cogSymbol(P, g[0], g[1], Math.max(1.1, dimSize * 0.36)); P.text(g[0], g[1] + dimSize * 1.1, 'C.O.G.', { size: dimSize * 0.62, bold: true, anchor: 'middle', vAlign: 'top', layer: 'DIMTEXT', bg: '#ffffff' }); }
+  // boom angles at each foot pin
+  for (const c of cr) { const pv = T(c.s0 + c.dir * c.g.pivot.x, c.g.pivot.y); const th = c.g.kind === 'luffing' ? c.g.gamma : c.g.theta;
+    P.text(pv[0] + c.dir * 6, pv[1] - 5, (Math.round(th * 10) / 10).toFixed(1) + '°', { size: dimSize * 0.9, color: COL.green, anchor: c.dir > 0 ? 'start' : 'end', vAlign: 'middle', layer: 'DIMTEXT', bg: '#ffffff' }); }
+  // dimensions under the ground: lifting points and C.O.G. (the lever arms), then each crane's reach
+  const g0 = T(ext.xmin, ext.ymin)[1]; const rowY = (n) => g0 + 7 + n * 8.5;
+  const hd = (x0, x1, n, lab, from) => { const a = T(x0, from ?? 0), b = T(x1, from ?? 0), yL = rowY(n); P.line(a[0], a[1] + 1.2, a[0], yL + 1.5, { stroke: COL.red, w: 0.12, layer: 'DIM' }); P.line(b[0], b[1] + 1.2, b[0], yL + 1.5, { stroke: COL.red, w: 0.12, layer: 'DIM' }); dimA(P, [a[0], yL], [b[0], yL], 0, lab, { side: 'up', size: dimSize, extA: false, extB: false }); };
+  const st = [...new Set([...TD.picks.map(q => num(q.x)), num(TD.cog.x)])].sort((a, b) => a - b);
+  const segs = st.slice(1).map((b, i) => [st[i], b]).filter(([a, b]) => b - a > 0.05);
+  if (segs.every(([a, b]) => (b - a) * k > textW(String(mm(b - a)), dimSize) + 3)) segs.forEach(([a, b]) => hd(a, b, 0, String(mm(b - a))));
+  else if (st.length > 1) { // too short to dimension each part at this scale: one dimension over the lifting points, the lever arms in its label
+    const xs = TD.picks.map(q => num(q.x)), a = Math.min(...xs), b = Math.max(...xs), cg = num(TD.cog.x);
+    hd(a, b, 0, `${mm(b - a)} (C.O.G. ${mm(cg - a)} / ${mm(b - cg)})`); }
+  cr.forEach((c) => hd(Math.min(c.s0, num(c.pk.x)), Math.max(c.s0, num(c.pk.x)), 1, 'R ' + mm(c.r.R)));
+  // each crane's numbers, in the top corners (the sky behind each crane is free: its boom leans the other way)
+  const derate = TD.derate; let nL = 0, nR = 0;
+  for (const c of [...cr].sort((a, b) => a.s0 - b.s0)) {
+    const left = c.dir > 0; const w = 64, rh = dimSize * 1.05, x0 = left ? box.x + 3 : box.x + box.w - w - 3, y0 = box.y + 3 + (left ? nL++ : nR++) * (rh * 5 + 3);
+    const u = c.pk.util, col = u == null || u > derate ? COL.red : u > derate * 0.9 ? COL.orange : COL.green;
+    const rows = [[`CRANE ${c.pk.crane + 1} · ${String(c.pv.modelTxt || c.crane.model).toUpperCase()}`, ''], ['SHARE OF LOAD', `${(+c.pk.share).toFixed(2)}T · ${Math.round(num(c.pk.pct))}%`], ['ON THE HOOK (INCL. RIGGING)', `${(+c.pk.design).toFixed(2)}T`], ['RADIUS · BOOM', `${fmtM(c.r.R)} · ${fmtM(c.g.L ?? c.g.Lb)}`], [`% CHART (LIMIT ${derate}%)`, u != null ? u.toFixed(1) + '%' : 'NO CAP.']];
+    rows.forEach(([a, b], i) => { const y = y0 + i * rh; P.rect(x0, y, w, rh, { fill: i === 0 ? '#1d2733' : '#ffffff', stroke: '#1d2733', w: 0.2, layer: 'TABLE' });
+      P.text(x0 + 1.2, y + rh / 2, a, { size: Math.min(dimSize * 0.62, fitSize(a, i === 0 ? w - 2.4 : w * 0.58, dimSize * 0.62, true)), bold: true, vAlign: 'middle', color: i === 0 ? '#ffffff' : '#000', layer: 'TABLE' });
+      if (b) P.text(x0 + w - 1.2, y + rh / 2, b, { size: Math.min(dimSize * 0.66, fitSize(b, w * 0.4, dimSize * 0.66, true)), bold: i === 4, anchor: 'end', vAlign: 'middle', color: i === 4 ? col : '#000', layer: 'TABLE' }); });
+  }
+  if (ctx.title !== false) {
+    const tl = ctx.titleLines || [`TANDEM LIFT · ${cr.length} CRANES`, 'ELEVATION ALONG THE LOAD'];
+    const ty = Math.min(box.y + box.h - 12, rowY(2) + 8);
+    tl.forEach((s, i) => P.text(box.x + box.w / 2, ty + i * 8, s, { size: 6.2, bold: true, anchor: 'middle', underline: true, layer: 'TITLE' }));
+    P.text(box.x + box.w / 2, ty + tl.length * 8 - 2.6, 'Developed view: each boom is drawn in its own vertical plane, laid along the load — lengths, angles and heights are true.', { size: 2.3, anchor: 'middle', color: '#555', layer: 'NOTES' });
+  }
+  return { scale: sc, T, ext, tandem: true };
+}
+
 // ---------- site plan viewport (client plot + crane footprint, working radius) ----------
 // site plan settings + the headings that follow from the load's lift side: sp.side, sp.boom (boom / load heading, deg) and sp.carrier (the way the cab faces, deg);
 // `load` defaults to the active load. Headings run counter-clockwise from east, north up — the same as the 3D twin.
@@ -837,6 +935,9 @@ function sitePlanExtents(plan, calc) {
   const sp = sitePlanState(plan); const R = (calc.loads[plan.activeLoad || 0] || calc.loads[0])?.R || 10;
   if (sp.view && sp.view.x1 > sp.view.x0) return { ...sp.view };
   let x0 = sp.cx - R - 6, x1 = sp.cx + R + 6, y0 = sp.cy - R - 6, y1 = sp.cy + R + 6;
+  const TD = (calc.loads[plan.activeLoad || 0] || calc.loads[0])?.tandem; // v10: every crane of a tandem lift stays in the frame
+  for (const pk of TD?.picks || []) { if (!pk.base) continue; const c = pk.res?.crane || {}; const m = Math.max(num(c.carrierLen, 12) * 0.7, num(c.outTrans, 7) / 2, num(c.tail, 4), num(pk.Rnow ?? pk.R, 10) + 1) + 2;
+    x0 = Math.min(x0, pk.base.x - m, pk.pos.x - 3); x1 = Math.max(x1, pk.base.x + m, pk.pos.x + 3); y0 = Math.min(y0, pk.base.y - m, pk.pos.y - 3); y1 = Math.max(y1, pk.base.y + m, pk.pos.y + 3); }
   for (const e of plan.env || []) { if (e.view !== 'plan' || e.hidden) continue; const b = envBBox(e); if (b) { x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1); y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1); } }
   return { x0, x1, y0, y1 };
 }
@@ -895,7 +996,7 @@ function drawSitePlan(P, box, plan, calc, ctx = {}) {
     for (const pk of TD.picks) { const q = at(pk.x, num(pk.z) - num(p0.z)); P.circle(q[0], q[1], 0.8, { fill: '#7a007a', stroke: 'none', layer: 'SITE-LOAD' });
       P.text(q[0], q[1] - 2.4, `C${pk.crane + 1} ${(+pk.share).toFixed(1)}T`, { size: 2.8, bold: true, anchor: 'middle', color: '#7a007a', bg: '#ffffff', layer: 'SITE-LOAD' }); }
   }
-  if (!ctx.fixed) {
+  if (!ctx.fixed && ctx.labels !== false) {
     P.text(box.x + 6, box.y + 8, 'SITE PLAN', { size: 5.5, layer: 'TITLE' });
     P.text(box.x + 6, box.y + 13.5, 'LIFT OVER ' + SIDE_NAME[sp.side], { size: 3.4, bold: true, layer: 'TITLE' });
     if (scl) P.text(box.x + box.w - 4, box.y + box.h - 4, '1:' + scl.N, { size: 3.4, anchor: 'end', layer: 'TITLE' });
@@ -1083,7 +1184,7 @@ function sheetRowOn(plan, key) { const R = plan.sheetRows || {}; if (R.hide?.[ke
 function sheetOvOf(plan, id) { const v = id ? plan?.sheetRows?.ov?.[id] : null; return v != null && String(v).trim() !== '' ? String(v).toUpperCase() : null; }
 function sheetRow(plan, id, label, calcV) { const o = sheetOvOf(plan, id); return { id, label, calc: String(calcV ?? ''), v: o ?? String(calcV ?? ''), ov: o != null }; }
 // rows whose typed-over value matters for safety (they get a warning in the checks)
-const SHEET_OV_SAFETY = /^(l\d+\.(radius|weight|cont|hook|tackles|other|total|daf|design|cap|util|sf|sling)|c\d+\.(cwt|boom|outrigger)|g\.(P|press|allow|area|self|legs))/;
+const SHEET_OV_SAFETY = /^(l\d+\.(radius|weight|cont|hook|tackles|other|total|daf|design|cap|util|sf|sling|tdm)|c\d+\.(cwt|boom|outrigger)|g\.(P|press|allow|area|self|legs))/;
 // every block of the data panel: [{ head, fill, small, rows: [{ id, label, calc, v, ov, custom? }] }]
 function sheetBlocks(plan, calc, settings) {
   const S = settings; const on = (k) => sheetRowOn(plan, k);
@@ -1127,6 +1228,20 @@ function sheetBlocks(plan, calc, settings) {
     add('radius', 'RADIUS', fmtM(r.R));
     add('side', 'LIFT SIDE', 'OVER ' + SIDE_NAME[sideOf(l)]);
     if (r.geo?.tip) { add('angle', r.geo.kind === 'luffing' ? 'JIB ANGLE' : 'BOOM ANGLE', (r.geo.kind === 'luffing' ? r.geo.gamma : r.geo.theta).toFixed(1) + '°'); add('tipH', 'BOOM TIP HEIGHT', fmtM(r.tipY)); add('hookH', 'HOOK HEIGHT', fmtM(r.hookY)); }
+    const TD = r.tandem;
+    if (TD) { // v10 tandem: the whole load, then what each crane carries against its tandem limit
+      add('weight', 'LOAD WEIGHT (WHOLE LOAD)', fmtT(num(l.w)));
+      if (l.contOn !== false && num(l.cont) > 0) add('cont', `CONTINGENCY ${num(l.cont)}%`, fmtT(TD.W - num(l.w)));
+      add('tdm', 'TANDEM — CRANES', TD.picks.map(q => 'C' + (q.crane + 1)).join(' + ') + ' · LIMIT ' + TD.derate + '% EACH');
+      for (const q of TD.picks) { const nm = 'C' + (q.crane + 1);
+        add('tdm', `${nm} SHARE OF LOAD`, `${fmtT(q.share)} (${Math.round(num(q.pct))}%)`); add('tdm', `${nm} RADIUS`, fmtM(q.Rnow ?? q.R)); add('tdm', `${nm} TOTAL ON HOOK`, fmtT(q.design));
+        add('tdm', `${nm} CHART CAPACITY`, fmtT(q.cap)); add('tdm', `${nm} % CHART (LIMIT ${TD.derate}%)`, q.util != null ? q.util.toFixed(2) + '%' : '—'); }
+      if (TD.picks.some(q => Math.abs(num(q.lineAng)) > 0.05)) add('tdm', 'HOIST LINES OUT OF PLUMB', TD.picks.map(q => `C${q.crane + 1} ${Math.abs(num(q.lineAng)).toFixed(1)}°`).join(' · '));
+      if (r.sling) { add('sling', 'SLING TENSION / LEG', fmtT(r.sling.T)); }
+      for (const c of (plan.sheetRows?.custom || []).filter(c => (c.sec === 'load' && (c.load == null || c.load === '' || +c.load === i)) && (c.label || c.value))) rows.push({ id: null, label: String(c.label || '').toUpperCase(), v: String(c.value || '').toUpperCase(), custom: true });
+      blocks.push({ head: 'LOAD DATA ' + (i + 1) + ' · TANDEM', fill: '#9a9a9a', rows });
+      return;
+    }
     if (r.empty) add('weight', 'LOAD WEIGHT', 'HOOK EMPTY'); else add('weight', 'LOAD WEIGHT', fmtT(r.W));
     if (r.contOn && r.contW > 0) add('cont', `CONTINGENCY ${num(r.cont)}%`, fmtT(r.contW));
     if (merge) add('hook', 'WEIGHT OF HOOK BLOCK + TACKLES', fmtT(r.hb + r.tk)); else { add('hook', 'WEIGHT OF HOOK BLOCK', fmtT(r.hb)); if (r.tk > 0 || !r.empty) add('tackles', 'WEIGHT OF LIFTING TACKLES', fmtT(r.tk)); }
@@ -1273,7 +1388,10 @@ function groundRows(plan, calc) {
   if (O) rows.push(sheetRow(plan, 'g.beams', 'OUTRIGGER BEAMS', outExtLabel(O.ext)));
   rows.push(sheetRow(plan, 'g.self', 'SELF WEIGHT OF MAT', g.self.toFixed(2) + 'T'), sheetRow(plan, 'g.mat', 'LOAD DISTRIBUTION MAT SPECIFICATION', g.mat + (g.eff < 1 ? ' @ ' + Math.round(g.eff * 100) + '%' : '')),
     sheetRow(plan, 'g.area', 'AREA OF LOAD DISTRIBUTION', g.area.toFixed(2) + 'M²'), sheetRow(plan, 'g.press', 'MAX LOAD TO THE GROUND', g.press.toFixed(2) + 'T/M²'));
-  if (g.allow) rows.push(sheetRow(plan, 'g.allow', 'ALLOWABLE GROUND BEARING', g.allow.toFixed(1) + 'T/M²'));
+  if (g.surface) rows.push(sheetRow(plan, 'g.surface', 'PADS STAND ON', g.surface.name.toUpperCase()));
+  if (g.allow) rows.push(sheetRow(plan, 'g.allow', 'ALLOWABLE GROUND BEARING' + (g.surface?.struct ? ' (ENGINEER)' : ''), g.allow.toFixed(1) + 'T/M²'));
+  else if (g.surface?.struct) rows.push(sheetRow(plan, 'g.allow', 'ALLOWABLE (ENGINEER)', 'NOT GIVEN — DO NOT LIFT'));
+  if (g.surface?.struct && g.approval) rows.push(sheetRow(plan, 'g.approval', 'ENGINEER APPROVAL REF.', g.approval.toUpperCase()));
   return rows;
 }
 function wxRows(plan, wx) {
@@ -1330,6 +1448,9 @@ function buildSheet(plan, calc, settings) {
     return 6 + rows.length * 4.6 + 13;
   };
   const tables = (bx) => { let a = 0, b = 0; if (ov) a = drawGround(bx); if (wx) b = drawWx(bx); return Math.max(a, b); };
+  // v10: a tandem lift draws every crane along the load, and always shows the top view (where each crane stands)
+  const elev = (Pp, bx, li, o) => (calc.loads[li]?.tandem ? drawTandemElevation(Pp, bx, plan, calc, li, { ...o, titleLines: o.tandemTitle }) : drawElevation(Pp, bx, plan, calc, li, o));
+  const tdm = !!calc.loads[plan.activeLoad || 0]?.tandem;
   if (layout === 'chart') {
     const split = 297, mid = 392;
     P.line(mid, 10, mid, 584, { stroke: '#000', w: 0.4, layer: 'FRAME' }); P.line(14, split, mid, split, { stroke: '#000', w: 0.4, layer: 'FRAME' });
@@ -1339,10 +1460,10 @@ function buildSheet(plan, calc, settings) {
     panelTitle(P, 20, split + 10, 'CRANE DIMENSIONS');
     drawCraneDims(P, { x: 16, y: split + 12, w: mid - 20, h: 584 - split - 14 }, crane);
     panelTitle(P, mid + 6, 20, 'OVERVIEW');
-    const spOn = sitePlanState(plan).enabled;
+    const spOn = sitePlanState(plan).enabled || tdm;
     const box = { x: mid + 2, y: 24, w: 712 - mid - 4, h: spOn ? 318 : 560 };
     const off = tables(box);
-    const e = drawElevation(P, { ...box, y: box.y + off, h: box.h - off }, plan, calc, plan.activeLoad || 0, { livery, titleLines, mainLabel: ch?.mainLabel, padB: spOn ? 30 : 38 });
+    const e = elev(P, { ...box, y: box.y + off, h: box.h - off }, plan.activeLoad || 0, { livery, titleLines, mainLabel: ch?.mainLabel, padB: spOn ? (tdm ? 40 : 30) : 38 });
     scaleInfo = e?.scale;
     if (spOn) { P.line(mid, 344, 712, 344, { stroke: '#000', w: 0.4, layer: 'FRAME' }); drawSitePlan(P, { x: mid + 2, y: 346, w: 712 - mid - 4, h: 236 }, plan, calc, { livery }); }
   } else if (layout === 'elev2') {
@@ -1357,23 +1478,24 @@ function buildSheet(plan, calc, settings) {
     const kRaw = Math.min((b1.w - 36) / (ext.xmax - ext.xmin), (b1.h - 50) / (ext.ymax - ext.ymin));
     const sc = niceScale(kRaw);
     const off = tables(b2);
-    drawElevation(P, b1, plan, calc, plan.activeLoad || 0, { livery, ext, scale: sc, titleLines: ['LOAD DATA ' + ((plan.activeLoad || 0) + 1) + ' — ' + (plan.loads[plan.activeLoad || 0].name || '').toUpperCase()], dimSize: 4.2, mainLabel: ch?.mainLabel });
-    drawElevation(P, { ...b2, y: b2.y + off, h: b2.h - off }, plan, calc, i2, { livery, ext, scale: sc, titleLines: ['LOAD DATA ' + (i2 + 1) + ' — ' + (plan.loads[i2].name || '').toUpperCase()], dimSize: 4.2, mainLabel: ch?.mainLabel });
+    const t1 = ['LOAD DATA ' + ((plan.activeLoad || 0) + 1) + ' — ' + (plan.loads[plan.activeLoad || 0].name || '').toUpperCase()], t2 = ['LOAD DATA ' + (i2 + 1) + ' — ' + (plan.loads[i2].name || '').toUpperCase()];
+    elev(P, b1, plan.activeLoad || 0, { livery, ext, scale: r1.tandem ? null : sc, titleLines: t1, tandemTitle: [t1[0] + ' · TANDEM'], dimSize: 4.2, mainLabel: ch?.mainLabel });
+    elev(P, { ...b2, y: b2.y + off, h: b2.h - off }, i2, { livery, ext, scale: r2_.tandem ? null : sc, titleLines: t2, tandemTitle: [t2[0] + ' · TANDEM'], dimSize: 4.2, mainLabel: ch?.mainLabel });
     scaleInfo = sc;
   } else if (layout === 'rigging') {
     const mid = 460; P.line(mid, 10, mid, 584, { stroke: '#000', w: 0.4, layer: 'FRAME' });
     P.text(20, 20, 'ELEVATION VIEW', { size: 6.2 }); P.text(20, 28, plan.viewSub || 'MAX RADIUS MAX WEIGHT', { size: 6.2 });
-    const e = drawElevation(P, { x: 16, y: 30, w: mid - 18, h: 554 }, plan, calc, plan.activeLoad || 0, { livery, titleLines: [titleLines[0]], mainLabel: ch?.mainLabel });
+    const e = elev(P, { x: 16, y: 30, w: mid - 18, h: 554 }, plan.activeLoad || 0, { livery, titleLines: [titleLines[0]], mainLabel: ch?.mainLabel });
     scaleInfo = e?.scale;
     P.text(mid + 6, 20, 'LIFTING TACKLE ARRANGEMENT', { size: 6.2 }); P.text(mid + 6, 28, '& SLING TENSION CALCULATION', { size: 6.2 });
     let off = 0; if (ov) off = drawGround({ x: mid + 2, y: 32, w: 712 - mid - 4, h: 100 });
     drawRigging(P, { x: mid + 2, y: 34 + off, w: 712 - mid - 4, h: 548 - off }, plan, calc);
   } else { // full width elevation
     panelTitle(P, 20, 20, 'OVERVIEW');
-    const spOn = sitePlanState(plan).enabled;
+    const spOn = sitePlanState(plan).enabled || tdm;
     const box = { x: 16, y: 24, w: spOn ? 400 : 712 - 18, h: 560 };
     const off = tables(box);
-    const e = drawElevation(P, { ...box, y: box.y + off, h: box.h - off }, plan, calc, plan.activeLoad || 0, { livery, titleLines, mainLabel: ch?.mainLabel });
+    const e = elev(P, { ...box, y: box.y + off, h: box.h - off }, plan.activeLoad || 0, { livery, titleLines, mainLabel: ch?.mainLabel });
     scaleInfo = e?.scale;
     if (spOn) { P.line(418, 10, 418, 584, { stroke: '#000', w: 0.4, layer: 'FRAME' }); drawSitePlan(P, { x: 420, y: 14, w: 290, h: 568 }, plan, calc, { livery }); }
   }
@@ -1417,7 +1539,7 @@ function toSVG(P, o = {}) {
       let pre = '', post = '';
       if (p.clip) { const id = 'c' + (++clipN); pre = `<clipPath id="${id}"><rect x="${f(p.clip[0])}" y="${f(p.clip[1])}" width="${f(p.clip[2])}" height="${f(p.clip[3])}"/></clipPath><g clip-path="url(#${id})">`; post = '</g>'; }
       const tr = p.rot ? ` transform="rotate(${f(p.rot)} ${f(p.x)} ${f(p.y)})"` : '';
-      out.push(`${pre}<image x="${f(p.x)}" y="${f(p.y)}" width="${f(p.w)}" height="${f(p.h)}" preserveAspectRatio="${p.fit === 'none' ? 'none' : 'xMidYMid meet'}"${p.opacity != null && p.opacity < 1 ? ` opacity="${p.opacity}"` : ''}${tr}${iS} href="${esc(p.href)}" xlink:href="${esc(p.href)}"/>${post}`);
+      out.push(`${pre}<image x="${f(p.x)}" y="${f(p.y)}" width="${f(p.w)}" height="${f(p.h)}" preserveAspectRatio="${p.fit === 'none' ? 'none' : p.fit === 'slice' ? 'xMidYMid slice' : 'xMidYMid meet'}"${p.opacity != null && p.opacity < 1 ? ` opacity="${p.opacity}"` : ''}${tr}${iS} href="${esc(p.href)}" xlink:href="${esc(p.href)}"/>${post}`);
     }
   }
   if (o.post) out.push(o.post);

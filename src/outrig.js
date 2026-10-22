@@ -13,10 +13,40 @@ const OUT_SLEW = { rear: 180, left: 90, right: 270 };                           
 const OUT_RATED = 0.85;                                                           // mobile crane on outriggers: rated ≤ 85 % of tipping
 // Presumed allowable bearing (BS 8004 / OBC, preliminary only) — kPa; the app works in t/m² (kPa ÷ 9.81). A site value always overrides.
 const GROUND_PRESETS = [
-  ['dgravel', 'Dense gravel, sand & gravel', 600, 'over 600 kPa'], ['mgravel', 'Medium-dense gravel', 200, '200–600 kPa'], ['lgravel', 'Loose gravel', 100, 'under 200 kPa'],
-  ['csand', 'Compact sand', 300, 'over 300 kPa'], ['msand', 'Medium-dense sand', 100, '100–300 kPa'], ['hclay', 'Very stiff / hard clay', 300, '300–600 kPa'],
-  ['sclay', 'Stiff clay', 150, '150–300 kPa'], ['fclay', 'Firm clay', 75, 'about 75 kPa'], ['soft', 'Soft clay & silt', 50, 'under 75 kPa']
+  // [key, name, allowable kPa (0 = only an engineer can say), short text, group, what to check on site]
+  // natural ground — BS 8004 presumed bearing values
+  ['dgravel', 'Dense gravel, sand & gravel', 600, 'over 600 kPa', 'soil'], ['mgravel', 'Medium-dense gravel', 200, '200–600 kPa', 'soil'], ['lgravel', 'Loose gravel', 100, 'under 200 kPa', 'soil'],
+  ['csand', 'Compact sand', 300, 'over 300 kPa', 'soil'], ['msand', 'Medium-dense sand', 100, '100–300 kPa', 'soil'], ['hclay', 'Very stiff / hard clay', 300, '300–600 kPa', 'soil'],
+  ['sclay', 'Stiff clay', 150, '150–300 kPa', 'soil'], ['fclay', 'Firm clay', 75, 'about 75 kPa', 'soil'], ['soft', 'Soft clay & silt', 50, 'under 75 kPa', 'soil'],
+  ['rock', 'Sound rock (not weathered)', 1000, '1000 kPa and up', 'soil', 'Check it is solid rock, not a boulder or a weathered crust.'],
+  ['dune', 'Loose desert / dune sand', 75, 'under 100 kPa', 'soil', 'Loose sand spreads sideways under a mat. Compact it or use bigger mats.'],
+  ['sabkha', 'Sabkha (salt flat)', 40, '25–75 kPa, less when wet', 'soil', 'The dry crust hides soft wet ground. Get a ground report; expect big mats or a piled platform.'],
+  // made surfaces — typical starting values, always confirm on site
+  ['concrete', 'Concrete road / hardstanding', 300, '300–500 kPa, slab on firm ground', 'made', 'Keep pads off joints, slab edges, drains and manholes. Check the slab thickness and for voids underneath.'],
+  ['asphalt', 'Asphalt (tarmac) road', 150, '150–250 kPa, on a rolled base', 'made', 'Hot asphalt softens. Keep pads 1 m+ from the road edge, kerbs and gullies; check for services under the road.'],
+  ['pavers', 'Interlock paving blocks', 100, 'about 100 kPa', 'made', 'Blocks on a sand bed sink and crack. Use big mats; check for services under the paving.'],
+  ['hardcore', 'Compacted hardcore / crushed stone', 200, 'about 200 kPa, rolled 300 mm+', 'made', 'Ask for the plate load test result for the crane pad.'],
+  ['fill', 'Made ground / loose fill', 50, '0–100 kPa, test it', 'made', 'Made ground can hide voids and rubbish. Test it or dig a trial pit before setting up.'],
+  // structures — the allowable comes only from the engineer responsible for the structure
+  ['bridge', 'Bridge deck', 0, "the bridge engineer's figure", 'struct', 'Needs the bridge owner\'s written approval: where the pads go, the allowable load and any traffic closure.'],
+  ['slab', 'Suspended slab / podium / car-park roof', 0, "the structural engineer's figure", 'struct', 'Needs a structural engineer\'s check of the slab with the pad positions; back-prop below if they say so.'],
+  ['services', 'Over buried services / culverts / manholes', 0, "the asset owner's figure", 'struct', 'Locate every service first (drawings + scan). Bridge over them with steel plates or mats as the owner says.'],
+  ['quay', 'Quay wall / jetty deck', 0, "the port engineer's figure", 'struct', 'Needs the port or marine engineer\'s approval for the pad positions and loads.'],
+  ['deck', 'Barge or ship deck', 0, "the naval architect's figure", 'struct', 'Needs a naval architect\'s deck strength and stability check; pads over frames or bulkheads only.']
 ];
+const GROUND_GROUPS = { soil: 'Natural ground', made: 'Roads & made surfaces', struct: 'Structures — engineer only' };
+function groundSurface(key) { const g = GROUND_PRESETS.find(x => x[0] === key); return g ? { key: g[0], name: g[1], kpa: g[2], txt: g[3], group: g[4] || 'soil', tip: g[5] || '', struct: (g[4] || '') === 'struct' } : null; }
+// what the ground table and the checks say about the surface under the pads (op = plan.outrigger, allow in t/m²)
+function groundSurfaceChecks(op) {
+  const s = groundSurface(op?.ground); if (!s) return [];
+  const allow = num(op.allow), ref = String(op.approval || '').trim();
+  if (s.struct) {
+    if (!(allow > 0)) return [{ s: 'fail', t: 'Ground surface', m: `Crane on a ${s.name.toLowerCase()}: only ${s.txt} can say what it takes. Type that allowable pressure and the approval reference under Legs. ${s.tip}` }];
+    return [{ s: ref ? 'info' : 'warn', t: 'Ground surface', m: `${s.name}: allowable ${allow} t/m² from ${s.txt}` + (ref ? ` (approval ${ref}).` : ' — add the approval reference so the plan shows where the number came from.') + ` ${s.tip}` }];
+  }
+  const typ = num(s.kpa) > 0 ? r2(s.kpa / OUT_G) : 0;
+  return [{ s: 'info', t: 'Ground surface', m: `${s.name}: ${allow > 0 && Math.abs(allow - typ) > 0.05 ? `${allow} t/m² typed (typical ${typ} t/m², ${s.txt})` : `typical ${typ} t/m² (${s.txt})`} — a guide value; a ground assessment wins.` + (s.tip ? ' ' + s.tip : '') }];
+}
 
 // ---------- set-up: beam extension per side, pad positions ----------
 // pv.outExt = { left: 'full'|'half', right: 'full'|'half' } (per crane — a CRANE_KEYS field). Missing → full.
@@ -269,4 +299,4 @@ function outriggerChecks(O, crane, liftsRes) {
   return plan;
 }
 
-if (typeof module !== 'undefined') module.exports = { OUT_G, OUT_PADS, OUT_PAD_NAME, OUT_SLEW, OUT_RATED, GROUND_PRESETS, outExtOf, outExtHalf, outExtLabel, chartOutExt, outSpans, outPads, outMassModel, outBoomCog, outMasses, outCog, outPlane, outMargin, outSolve, outAt, outTipHook, outSweep, outMatDims, outPressure, outMatSide, outriggerCrane, outriggerChecks };
+if (typeof module !== 'undefined') module.exports = { OUT_G, OUT_PADS, OUT_PAD_NAME, OUT_SLEW, OUT_RATED, GROUND_PRESETS, GROUND_GROUPS, groundSurface, groundSurfaceChecks, outExtOf, outExtHalf, outExtLabel, chartOutExt, outSpans, outPads, outMassModel, outBoomCog, outMasses, outCog, outPlane, outMargin, outSolve, outAt, outTipHook, outSweep, outMatDims, outPressure, outMatSide, outriggerCrane, outriggerChecks };

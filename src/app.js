@@ -224,7 +224,7 @@ function switchRig(i) { // make crane i the active (editable) crane
   p.activeCrane = i; Scene.views = {}; if (state.twin) state.twin.reframe(); return true;
 }
 function selectLoad(i) { const p = state.plan; p.activeLoad = Math.max(0, Math.min(p.loads.length - 1, i)); switchRig(num(p.loads[p.activeLoad].crane, 0)); }
-function addRig(craneId) { const p = state.plan; rigPark(p); const r = rigPick(p); p.cranes.push(r); const i = p.cranes.length - 1; p.loads[activeLi()].crane = i; switchRig(i); if (craneId) { setCrane(craneId); } return i; }
+function addRig(craneId) { const p = state.plan; rigPark(p); const r = rigPick(p); r.gridN = ''; r.gridE = ''; p.cranes.push(r); const i = p.cranes.length - 1; p.loads[activeLi()].crane = i; switchRig(i); if (craneId) { setCrane(craneId); } return i; }
 function removeRig(i) {
   const p = state.plan; if (!p.cranes || p.cranes.length < 2) return; rigPark(p);
   p.cranes.splice(i, 1); p.loads.forEach(l => { if (l.crane === i) l.crane = 0; else if (l.crane > i) l.crane--; });
