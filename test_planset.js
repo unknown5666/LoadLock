@@ -136,4 +136,20 @@ const tandemPlan = () => { const p = plan0(); p.cranes = [X.rigPick(p), X.rigPic
   const cv = pb[0].P.list.filter(x => x.t === 'text').map(x => x.s).join('|'); ok(/DO NOT LIFT AS PLANNED/.test(cv), 'cover verdict follows the plan status');
 }
 
+// ---------- 6. drawing detail (v10.1): CAD-style crane from above, site objects in plan, rigging hardware, calc diagrams ----------
+{
+  const p = plan0(); p.sitePlan.enabled = true; p.loads[0].tackles = [{ name: '25t bow shackle', type: 'shackle', L: 0.4, w: 0.03, wll: 25 }, { name: 'Round slings 6m', type: 'sling', L: 6, w: 0.1, legs: 2, wll: 10 }];
+  const c = X.computePlan(p, CR, S); const { P } = X.buildSheet(p, c, S);
+  ok(P.list.filter(x => x.layer === 'SITE-OBJECTS').length > 0, 'site plan draws the elevation\'s building from above');
+  ok(P.list.filter(x => x.layer === 'SITE-CRANE').length > 40, `crane from above is a detailed block (${P.list.filter(x => x.layer === 'SITE-CRANE').length} parts)`);
+  ok(P.list.some(x => x.t === 'text' && /^R\d+\.\d\d$/.test(x.s)) && P.list.some(x => x.t === 'text' && /^TAIL R/.test(x.s)), 'radius and tail-swing callouts on the plan');
+  const pages = X.buildPlanSet(p, c, S, {}); const txt = (code) => pages.find(pg => pg.code === code).P.list.filter(x => x.t === 'text').map(x => x.s);
+  const ga = txt('ga0'); ok(ga.includes('CRANE MAT (TYP.)') && ga.includes('SLEW CENTRE') && ga.some(s => /^OUTRIGGER PAD/.test(s)), 'support locations: mat, pad and slew-centre callouts');
+  const rg = pages.find(pg => pg.code === 'rig0').P.list; ok(rg.some(x => x.stroke === '#db2777'), 'rigging: bow shackle drawn'); ok(rg.some(x => x.t === 'text' && x.s === 'L = 6.00 m'), 'rigging: sling length on the leg');
+  ok(['01', '02', '03'].every(n => rg.some(x => x.t === 'text' && x.s === n)), 'rigging: a balloon for the hook block and every item'); ok(rg.some(x => x.fill === '#f97316'), 'rigging: a 10 t round sling is orange (EN 1492 colour)');
+  ok(rg.some(x => x.t === 'text' && x.s === 'ISOMETRIC VIEW (NOT TO SCALE)'), 'rigging: isometric view');
+  const cl = txt('calc0'); ok(cl.includes('TENSION FORCES (ISOMETRIC)') && cl.some(s => /^T1 = /.test(s)) && cl.some(s => /^D=\d+/.test(s)), 'calculations: isometric tensions, leg elevations, distances to the C.O.G.');
+  const el = pages.find(pg => pg.code === 'ga0'), hd = String(Math.round((c.loads[0].hookY - c.loads[0].landY) * 1000)); ok(el.extra.join('').includes('>' + hd + '<'), `GA elevation dimensions the hook height above the landing (${hd})`);
+}
+
 console.log(`${passes} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

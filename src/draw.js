@@ -792,6 +792,10 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
       if (res.R > near) { const yL = below(n); const a = Wd(near, 0), c = Wd(res.R, 0); dimA(P, [a[0], yL], [c[0], yL], 0, String(mm(res.R - near)), { side: 'up', size: dimSize * 0.9, extA: false, extB: false }); }
     }
   }
+  // v10 (lift plan set): hook height above the landing level, left of the load
+  if (ctx.hookDim && res.hookY != null && !res.empty) { const xh = res.R - num(load.l, 2) / 2 - 1.1, a = Wd(xh, res.landY), b = Wd(xh, res.hookY); const hk = Wd(res.R, res.hookY);
+    P.line(hk[0] - 1, hk[1], b[0] - 1.5, b[1], { stroke: COL.red, w: 0.12, layer: 'DIM' }); P.line(a[0] - 1.5, a[1], Wd(res.R - num(load.l, 2) / 2, res.landY)[0], a[1], { stroke: COL.red, w: 0.12, layer: 'DIM' });
+    dimA(P, a, b, 0, String(mm(res.hookY - res.landY)), { side: 'left', size: dimSize * 0.9, extA: false, extB: false }); }
   if (stepX != null && tg !== 0) { const a = Wd(stepX - 1.2, 0), b = Wd(stepX - 1.2, tg); dimA(P, a, b, 0, String(mm(Math.abs(tg))), { side: 'left', size: dimSize * 0.85, extA: false, extB: false }); }
   // load landing level (if above ground and not obviously dimensioned)
   if (ctx.title !== false) {
@@ -941,41 +945,115 @@ function sitePlanExtents(plan, calc) {
   for (const e of plan.env || []) { if (e.view !== 'plan' || e.hidden) continue; const b = envBBox(e); if (b) { x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1); y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1); } }
   return { x0, x1, y0, y1 };
 }
-function drawCraneFootprint(P, T, k, crane, sp, R, lw, livery, ext) {
+// v10 the crane seen from above, drawn like a CAD plan block: timber mats, outrigger beams with jacks and pads, the carrier (chassis,
+// axle lines with tyres, cab with windscreen), and the superstructure turned to the boom heading (turntable, deck, counterweight
+// slabs, operator's cab, telescopic boom with its sections, head sheaves and hook block). sp = { cx, cy, carrier, boom } (degrees CCW
+// from east), R = radius of the hook. o.res = the lift result (boom sections and angle), o.mat = [w, l] of the mats in metres.
+function drawCraneFootprint(P, T, k, crane, sp, R, lw, livery, ext, o = {}) {
   const cr = (sp.carrier != null ? num(sp.carrier) : (sp.carrierRot == null || sp.carrierRot === '' ? num(sp.rot) + 180 : num(sp.carrierRot) + 180)) * D2R, br = (sp.boom != null ? num(sp.boom) : num(sp.rot)) * D2R;
   const rot = (a) => (u, v) => T(sp.cx + u * Math.cos(a) - v * Math.sin(a), sp.cy + u * Math.sin(a) + v * Math.cos(a));
-  const C = rot(cr), B = rot(br);
-  const poly = (f, pts, o) => P.poly(pts.map(([u, v]) => f(u, v)), { closed: true, ...o });
+  const C = rot(cr), B = rot(br); const L_ = 'SITE-CRANE';
+  const poly = (f, pts, st) => P.poly(pts.map(([u, v]) => f(u, v)), { closed: true, layer: L_, ...st });
+  const rect = (f, u0, u1, v0, v1, st) => poly(f, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], st);
+  const seg = (f, a, b, st) => { const p = f(a[0], a[1]), q = f(b[0], b[1]); P.line(p[0], p[1], q[0], q[1], { layer: L_, ...st }); };
   const Lc = num(crane.carrierLen, 12), W = num(crane.width, 2.75), oL = num(crane.outLong, 7) / 2, oT = num(crane.outTrans, 7) / 2;
-  const col = crane.color || '#f5c400';
+  const col = crane.color || '#f5c400', ink = '#1f2937', fine = Math.max(0.06, Math.min(0.14, k * 0.02)), lw1 = Math.max(0.1, Math.min(0.3, k * 0.05));
+  const front = 0.64 * Lc, rear = -0.36 * Lc;
   const spn = ext && typeof outSpans === 'function' ? outSpans(crane, ext) : null; // per side: full or half out (v = the carrier's left)
-  for (const sx of [-oL, oL]) for (const sy of spn ? [-spn.yR, spn.yL] : [-oT, oT]) {
-    const a = C(sx, 0), b = C(sx, sy); P.line(a[0], a[1], b[0], b[1], { stroke: '#333', w: 0.6, layer: 'SITE-CRANE' });
-    poly(C, [[sx - 0.75, sy - 0.75], [sx + 0.75, sy - 0.75], [sx + 0.75, sy + 0.75], [sx - 0.75, sy + 0.75]], { stroke: '#222', w: 0.2, fill: '#8a6d3b', layer: 'SITE-CRANE' });
-  }
-  // carrier: the cab (darker block) is at the +u end, so u points the way the carrier faces; the slew centre sits 36% from the rear
-  poly(C, [[0.64 * Lc, -W / 2], [-0.36 * Lc, -W / 2], [-0.36 * Lc, W / 2], [0.64 * Lc, W / 2]], { stroke: '#222', w: 0.3, fill: col, layer: 'SITE-CRANE' });
-  poly(C, [[0.64 * Lc, -W / 2], [0.64 * Lc - 2.2, -W / 2], [0.64 * Lc - 2.2, W / 2], [0.64 * Lc, W / 2]], { stroke: '#222', w: 0.2, fill: shade(col, -15), layer: 'SITE-CRANE' });
-  { const a = C(0.64 * Lc + 0.5, 0), b = C(0.64 * Lc + 0.5 + Math.max(2.4, 7 / k), 0); P.line(a[0], a[1], b[0], b[1], { stroke: '#333', w: 0.3, layer: 'SITE-CRANE' }); arrow(P, b[0], b[1], Math.atan2(b[1] - a[1], b[0] - a[0]), { stroke: '#333', al: 2.4, aw: 0.9, layer: 'SITE-CRANE' });
-    const t = C(0.64 * Lc + 0.5 + Math.max(2.4, 7 / k) + 2.2 / k, 0); P.text(t[0], t[1], 'FRONT', { size: 2.4, anchor: 'middle', vAlign: 'middle', color: '#333', layer: 'SITE-CRANE' }); }
-  const tail = num(crane.tail, 4);
-  poly(B, [[-tail, -1.5], [2.6, -1.5], [2.6, 1.5], [-tail, 1.5]], { stroke: '#222', w: 0.3, fill: shade(col, -22), layer: 'SITE-CRANE' });
-  const bd = num(crane.boomDepth, 1.2) / 2;
-  poly(B, [[-1.5, -bd], [R, -bd * 0.6], [R, bd * 0.6], [-1.5, bd]], { stroke: '#222', w: 0.3, fill: col, layer: 'SITE-CRANE' });
-  if (livery && R > 6) letterBoom(P, T, k, { x: sp.cx, y: sp.cy }, br, 2.8, Math.min(R * 0.6, R - 4), 0, bd * 1.6, livery, col, { upright: true, capF: 0.5 });
-  const c0 = T(sp.cx, sp.cy); P.circle(c0[0], c0[1], 0.9, { stroke: '#000', w: 0.2, fill: '#000', layer: 'SITE-CRANE' });
+  const ex = spn ? spn.ex : 0, pads = []; for (const sx of [-oL, oL]) for (const sy of spn ? [-spn.yR, spn.yL] : [-oT, oT]) pads.push([ex + sx, sy]);
+  // mats (timber planks) under every pad
+  const mat = o.mat || null;
+  if (mat) for (const [px, py] of pads) { const mw = mat[0] / 2, ml = mat[1] / 2; rect(C, px - ml, px + ml, py - mw, py + mw, { fill: '#d9b98a', stroke: '#7c5a2c', w: lw1 });
+    const n = Math.max(2, Math.round(mat[1] / 0.3)); for (let i = 1; i < n; i++) { const u = px - ml + i * mat[1] / n; seg(C, [u, py - mw], [u, py + mw], { stroke: '#a37b45', w: fine }); } }
+  // outrigger beams: the box in the carrier and the extension out to the jack, then the jack cylinder on its pad
+  for (const [px, py] of pads) { const sg = Math.sign(py) || 1; const v0 = sg * W / 2 * 0.92;
+    rect(C, px - 0.32, px + 0.32, Math.min(v0, py), Math.max(v0, py), { fill: '#9ca3af', stroke: ink, w: lw1 });
+    rect(C, px - 0.22, px + 0.22, Math.min(v0, py * 0.62 + v0 * 0.38), Math.max(v0, py * 0.62 + v0 * 0.38), { fill: '#6b7280', stroke: 'none' });
+    const c = C(px, py); P.circle(c[0], c[1], 0.62 * k, { fill: '#e5e7eb', stroke: ink, w: lw1, layer: L_ }); P.circle(c[0], c[1], 0.3 * k, { fill: '#374151', stroke: ink, w: fine, layer: L_ }); }
+  // carrier: chassis, tyres on every axle line, the outrigger boxes, the cab with its windscreen
+  const nAx = Math.max(2, Math.round(num(crane.axles, 4))); const axU = Array.from({ length: nAx }, (_, i) => front - 2.6 - i * Math.max(1.35, (front - 2.6 - (rear + 1.2)) / Math.max(1, nAx - 1)));
+  poly(C, [[rear + 0.25, -W / 2], [front - 0.3, -W / 2], [front, -W / 2 + 0.3], [front, W / 2 - 0.3], [front - 0.3, W / 2], [rear + 0.25, W / 2], [rear, W / 2 - 0.25], [rear, -W / 2 + 0.25]], { fill: col, stroke: ink, w: lw1 });
+  for (const u of axU) for (const sg of [-1, 1]) { rect(C, u - 0.62, u + 0.62, sg * (W / 2 + 0.06), sg * (W / 2 - 0.46), { fill: '#111827', stroke: 'none' }); for (const f of [-0.3, 0, 0.3]) seg(C, [u + f, sg * (W / 2 + 0.04)], [u + f, sg * (W / 2 - 0.44)], { stroke: '#4b5563', w: fine }); }
+  for (const ux of [ex - oL, ex + oL]) rect(C, ux - 0.45, ux + 0.45, -W / 2, W / 2, { fill: shade(col, -18), stroke: ink, w: fine });
+  rect(C, front - 2.3, front, -W / 2 + 0.08, W / 2 - 0.08, { fill: shade(col, -12), stroke: ink, w: fine });
+  rect(C, front - 0.55, front - 0.18, -W / 2 + 0.3, W / 2 - 0.3, { fill: '#93c5fd', stroke: ink, w: fine });
+  for (const u of axU) seg(C, [u, -W / 2 + 0.55], [u, W / 2 - 0.55], { stroke: shade(col, -35), w: fine, dash: true });
+  if (!o.bare) { const a = C(front + 0.5, 0), b = C(front + 0.5 + Math.max(2.4, 7 / k), 0); P.line(a[0], a[1], b[0], b[1], { stroke: '#333', w: 0.3, layer: L_ }); arrow(P, b[0], b[1], Math.atan2(b[1] - a[1], b[0] - a[0]), { stroke: '#333', al: 2.4, aw: 0.9, layer: L_ });
+    const t = C(front + 0.5 + Math.max(2.4, 7 / k) + 2.2 / k, 0); P.text(t[0], t[1], 'FRONT', { size: 2.4, anchor: 'middle', vAlign: 'middle', color: '#333', layer: L_ }); }
+  // superstructure on the boom heading
+  const tail = num(crane.tail, 4), tt = Math.min(W * 0.46, 1.7);
+  { const c = B(0, 0); P.circle(c[0], c[1], tt * k, { fill: shade(col, -8), stroke: ink, w: lw1, layer: L_ }); P.circle(c[0], c[1], tt * 0.82 * k, { fill: 'none', stroke: shade(col, -30), w: fine, layer: L_ }); }
+  rect(B, -tail + 1.2, 2.2, -1.32, 1.32, { fill: shade(col, -14), stroke: ink, w: lw1 });
+  rect(B, -tail, -tail + 1.35, -1.3, 1.3, { fill: '#4b5563', stroke: ink, w: lw1 });
+  for (const f of [0.33, 0.66]) seg(B, [-tail + 1.35 * f, -1.3], [-tail + 1.35 * f, 1.3], { stroke: '#9ca3af', w: fine });
+  rect(B, 0.3, 2.6, 1.42, 2.28, { fill: col, stroke: ink, w: lw1 }); rect(B, 2.05, 2.5, 1.55, 2.15, { fill: '#93c5fd', stroke: ink, w: fine });
+  // boom: the visible part of every telescopic section, narrowing to the head; a jib carries on as a lattice
+  const res = o.res, g = res?.geo; const D = Math.max(0.6, num(crane.boomDepth, 1.2)); const w0 = Math.max(0.5, Math.min(1.5, D * 0.78));
+  const px0 = g?.pivot ? num(g.pivot.x, -1.5) : -1.5, th = g?.theta != null ? g.theta * D2R : Math.acos(Math.max(0.15, Math.min(0.98, (R - px0) / Math.max(R - px0 + 1, 20))));
+  const Lm = g ? (g.kind && g.kind !== 'main' ? num(g.Lb) : num(g.L ?? R)) : R - px0; const ct = Math.cos(th);
+  let ends = null; try { const spec = res?.spec || (typeof boomSpec === 'function' ? boomSpec(crane) : null); if (spec) { const lay = boomLayout(spec, Lm, res?.tele?.fr || teleFor(spec, Lm).fr); ends = lay.starts.map((s0, i) => (s0 + lay.lens[i]) * lay.k); ends[ends.length - 1] = Lm; } } catch {}
+  if (!ends || !ends.length) ends = [Lm];
+  let u = px0 - 0.4, wi = w0; const head = o.stub != null ? Math.min(px0 + Lm * ct, o.stub) : px0 + Lm * ct;
+  ends.forEach((e, i) => { const u1 = Math.min(head, px0 + e * ct); if (u1 > u + 0.05) { rect(B, u, u1, -wi / 2, wi / 2, { fill: i ? shade(col, 6 - i * 3) : col, stroke: ink, w: lw1 }); seg(B, [u + 0.05, 0], [u1 - 0.05, 0], { stroke: shade(col, -28), w: fine }); } u = Math.max(u, u1 - 0.35); wi *= 0.88; });
+  if (o.stub != null) { const zz = [[head, -w0 * 0.7], [head - 0.25, -w0 * 0.25], [head + 0.25, w0 * 0.25], [head, w0 * 0.7]]; P.poly(zz.map(([a, b]) => B(a, b)), { closed: false, stroke: ink, w: lw1, fill: 'none', layer: L_ }); }
+  if (o.bare) { const c0 = T(sp.cx, sp.cy); P.circle(c0[0], c0[1], 0.6, { fill: '#000', stroke: 'none', layer: L_ }); return { front, rear, pads }; }
+  if (livery && head - px0 > 6) letterBoom(P, T, k, { x: sp.cx, y: sp.cy }, br, Math.max(1, px0 + 1.4), Math.min((ends[0] || Lm) * ct - 1.6, head - 3), 0, w0 * 0.95, livery, col, { upright: true, capF: 0.5 });
+  if (g && g.kind && g.kind !== 'main' && R > head + 0.3) { rect(B, head, R, -0.3, 0.3, { fill: 'none', stroke: ink, w: lw1 }); const sgs = []; for (let x = head, j = 0; x < R - 0.2; x += 0.7, j++) { const a = B(x, j % 2 ? 0.3 : -0.3), b = B(x + 0.7, j % 2 ? -0.3 : 0.3); sgs.push([a[0], a[1], b[0], b[1]]); } P.path(sgs, { stroke: ink, w: fine, layer: L_ }); }
+  { const hx = g && g.kind && g.kind !== 'main' ? R : head; rect(B, hx - 0.55, hx + 0.35, -wi * 0.75, wi * 0.75, { fill: '#374151', stroke: ink, w: lw1 }); for (const f of [-0.3, 0, 0.3]) seg(B, [hx - 0.45, f * wi], [hx + 0.25, f * wi], { stroke: '#9ca3af', w: fine }); }
+  if (lw > 0.05) { const lp = B(R, 0); P.rect(lp[0] - lw / 2 * k, lp[1] - lw / 2 * k, lw * k, lw * k, { stroke: '#7a007a', w: 0.35, fill: '#f1d5f1', layer: 'SITE-LOAD' }); }
+  { const h = B(R, 0); P.circle(h[0], h[1], 0.38 * k, { fill: '#facc15', stroke: ink, w: lw1, layer: L_ }); P.line(h[0] - 0.38 * k, h[1], h[0] + 0.38 * k, h[1], { stroke: ink, w: fine, layer: L_ }); P.line(h[0], h[1] - 0.38 * k, h[0], h[1] + 0.38 * k, { stroke: ink, w: fine, layer: L_ }); }
+  const c0 = T(sp.cx, sp.cy); P.circle(c0[0], c0[1], 0.9, { stroke: '#000', w: 0.2, fill: '#000', layer: L_ });
   // working radius + tail swing
   const ring = (r, stroke, dash) => { const segs = []; for (let a = 0; a < 360; a += 3) { const p = T(sp.cx + r * Math.cos(a * D2R), sp.cy + r * Math.sin(a * D2R)), q = T(sp.cx + r * Math.cos((a + 3) * D2R), sp.cy + r * Math.sin((a + 3) * D2R)); segs.push([p[0], p[1], q[0], q[1]]); } P.path(segs, { stroke, w: 0.3, dash, layer: 'SITE-RADIUS' }); };
   ring(R, COL.red, true); ring(tail, '#666', true);
-  const lp = B(R, 0); P.rect(lp[0] - lw / 2 * k, lp[1] - lw / 2 * k, lw * k, lw * k, { stroke: '#7a007a', w: 0.35, fill: '#f1d5f1', layer: 'SITE-LOAD' });
-  const lab = B(R * 0.55, R * 0.06 + 1); P.text(lab[0], lab[1], 'R=' + mm(R), { size: 3.6, color: COL.green, anchor: 'middle', rot: -((br * R2D % 360 + 360) % 360 > 90 && (br * R2D % 360 + 360) % 360 < 270 ? br * R2D + 180 : br * R2D), layer: 'DIMTEXT' });
+  if (o.callouts !== false && !o.fixed) { const call = (r, a, txt, colr) => { const p = T(sp.cx + r * Math.cos(a), sp.cy + r * Math.sin(a)), q = T(sp.cx + (r + Math.max(3, 9 / k)) * Math.cos(a), sp.cy + (r + Math.max(3, 9 / k)) * Math.sin(a));
+      P.line(q[0], q[1], p[0], p[1], { stroke: colr, w: 0.25, layer: 'DIM' }); arrow(P, p[0], p[1], Math.atan2(p[1] - q[1], p[0] - q[0]), { stroke: colr, al: 1.8, aw: 0.6 }); P.text(q[0] + (q[0] >= p[0] ? 0.8 : -0.8), q[1], txt, { size: 3.4, anchor: q[0] >= p[0] ? 'start' : 'end', vAlign: 'middle', color: colr, bold: true, bg: '#ffffff', layer: 'DIMTEXT' }); };
+    call(R, br + 0.62, 'R' + (R).toFixed(2), COL.blue); call(tail, br + Math.PI + 0.9, 'TAIL R' + tail.toFixed(2), '#555555'); }
+  const lab = B(R * 0.55, R * 0.06 + 1); P.text(lab[0], lab[1], 'R=' + mm(R), { size: 3.6, color: COL.green, anchor: 'middle', rot: -((br * R2D % 360 + 360) % 360 > 90 && (br * R2D % 360 + 360) % 360 < 270 ? br * R2D + 180 : br * R2D), layer: 'DIMTEXT', bg: '#ffffff' });
+}
+// v10 the site objects of the elevation, seen from above: each stands on the boom line at its distance from the slew centre (the same
+// footprint the 3D view gives it — `d` = depth across the boom line, else a default by type), labelled with its height
+function drawObstaclesPlan(P, T, k, plan, sp) {
+  const site = plan.site || {}; const br = num(sp.boom) * D2R; const L_ = 'SITE-OBJECTS';
+  const B = (u, v) => T(sp.cx + u * Math.cos(br) - v * Math.sin(br), sp.cy + u * Math.sin(br) + v * Math.cos(br));
+  const rect = (u0, u1, v0, v1, st) => P.poly([B(u0, v0), B(u1, v0), B(u1, v1), B(u0, v1)], { closed: true, layer: L_, ...st });
+  for (const o of site.obstacles || []) {
+    if (o.type === 'person') continue;
+    const e = objExtent(site, o); const len = Math.max(0.3, e.x1 - e.x0), hgt = Math.max(0.2, e.top - e.b);
+    const dep = num(o.d) || (o.type === 'building' ? Math.max(12, len * 0.8) : o.type === 'wall' ? 12 : Math.max(2.4, len * 0.5)); const hd = dep / 2;
+    const lab = `${String(o.label || OBJ_TYPES[o.type]?.label || 'OBJECT').toUpperCase()} · H ${hgt.toFixed(1)} M`;
+    if (o.type === 'tree') { const c = B(num(o.x), 0); P.circle(c[0], c[1], len / 2 * k, { fill: '#bbf7d0', stroke: '#166534', w: 0.2, layer: L_ }); P.circle(c[0], c[1], len / 5 * k, { fill: 'none', stroke: '#166534', w: 0.12, dash: true, layer: L_ }); }
+    else if (o.type === 'pole') { const c = B(num(o.x), 0); P.circle(c[0], c[1], Math.max(0.6, 0.3 * k), { fill: '#374151', stroke: 'none', layer: L_ }); }
+    else if (o.type === 'tower' || o.type === 'towercrane') { const w = o.type === 'tower' ? len : num(o.mastW, 2), x = num(o.x); rect(x - w / 2, x + w / 2, -w / 2, w / 2, { fill: '#e5e7eb', stroke: '#111827', w: 0.25 });
+      P.line(...B(x - w / 2, -w / 2), ...B(x + w / 2, w / 2), { stroke: '#111827', w: 0.15, layer: L_ }); P.line(...B(x - w / 2, w / 2), ...B(x + w / 2, -w / 2), { stroke: '#111827', w: 0.15, layer: L_ });
+      if (o.type === 'towercrane' && num(o.jib) > 0) rect(x - Math.max(w / 2, num(o.cjib, num(o.jib) * 0.3)), x + num(o.jib), -0.6, 0.6, { fill: 'none', stroke: '#b45309', w: 0.25, dash: true }); }
+    else {
+      const fill = o.type === 'building' ? '#e5e7eb' : o.type === 'wall' ? '#6b7280' : o.type === 'container' ? '#bfdbfe' : o.type === 'trailer' || o.type === 'truck' ? '#d1d5db' : o.type === 'shed' ? '#fef3c7' : '#e7e5e4';
+      rect(e.x0, e.x1, -hd, hd, { fill, stroke: '#111827', w: o.type === 'wall' ? 0.35 : 0.25 });
+      if (o.type === 'building' || o.type === 'box' || o.type === 'shed') { const sg = []; const st = Math.max(0.8, Math.min(3, Math.max(len, dep) / 14)); for (let d = -dep - len; d < len + dep; d += st) { const u0 = Math.max(e.x0, e.x0 + d), u1 = Math.min(e.x1, e.x0 + d + dep); if (u1 <= u0) continue; const a = B(u0, -hd + (u0 - (e.x0 + d))), b = B(u1, -hd + (u1 - (e.x0 + d))); sg.push([a[0], a[1], b[0], b[1]]); } P.path(sg, { stroke: '#9ca3af', w: 0.1, layer: L_ }); }
+      if (o.type === 'container') for (let u = e.x0 + 0.4; u < e.x1 - 0.2; u += 0.4) P.line(...B(u, -hd), ...B(u, hd), { stroke: '#60a5fa', w: 0.08, layer: L_ });
+      if (o.type === 'truck' || o.type === 'trailer') rect(e.x0, e.x0 + 2.4, -hd * 0.9, hd * 0.9, { fill: '#9ca3af', stroke: '#111827', w: 0.15 });
+    }
+    const c = B((e.x0 + e.x1) / 2, (o.type === 'tree' || o.type === 'pole' || o.type === 'tower' || o.type === 'towercrane') ? -Math.max(len, 2) / 2 - 1.6 : -hd - 1.4);
+    P.text(c[0], c[1], lab, { size: 3.2, bold: true, anchor: 'middle', vAlign: 'middle', color: '#374151', bg: '#ffffff', layer: L_ });
+  }
+}
+// the world window that frames the crane(s), the boom and the load closely (general arrangement plan view)
+function sitePlanTightExt(plan, calc, li) {
+  const res = calc.loads[li ?? (plan.activeLoad || 0)] || calc.loads[0]; const sp = sitePlanState(plan, plan.loads[li ?? (plan.activeLoad || 0)]);
+  const pts = []; const add = (cx, cy, crane, boomDeg, R, l) => { const m = Math.max(num(crane?.carrierLen, 12) * 0.68, num(crane?.outTrans, 7) / 2 + 1.6, num(crane?.tail, 4.5) + 0.6) + 1.5;
+    pts.push([cx - m, cy - m], [cx + m, cy + m]); const b = num(boomDeg) * D2R, r = num(R, 10) + Math.max(1, num(l, 2)) / 2 + 1.5; pts.push([cx + r * Math.cos(b), cy + r * Math.sin(b)]); };
+  add(sp.cx, sp.cy, calc.crane, sp.boom, res?.R, plan.loads[li ?? 0]?.l);
+  for (const pk of res?.tandem?.picks?.slice(1) || []) if (pk.base) add(pk.base.x, pk.base.y, pk.res?.crane, normDeg(pk.boomHd + num(pk.mv?.swing)), pk.Rnow ?? pk.R, 1);
+  const br = num(sp.boom) * D2R; for (const o of plan.site?.obstacles || []) { const e = objExtent(plan.site, o); if (e.x0 > num(res?.R, 10) + 12) continue; for (const u of [e.x0, e.x1]) pts.push([sp.cx + u * Math.cos(br), sp.cy + u * Math.sin(br)]); }
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]); return { x0: Math.min(...xs) - 1, x1: Math.max(...xs) + 1, y0: Math.min(...ys) - 1, y1: Math.max(...ys) + 1 };
 }
 function drawSitePlan(P, box, plan, calc, ctx = {}) {
   const li = plan.activeLoad || 0; const res = calc.loads[li] || calc.loads[0]; const load = plan.loads[li] || plan.loads[0]; const sp = sitePlanState(plan, load);
   let ext, T, k, scl;
   if (ctx.fixed) ({ T, k, ext } = ctx.fixed);
   else {
-    ext = sitePlanExtents(plan, calc);
+    ext = ctx.ext || sitePlanExtents(plan, calc);
     const kRaw = Math.min((box.w - 16) / (ext.x1 - ext.x0), (box.h - 22) / (ext.y1 - ext.y0));
     scl = niceScale(kRaw); k = scl.k;
     const ox = box.x + 8 + Math.max(0, (box.w - 16 - (ext.x1 - ext.x0) * k) / 2), oy = box.y + box.h - 12 - Math.max(0, (box.h - 22 - (ext.y1 - ext.y0) * k) / 2);
@@ -984,12 +1062,14 @@ function drawSitePlan(P, box, plan, calc, ctx = {}) {
   const a = T(0, 0), b_ = T(1, 1); const inv = (px, py) => [(px - a[0]) / (b_[0] - a[0]), (py - a[1]) / (b_[1] - a[1])];
   const w0 = inv(box.x, box.y + box.h), w1 = inv(box.x + box.w, box.y);
   drawEnv(P, T, plan, 'plan', { x0: w0[0], x1: w1[0], y0: w0[1], y1: w1[1] });
-  drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, res?.tandem ? 0.01 : Math.max(1, num(load?.l, 2)), ctx.livery, typeof outExtOf === 'function' ? outExtOf(plan) : null);
+  if (ctx.objects !== false) drawObstaclesPlan(P, T, k, plan, sp);
+  const matD = typeof outMatDims === 'function' ? outMatDims(plan.outrigger?.mat || plan.matSize) : null;
+  drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, res?.tandem ? 0.01 : Math.max(1, num(load?.l, 2)), ctx.livery, typeof outExtOf === 'function' ? outExtOf(plan) : null, { res, mat: matD, fixed: !!ctx.fixed });
   // v9 tandem: the other cranes where they stand, and the one load between the lifting points with each crane's share
   const TD = res?.tandem;
   if (TD) {
     for (const pk of TD.picks.slice(1)) { const cr = pk.res?.crane; if (!cr) continue; const bh = normDeg(pk.boomHd + num(pk.mv?.swing));
-      drawCraneFootprint(P, T, k, cr, { cx: pk.base.x, cy: pk.base.y, boom: bh, carrier: normDeg(bh - SIDE_OFFSET[sideOf(pk.side)]) }, pk.Rnow ?? pk.R, 0.01, ctx.livery, typeof outExtOf === 'function' ? outExtOf(rigOf(plan, pk.crane)) : null); }
+      drawCraneFootprint(P, T, k, cr, { cx: pk.base.x, cy: pk.base.y, boom: bh, carrier: normDeg(bh - SIDE_OFFSET[sideOf(pk.side)]) }, pk.Rnow ?? pk.R, 0.01, ctx.livery, typeof outExtOf === 'function' ? outExtOf(rigOf(plan, pk.crane)) : null, { res: pk.res, mat: matD, fixed: !!ctx.fixed, callouts: false }); }
     const ax = num(TD.axis) * D2R, p0 = TD.picks[0], xs = TD.picks.map(q => q.x); const x0 = Math.min(...xs) - 0.6, x1 = Math.max(...xs) + 0.6, hw = Math.max(0.6, num(load?.h, 1.5) * 0.6);
     const at = (s, n) => { const d = s - p0.x; return T(p0.pos.x + d * Math.cos(ax) - n * Math.sin(ax), p0.pos.y + d * Math.sin(ax) + n * Math.cos(ax)); };
     P.poly([at(x0, -hw), at(x1, -hw), at(x1, hw), at(x0, hw)], { closed: true, stroke: '#7a007a', w: 0.35, fill: '#f1d5f1', layer: 'SITE-LOAD' });

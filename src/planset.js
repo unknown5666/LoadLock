@@ -241,31 +241,40 @@ function psMainData(L, X) {
   if (r.tandem) { const q = r.tandem.picks[0]; rows.push([{ t: 'TANDEM — SHARE OF THIS CRANE', bold: true }, { t: `${psKg(q.share)} (${Math.round(q.pct)}%)`, bold: true }, 'Kgs'], ['TANDEM LIMIT PER CRANE', psN(r.tandem.derate, 0), '%']); }
   return rows;
 }
-function psSupport(P, b, L, X, o = {}) { // crane support locations: the carrier from above (front up the page), beams, pads on mats, spreads, leg loads
+function psCallout(P, x, y, tx, ty, lines, o = {}) { // a boxed label with a leader to the point it names (demo style)
+  const fs = o.fs || 1.9, w = Math.max(...lines.map(l => textW(l, fs, true))) + 3, h = lines.length * fs * 1.3 + 1.8; const bx = tx - (o.right ? 0 : w), by = ty - h / 2;
+  P.line(x, y, o.right ? bx : bx + w, ty, { stroke: PSC.blue, w: 0.2, layer: 'SET' }); P.circle(x, y, 0.45, { fill: PSC.blue, stroke: 'none', layer: 'SET' });
+  P.rect(bx, by, w, h, { fill: '#ffffff', stroke: PSC.blue, w: 0.25, layer: 'SET' }); lines.forEach((l, i) => psT(P, bx + w / 2, by + 0.9 + fs * 0.65 + i * fs * 1.3, l, fs, { anchor: 'middle', bold: true, color: PSC.blue }));
+}
+function psSupport(P, b, L, X, o = {}) { // crane support locations: the crane from above (front up the page), mats, spreads, set-out, leg loads
   const { plan } = X; const crane = L.crane, O = L.O; const ext = O ? O.ext : outExtOf(L.pv);
   const pads = O ? O.pads : outPads(crane, ext); const g = X.ground(L);
   const mat = outMatDims(plan.outrigger?.mat || plan.matSize) || [1, 1]; const Lc = num(crane.carrierLen, 12), Wc = num(crane.width, 2.75);
-  const xs = [...pads.map(p => p.x), 0.64 * Lc, -0.36 * Lc], ys = pads.map(p => p.y);
+  const xs = [...pads.map(p => p.x), 0.64 * Lc + 2, -0.36 * Lc - 1.5], ys = pads.map(p => p.y);
   const spanL = Math.max(...xs) - Math.min(...xs) + mat[1] + 2, spanW = Math.max(...ys) - Math.min(...ys) + mat[0] + 2;
-  const k = Math.min((b.w - 30) / spanW, (b.h - (o.top ?? 26) - 10) / spanL); const cx = b.x + b.w / 2 - 3, cy = b.y + (o.top ?? 26) / 2 + b.h / 2 - 5;
+  const top = o.top ?? 26; const k = Math.min((b.w - 34) / spanW, (b.h - top - 14) / spanL); const cx = b.x + b.w / 2 - 2, cy = b.y + top / 2 + b.h / 2 - 4;
   const xm = (Math.max(...xs) + Math.min(...xs)) / 2, ym = (Math.max(...ys) + Math.min(...ys)) / 2;
-  const S2 = (px, py) => [cx - (py - ym) * k, cy - (px - xm) * k];                     // +x (cab) up the page, the carrier's left to the left
-  for (const p of pads) { const a = S2(p.x, Math.sign(p.y) * Wc / 2), c = S2(p.x, p.y); P.rect(Math.min(a[0], c[0]), Math.min(a[1], c[1]) - 0.35 * k, Math.abs(c[0] - a[0]), 0.7 * k, { fill: '#d1d5db', stroke: '#374151', w: 0.2, layer: 'SET' }); }
-  { const a = S2(0.64 * Lc, Wc / 2), c = S2(-0.36 * Lc, -Wc / 2); P.rect(a[0], a[1], c[0] - a[0], c[1] - a[1], { fill: '#bbf7d0', stroke: '#166534', w: 0.3, layer: 'SET' });
-    const cb = S2(0.64 * Lc - 2.2, -Wc / 2); P.rect(a[0], a[1], cb[0] - a[0], cb[1] - a[1], { fill: '#86efac', stroke: '#166534', w: 0.25, layer: 'SET' }); psT(P, (a[0] + cb[0]) / 2, (a[1] + cb[1]) / 2, 'CAB', 1.8, { anchor: 'middle', bold: true, color: '#14532d' });
-    const o0 = S2(0, 0); psSlew(P, o0[0], o0[1], 1.6); }
-  for (const p of pads) { const c = S2(p.x, p.y); const mw = Math.max(3, mat[0] * k), mh = Math.max(3, mat[1] * k);
-    P.rect(c[0] - mw / 2, c[1] - mh / 2, mw, mh, { fill: '#fecaca', stroke: '#991b1b', w: 0.3, layer: 'SET' }); psMat(P, c[0], c[1], Math.max(2.2, Math.min(mw * 0.6, 0.9 * k)));
-    const v = O ? O.used[p.id] : null; const left = p.y > 0; const tx = c[0] + (left ? -mw / 2 - 1.2 : mw / 2 + 1.2);
-    psT(P, tx, c[1] - 1.4, p.id + (p.ext === 'half' ? ' · HALF' : ''), 2, { anchor: left ? 'end' : 'start', bold: true });
-    if (v != null) psT(P, tx, c[1] + 1.6, `${psN(v, 1)} t${O.manual[p.id] != null ? ' *' : ''}`, 2.1, { anchor: left ? 'end' : 'start', bold: true, color: PSC.red });
-    if (g?.pads?.[p.id] != null && o.press) psT(P, tx, c[1] + 4.4, `${psN(g.pads[p.id], 1)} t/m²`, 1.8, { anchor: left ? 'end' : 'start', color: PSC.ink2 }); }
-  const fr = pads.find(q => q.id === 'FR'), rr = pads.find(q => q.id === 'RR'), fl = pads.find(q => q.id === 'FL');
-  if (fr && rr) { const a = S2(rr.x, rr.y), c = S2(fr.x, fr.y); dimA(P, a, c, Math.max(9, mat[0] * k / 2 + 9), String(mm(fr.x - rr.x)), { side: 'right', size: 2.2 }); }
-  const rl = pads.find(q => q.id === 'RL'); if (rl && rr) { const a = S2(rl.x, rl.y), c = S2(rr.x, rr.y); dimA(P, a, c, Math.max(6, mat[1] * k / 2 + 6, (rr.x + 0.36 * Lc) * k + 5), String(mm(rl.y - rr.y)), { side: 'down', size: 2.2 }); }
-  { const a = S2(0.64 * Lc + 0.4, ym), c = [a[0], a[1] - 6]; P.line(a[0], a[1], c[0], c[1], { stroke: PSC.ink, w: 0.25, layer: 'SET' }); arrow(P, c[0], c[1], -Math.PI / 2, { stroke: PSC.ink, al: 1.6, aw: 0.6, layer: 'SET' }); psT(P, c[0] + 1.2, c[1] + 1, 'FRONT', 1.6, { bold: true, color: PSC.ink2 }); }
-  psT(P, b.x + 2, b.y + 3, `MATS ${mat[0]} × ${mat[1]} m${plan.outrigger?.matSelf ? ` · ${psN(num(plan.outrigger.matSelf), 2)} t EACH` : ''}`, 1.9, { bold: true, color: '#991b1b', maxW: b.w - 4 });
-  psT(P, b.x + 2, b.y + 6.2, `BEAMS ${outExtLabel(ext)}${O ? ` · LOADS ${O.basis === 'side' ? 'AT THE LIFT SIDE' : 'OVER A FULL SLEW'}` : ''}`, 1.7, { color: PSC.ink2, maxW: b.w - 4 });
+  const S2 = (px, py) => [cx - (py - ym) * k, cy - (px - xm) * k];                     // carrier frame: +x (cab) up the page, the carrier's left to the left
+  const Tw = (xw, yw) => [cx + (xw + ym) * k, cy - (yw - xm) * k];                      // world frame with the carrier facing north (90°)
+  const side = sideOf(L.load); const boomDeg = normDeg(90 + SIDE_OFFSET[side]);
+  drawCraneFootprint(P, Tw, k, crane, { cx: 0, cy: 0, carrier: 90, boom: boomDeg }, num(L.res?.R, 10), 0, '', ext, { res: L.res, mat, bare: true, stub: side === 'rear' ? 0.36 * Lc + 1.6 : Wc / 2 + 2.2 });
+  for (const p of pads) { const c = S2(p.x, p.y); const mh = mat[1] * k; const v = O ? O.used[p.id] : null; const fr0 = p.x > 0; // labels in the gap between the front and rear pads
+    const ty = fr0 ? c[1] + mh / 2 + 2.6 : c[1] - mh / 2 - 2.4 - (o.press ? 5.4 : 2.8);
+    psT(P, c[0], ty, `${p.id}${p.ext === 'half' ? ' · HALF' : ''}${v != null ? ' · ' + psN(v, 1) + ' t' + (O.manual[p.id] != null ? ' *' : '') : ''}`, 2.1, { anchor: 'middle', bold: true, color: v != null ? PSC.red : PSC.ink, bg: '#ffffff' });
+    if (g?.pads?.[p.id] != null && o.press) psT(P, c[0], ty + 2.7, `${psN(g.pads[p.id], 1)} t/m² ON THE GROUND`, 1.6, { anchor: 'middle', color: PSC.ink2, bg: '#ffffff' });
+    psReaction(P, c[0], c[1], Math.max(0.9, Math.min(1.6, 0.35 * k))); }
+  const fr = pads.find(q => q.id === 'FR'), rr = pads.find(q => q.id === 'RR'), fl = pads.find(q => q.id === 'FL'), rl = pads.find(q => q.id === 'RL');
+  const offR = Math.max(9, mat[0] * k / 2 + 9);
+  if (fr && rr) { const a = S2(rr.x, rr.y), c = S2(fr.x, fr.y); dimA(P, a, c, offR, String(mm(fr.x - rr.x)), { side: 'right', size: 2.2 });
+    const o0 = S2(0, rr.y); dimA(P, a, o0, offR - 4.5, String(mm(0 - rr.x)), { side: 'right', size: 1.9 }); dimA(P, o0, c, offR - 4.5, String(mm(fr.x)), { side: 'right', size: 1.9 }); }
+  if (rl && rr) { const a = S2(rl.x, rl.y), c = S2(rr.x, rr.y); dimA(P, a, c, Math.max(6, mat[1] * k / 2 + 6, (rr.x + 0.36 * Lc) * k + 5), String(mm(rl.y - rr.y)), { side: 'down', size: 2.2 }); }
+  if (fl) { const c = S2(fl.x, fl.y), mw = mat[0] * k, mh = mat[1] * k; dimA(P, [c[0] - mw / 2, c[1] - mh / 2], [c[0] + mw / 2, c[1] - mh / 2], 2.6, String(mm(mat[0])), { side: 'up', size: 1.8 }); }
+  if (fr) { const c = S2(fr.x, fr.y); psCallout(P, c[0] + mat[0] * k / 2 - 0.5, c[1] - mat[1] * k / 2 + 0.5, Math.min(b.x + b.w - 2, c[0] + mat[0] * k / 2 + 20), c[1] - mat[1] * k / 2 - 8, ['CRANE MAT (TYP.)', `${mat[0]} × ${mat[1]} m`], { fs: 1.75 }); }
+  if (rl) { const c = S2(rl.x, rl.y); psCallout(P, c[0], c[1] + 0.8, Math.max(b.x + 2, c[0] - 6), c[1] + mat[1] * k / 2 + 10, ['OUTRIGGER PAD (TYP.)', g?.surface ? 'ON ' + g.surface.name.toUpperCase() : 'LEVEL, ON THE MAT CENTRE'], { fs: 1.6, right: true }); }
+  { const a = S2(0.64 * Lc + 1.2, ym), c = [a[0], a[1] - 6]; P.line(a[0], a[1], c[0], c[1], { stroke: PSC.ink, w: 0.25, layer: 'SET' }); arrow(P, c[0], c[1], -Math.PI / 2, { stroke: PSC.ink, al: 1.6, aw: 0.6, layer: 'SET' }); psT(P, c[0] + 1.2, c[1] + 1, 'FRONT', 1.6, { bold: true, color: PSC.ink2 }); }
+  { const sc = S2(0, 0); psCallout(P, sc[0], sc[1], b.x + 3, sc[1] + (side === 'rear' ? 0 : 14), ['SLEW CENTRE', 'SETTING-OUT POINT'], { fs: 1.5, right: true }); }
+  psT(P, b.x + 2, b.y + 3, `MATS ${mat[0]} × ${mat[1]} m${plan.outrigger?.matSelf ? ` · ${psN(num(plan.outrigger.matSelf), 2)} t EACH` : ''}`, 1.9, { bold: true, color: '#7c4a1e', maxW: b.w - 4 });
+  psT(P, b.x + 2, b.y + 6.2, `BEAMS ${outExtLabel(ext)}${O ? ` · LOADS ${O.basis === 'side' ? 'AT THE LIFT SIDE' : 'OVER A FULL SLEW'}` : ''} · BOOM OVER THE ${SIDE_NAME[side]}`, 1.7, { color: PSC.ink2, maxW: b.w - 4 });
   if (O?.est) psT(P, b.x + 2, b.y + 9, 'LEG LOADS FROM ESTIMATED CRANE WEIGHTS', 1.6, { color: PSC.warn, bold: true, maxW: b.w - 4 });
 }
 function psIso(P, b, X, L) { // vector isometric — used when there is no 3D still (no WebGL)
@@ -307,13 +316,13 @@ function psGA(pg, X, L) {
   const tb = { x: vx, y: D.y, w: 116, h: 128 }, ib = { x: vx + 118, y: D.y, w: vw - 118, h: 128 };
   const eb = { x: vx, y: D.y + 141, w: 148, h: 126 }, sb = { x: vx + 150, y: D.y + 141, w: vw - 150, h: 126 };
   [tb, ib, eb, sb].forEach(b => psBox(P, b));
-  const spl = psEmbed(pg, tb, (Ps, bx) => drawSitePlan(Ps, bx, plan, calc, { livery: X.livery, labels: false }));
+  const spl = psEmbed(pg, tb, (Ps, bx) => drawSitePlan(Ps, bx, plan, calc, { livery: X.livery, labels: false, ext: sitePlanTightExt(plan, calc, L.li) }));
   psCaption(P, tb.x + tb.w / 2, tb.y + tb.h + 4.5, 'PLAN VIEW', spl?.scale ? `SCALE 1:${spl.scale.N * PS_K} (A3)` : '');
   const shotG = X.shotTall || X.shot;
   if (shotG) { P.rect(ib.x, ib.y, ib.w, ib.h, { fill: '#18212b', stroke: 'none', layer: 'SET' }); P.image(ib.x, ib.y, ib.w, ib.h, shotG, { fit: 'slice', clip: [ib.x, ib.y, ib.w, ib.h], layer: 'SET' }); }
   else psIso(P, ib, X, L);
   psCaption(P, ib.x + ib.w / 2, ib.y + ib.h + 4.5, 'ISOMETRIC VIEW', 'NOT TO SCALE');
-  const el = psEmbed(pg, eb, (Ps, bx) => (r.tandem ? drawTandemElevation(Ps, bx, plan, calc, L.li, { title: false, livery: X.livery, padT: 6 }) : drawElevation(Ps, bx, plan, calc, L.li, { title: false, livery: X.livery, mainLabel: L.ch?.mainLabel, padB: 30 })));
+  const el = psEmbed(pg, eb, (Ps, bx) => (r.tandem ? drawTandemElevation(Ps, bx, plan, calc, L.li, { title: false, livery: X.livery, padT: 6 }) : drawElevation(Ps, bx, plan, calc, L.li, { title: false, livery: X.livery, mainLabel: L.ch?.mainLabel, padB: 30, hookDim: true })));
   psCaption(P, eb.x + eb.w / 2, eb.y + eb.h + 4.5, r.tandem ? 'ELEVATION ALONG THE LOAD (TANDEM)' : `ELEVATION VIEW @ ${psN(r.R, 1)} m RADIUS`, el?.scale ? `SCALE 1:${el.scale.N * PS_K} (A3)` : '');
   psSupport(P, sb, L, X);
   psCaption(P, sb.x + sb.w / 2, sb.y + sb.h + 4.5, 'CRANE SUPPORT LOCATIONS', 'DIMENSIONS IN mm');
@@ -389,50 +398,160 @@ function psTackleRows(L) {
   } else if (r.tk > 0) rows.push({ no: 2, desc: '[LIFTING TACKLES — WEIGHT AS ENTERED]', use: '[AS RIGGED]', mf: 1, wll: null, swl: null, unitW: r.tk, qty: 1, line: '—', T: null, util: null, w: r.tk });
   return rows;
 }
-function psRigDraw(P, b, L, view = 'front') { // the tackle arrangement drawn from the tackle list: hook, items, sling legs, load, balloons
+// ---------- rigging hardware, drawn like a rigging-study (page mm) ----------
+const PS_WLL_COL = [[1, '#7c3aed'], [2, '#16a34a'], [3, '#facc15'], [4, '#9ca3af'], [5, '#dc2626'], [6, '#92400e'], [8, '#2563eb'], [Infinity, '#f97316']]; // EN 1492 round-sling colours
+function psSlingKind(t) { const n = String(t?.name || ''); return /chain/i.test(n) ? 'chain' : /wire|wrs|steel|cable/i.test(n) ? 'wire' : /web|flat|belt|strap/i.test(n) ? 'web' : 'round'; }
+function psSlingCol(t) { const w = num(t?.wll); if (!(w > 0)) return '#f59e0b'; return PS_WLL_COL.find(([lim]) => w <= lim)[1]; }
+function psSling(P, a, b, kind, col, w) { // one sling leg from a to b, with its eyes
+  const dx = b[0] - a[0], dy = b[1] - a[1], Ln = Math.hypot(dx, dy) || 1, ux = dx / Ln, uy = dy / Ln, nx = -uy, ny = ux;
+  if (kind === 'chain') { const step = Math.max(0.9, w * 1.25); let j = 0; for (let d = 0; d < Ln - step * 0.3; d += step * 0.75, j++) { const cx = a[0] + ux * (d + step / 2), cy = a[1] + uy * (d + step / 2);
+      if (j % 2) P.line(cx - ux * step * 0.42, cy - uy * step * 0.42, cx + ux * step * 0.42, cy + uy * step * 0.42, { stroke: '#1f2937', w: w * 0.35, layer: 'SET' });
+      else { const pts = []; for (let q = 0; q <= 16; q++) { const t = q / 16 * Math.PI * 2; pts.push([cx + ux * Math.cos(t) * step * 0.5 + nx * Math.sin(t) * w * 0.42, cy + uy * Math.cos(t) * step * 0.5 + ny * Math.sin(t) * w * 0.42]); } P.poly(pts, { closed: true, fill: 'none', stroke: '#1f2937', w: w * 0.22, layer: 'SET' }); } }
+    return; }
+  const hw = kind === 'wire' ? w * 0.3 : kind === 'web' ? w * 0.62 : w * 0.5; const fill = kind === 'wire' ? '#6b7280' : col, edge = kind === 'wire' ? '#111827' : shade(col, -35);
+  const e = Math.min(Ln * 0.18, w * 2.6); // eye length at each end
+  const band = (d0, d1) => P.poly([[a[0] + ux * d0 + nx * hw, a[1] + uy * d0 + ny * hw], [a[0] + ux * d1 + nx * hw, a[1] + uy * d1 + ny * hw], [a[0] + ux * d1 - nx * hw, a[1] + uy * d1 - ny * hw], [a[0] + ux * d0 - nx * hw, a[1] + uy * d0 - ny * hw]], { closed: true, fill, stroke: edge, w: 0.15, layer: 'SET' });
+  band(e, Ln - e);
+  for (const [d0, sg] of [[0, 1], [Ln, -1]]) { const cx = a[0] + ux * (d0 + sg * e / 2), cy = a[1] + uy * (d0 + sg * e / 2); const pts = []; for (let q = 0; q <= 18; q++) { const t = q / 18 * Math.PI * 2; pts.push([cx + ux * Math.cos(t) * e / 2 + nx * Math.sin(t) * hw * 1.25, cy + uy * Math.cos(t) * e / 2 + ny * Math.sin(t) * hw * 1.25]); }
+    P.poly(pts, { closed: true, fill: 'none', stroke: kind === 'wire' ? '#111827' : fill, w: hw * 0.9, layer: 'SET' });
+    if (kind === 'wire') { const fx = a[0] + ux * (d0 + sg * (e + w * 0.5)), fy = a[1] + uy * (d0 + sg * (e + w * 0.5)); P.poly([[fx + nx * hw * 1.6 - ux * w * 0.45, fy + ny * hw * 1.6 - uy * w * 0.45], [fx + nx * hw * 1.6 + ux * w * 0.45, fy + ny * hw * 1.6 + uy * w * 0.45], [fx - nx * hw * 1.6 + ux * w * 0.45, fy - ny * hw * 1.6 + uy * w * 0.45], [fx - nx * hw * 1.6 - ux * w * 0.45, fy - ny * hw * 1.6 - uy * w * 0.45]], { closed: true, fill: '#d1d5db', stroke: '#111827', w: 0.12, layer: 'SET' }); } }
+  if (kind !== 'wire') P.line(a[0] + ux * e, a[1] + uy * e, b[0] - ux * e, b[1] - uy * e, { stroke: shade(col, 25), w: Math.max(0.08, hw * 0.25), layer: 'SET' });
+}
+function psShackle(P, x, y, ang, s) { // bow shackle hanging at (x, y) = the pin, opening along ang (radians, page)
+  const ux = Math.cos(ang), uy = Math.sin(ang), nx = -uy, ny = ux; const L = s, wb = s * 0.42; const col = '#db2777', edge = '#831843';
+  const pts = []; for (let q = 0; q <= 20; q++) { const t = Math.PI * q / 20; pts.push([x + ux * (L * 0.55 + Math.sin(t) * L * 0.45) + nx * Math.cos(t) * wb, y + uy * (L * 0.55 + Math.sin(t) * L * 0.45) + ny * Math.cos(t) * wb]); }
+  P.poly([[x + nx * wb * 0.8, y + ny * wb * 0.8], ...pts, [x - nx * wb * 0.8, y - ny * wb * 0.8]], { closed: false, fill: 'none', stroke: edge, w: s * 0.22, layer: 'SET' });
+  P.poly([[x + nx * wb * 0.8, y + ny * wb * 0.8], ...pts, [x - nx * wb * 0.8, y - ny * wb * 0.8]], { closed: false, fill: 'none', stroke: col, w: s * 0.13, layer: 'SET' });
+  P.line(x + nx * wb * 1.25, y + ny * wb * 1.25, x - nx * wb * 1.25, y - ny * wb * 1.25, { stroke: '#374151', w: s * 0.16, layer: 'SET' });
+  P.circle(x + nx * wb * 1.3, y + ny * wb * 1.3, s * 0.11, { fill: '#374151', stroke: 'none', layer: 'SET' });
+}
+function psLink(P, x, y, h) { const w = h * 0.55; const pts = []; for (let q = 0; q <= 24; q++) { const t = q / 24 * Math.PI * 2; pts.push([x + Math.sin(t) * w / 2, y + h / 2 - Math.cos(t) * h / 2]); } P.poly(pts, { closed: true, fill: 'none', stroke: '#1f2937', w: h * 0.14, layer: 'SET' }); P.poly(pts, { closed: true, fill: 'none', stroke: '#9ca3af', w: h * 0.06, layer: 'SET' }); }
+function psPadeye(P, x, y, s) { P.poly([[x - s * 0.55, y], [x - s * 0.3, y - s * 0.9], [x + s * 0.3, y - s * 0.9], [x + s * 0.55, y]], { closed: true, fill: '#9ca3af', stroke: '#111827', w: 0.15, layer: 'SET' }); P.circle(x, y - s * 0.55, s * 0.18, { fill: '#ffffff', stroke: '#111827', w: 0.12, layer: 'SET' }); }
+function psChainBlock(P, x, y1, y2) { // hook, housing with the hand chain, load chain, bottom hook
+  const h = y2 - y1, bw = Math.max(2.4, Math.min(5, h * 0.22)), by = y1 + h * 0.18, bh = Math.max(2.6, h * 0.24);
+  P.line(x, y1, x, by, { stroke: '#111827', w: 0.35, layer: 'SET' });
+  P.rect(x - bw / 2, by, bw, bh, { fill: '#1f2937', stroke: '#000', w: 0.2, layer: 'SET' }); P.rect(x - bw / 2 + 0.4, by + bh * 0.3, bw - 0.8, bh * 0.25, { fill: '#c026d3', stroke: 'none', layer: 'SET' });
+  const pts = []; for (let q = 0; q <= 20; q++) { const t = q / 20 * Math.PI * 2; pts.push([x + bw / 2 + 1.2 + Math.cos(t) * 1.2, by + bh / 2 + h * 0.2 + Math.sin(t) * h * 0.22]); } P.poly(pts, { closed: true, fill: 'none', stroke: '#6b7280', w: 0.15, dash: true, layer: 'SET' });
+  for (let yy = by + bh; yy < y2 - 0.6; yy += 1.1) P.circle(x, yy + 0.55, 0.45, { fill: 'none', stroke: '#111827', w: 0.2, layer: 'SET' });
+}
+function psLoadFront(P, x0, y0, w, h, shape, o = {}) { // the load seen side-on, shaded; (x0, y0) = top-left, page mm
+  const ink = '#0f172a', base = o.col || '#cbd5e1';
+  if (shape === 'drum' || shape === 'coil') { const r = Math.min(w, h) / 2, cx = x0 + w / 2, cy = y0 + h / 2; P.circle(cx, cy, r, { fill: shape === 'coil' ? '#9aa3ad' : '#d6c7a1', stroke: ink, w: 0.3, layer: 'SET' }); P.circle(cx, cy, r * 0.72, { fill: 'none', stroke: '#6b7280', w: 0.15, layer: 'SET' }); P.circle(cx, cy, r * 0.3, { fill: '#ffffff', stroke: ink, w: 0.2, layer: 'SET' }); return; }
+  if (shape === 'cylinder') { const ry = Math.min(h * 0.08, 2.4); P.rect(x0, y0 + ry, w, h - 2 * ry, { fill: '#b6c6d3', stroke: 'none', layer: 'SET' });
+    P.poly(Array.from({ length: 25 }, (_, q) => { const t = Math.PI * q / 24; return [x0 + w / 2 - Math.cos(t) * w / 2, y0 + h - ry + Math.sin(t) * ry]; }), { closed: false, fill: 'none', stroke: ink, w: 0.3, layer: 'SET' });
+    P.line(x0, y0 + ry, x0, y0 + h - ry, { stroke: ink, w: 0.3, layer: 'SET' }); P.line(x0 + w, y0 + ry, x0 + w, y0 + h - ry, { stroke: ink, w: 0.3, layer: 'SET' });
+    P.poly(Array.from({ length: 33 }, (_, q) => { const t = 2 * Math.PI * q / 32; return [x0 + w / 2 + Math.cos(t) * w / 2, y0 + ry + Math.sin(t) * ry]; }), { closed: true, fill: '#dbe5ee', stroke: ink, w: 0.3, layer: 'SET' });
+    P.rect(x0 + w * 0.12, y0 + ry * 2, w * 0.08, h - ry * 3, { fill: '#e8eef4', stroke: 'none', layer: 'SET' }); return; }
+  const d = Math.min(3.2, h * 0.18, w * 0.12); // a little depth: top face and side face for a solid look
+  P.poly([[x0, y0], [x0 + d, y0 - d * 0.7], [x0 + w + d, y0 - d * 0.7], [x0 + w, y0]], { closed: true, fill: shade(base, 18), stroke: ink, w: 0.2, layer: 'SET' });
+  P.poly([[x0 + w, y0], [x0 + w + d, y0 - d * 0.7], [x0 + w + d, y0 + h - d * 0.7], [x0 + w, y0 + h]], { closed: true, fill: shade(base, -18), stroke: ink, w: 0.2, layer: 'SET' });
+  P.rect(x0, y0, w, h, { fill: shape === 'container' ? '#7a8fa6' : shape === 'chiller' ? '#c3cad3' : shape === 'tc' ? '#86efac' : shape === 'bundle' ? '#8d9298' : base, stroke: ink, w: 0.3, layer: 'SET' });
+  if (shape === 'container') for (let xx = x0 + 1; xx < x0 + w - 0.5; xx += 1.2) P.line(xx, y0 + 0.6, xx, y0 + h - 0.6, { stroke: '#4a5a6a', w: 0.12, layer: 'SET' });
+  else if (shape === 'chiller') { for (let xx = x0 + 1; xx < x0 + w - 1; xx += 0.9) P.line(xx, y0 + h * 0.2, xx, y0 + h * 0.85, { stroke: '#8b95a1', w: 0.1, layer: 'SET' }); }
+  else if (shape === 'bundle') for (let yy = y0 + h / 4; yy < y0 + h - 0.2; yy += h / 4) P.line(x0, yy, x0 + w, yy, { stroke: '#5d6268', w: 0.15, layer: 'SET' });
+  else { P.line(x0 + 0.8, y0 + h * 0.22, x0 + w - 0.8, y0 + h * 0.22, { stroke: shade(base, -12), w: 0.15, layer: 'SET' }); P.line(x0 + 0.8, y0 + h - 1, x0 + w - 0.8, y0 + h - 1, { stroke: shade(base, -12), w: 0.15, layer: 'SET' }); }
+}
+function psRigDraw(P, b, L, view = 'front') { // the tackle arrangement drawn from the tackle list: hook block, hardware, sling legs, load, balloons
   const r = L.res, st = r.stack, load = L.load, pf = L.pf; const items = st ? st.items : [];
   const lL = Math.max(0.5, num(load.l, 2)), lH = Math.max(0.3, num(load.h, 1.5)), across = view === 'side';
   const wd = num(load.wd) > 0 ? num(load.wd) : Math.max(0.5, Math.min(lL, lH));
-  const bodyW = across ? wd : lL; const H = st ? st.H : pf ? pf.H : 3; const hbH = Math.max(0.6, Math.min(1.4, H * 0.2));
-  const k = Math.min((b.w - 30) / Math.max(bodyW, ...(items.filter(t => t.type === 'spreader' || t.type === 'beam').map(t => num(t.L)))), (b.h - 34) / (hbH + H + lH));
-  const cx = b.x + b.w / 2, y0 = b.y + 10; const X_ = (u) => cx + u * k, Y_ = (v) => y0 + v * k; // v down from the top of the hook block
-  const balloons = []; const balloon = (x, y, n, dx) => balloons.push({ x, y, n, dx });
-  // hook block
-  { const w = Math.min(16, Math.max(4, hbH * 0.55 * k)), h = Math.min(18, hbH * k * 0.72); P.poly([[cx - w / 2, y0], [cx + w / 2, y0], [cx + w * 0.38, y0 + h], [cx - w * 0.38, y0 + h]], { closed: true, fill: '#6b7280', stroke: '#111827', w: 0.25, layer: 'SET' });
-    P.arc(cx, y0 + h + 1.4, 1.4, 180, 360, { stroke: '#111827', w: 0.6, layer: 'SET' }); P.line(cx, y0 - 6, cx, y0, { stroke: '#111827', w: 0.3, layer: 'SET' }); balloon(cx + w / 2, y0 + h / 2, 1, 1); }
-  let pts = [0], v = hbH; let n = 2;
-  const picks = () => { if (!pf) return [-lL * 0.4, lL * 0.4]; if (across) return pf.n >= 3 ? [-pf.across / 2, pf.across / 2] : [0]; return pf.n === 1 ? [0] : [-pf.along / 2, pf.along / 2]; };
+  const bodyW = across ? wd : lL; const H = st ? st.H : pf ? pf.H : 3;
+  const hk = hookOf(L.crane); const hbH = hk ? hk.h : 1.6, hbW = hk ? hk.w : 0.9;
+  const spanMax = Math.max(bodyW, hbW, ...(items.filter(t => t.type === 'spreader' || t.type === 'beam').map(t => across ? 0.6 : num(t.L))));
+  const k = Math.min((b.w - 40) / (spanMax + 0.6), (b.h - 34) / (hbH + H + lH + 0.3));
+  const cx = b.x + b.w / 2 - 6, y0 = b.y + 9; const X_ = (u) => cx + u * k, Y_ = (v) => y0 + v * k;
+  const balloons = []; const balloon = (x, y, n, dx) => balloons.push({ x, y, n, dx: dx || 1 });
+  // hoist rope falls and the crane's own hook block (from its CAD drawing)
+  for (const dx of [-0.18, 0.18]) P.line(X_(dx * hbW), b.y + 2, X_(dx * hbW), y0 + 0.4, { stroke: '#111827', w: 0.22, layer: 'SET' });
+  if (hk) emitItems(P, hk.items, hk.pal, (x, y) => [cx + x * hk.s * k, y0 - y * hk.s * k], { tint: '#facc15', w: 0.12, layer: 'SET' });
+  else { P.poly([[X_(-0.45), y0], [X_(0.45), y0], [X_(0.32), Y_(hbH * 0.7)], [X_(-0.32), Y_(hbH * 0.7)]], { closed: true, fill: '#facc15', stroke: '#111827', w: 0.25, layer: 'SET' }); P.arc(cx, Y_(hbH * 0.85), hbH * 0.15 * k, 180, 360, { stroke: '#111827', w: 0.6, layer: 'SET' }); }
+  balloon(X_(hbW / 2), Y_(hbH * 0.35), 1);
+  const pickX = () => { if (!pf) return [-lL * 0.4, lL * 0.4]; if (across) return pf.n >= 3 ? [-pf.across / 2, pf.across / 2] : [0]; return pf.n === 1 ? [0] : [-pf.along / 2, pf.along / 2]; };
+  const legW = Math.max(0.9, Math.min(2.2, 0.09 * k));
+  let pts = [0], v = hbH, prevSling = null; const lbl = [];
+  const slingLegs = (t, from, to, v0, v1, no) => {
+    const kind = psSlingKind(t), col = psSlingCol(t);
+    if (from.length === 1 && to.length > 1 && !(items[items.indexOf(t) - 1]?.type === 'shackle')) psLink(P, X_(from[0]), Y_(v0) - 0.6, Math.max(2.2, legW * 2.2));
+    const pairs = from.length === 1 ? to.map(x => [from[0], x]) : from.length === to.length ? from.map((x, j) => [x, to[j]]) : to.map(x => [from.reduce((a, q) => (Math.abs(q - x) < Math.abs(a - x) ? q : a), from[0]), x]);
+    if (!across && t.legs >= 4) for (const [a, c] of pairs) psSling(P, [X_(a) + 0.8, Y_(v0) + 0.3], [X_(c) + 0.8 * Math.sign(c - a || 1), Y_(v1)], kind, shade(col, -25), legW * 0.85); // the two legs behind
+    for (const [a, c] of pairs) psSling(P, [X_(a), Y_(v0)], [X_(c), Y_(v1)], kind, col, legW);
+    const [a, c] = pairs[pairs.length - 1]; balloon((X_(a) + X_(c)) / 2, (Y_(v0) + Y_(v1)) / 2, no, c >= a ? 1 : -1);
+    const [a0, c0] = pairs[0]; if (pairs.length > 1 || Math.abs(c0 - a0) > 0.01) { const ang = Math.atan2(Math.abs(c0 - a0), v1 - v0) * R2D; const ra = Math.min(9, (v1 - v0) * k * 0.3);
+      P.arc(X_(a0), Y_(v0), ra, 270, 270 + (c0 >= a0 ? ang : -ang), { stroke: COL.red, w: 0.18, layer: 'SET' }); P.line(X_(a0), Y_(v0), X_(a0), Y_(v0) + ra * 1.3, { stroke: COL.red, w: 0.12, dash: true, layer: 'SET' });
+      psT(P, X_(a0) + (c0 >= a0 ? 1.4 : -1.4), Y_(v0) + ra + 2.4, `${psN(ang, 1)}°`, 1.9, { anchor: c0 >= a0 ? 'start' : 'end', bold: true, color: COL.red, bg: '#ffffff' }); }
+    if (t.L) { const mx = (X_(a) + X_(c)) / 2, my = (Y_(v0) + Y_(v1)) / 2; let rot = Math.atan2(Y_(v1) - Y_(v0), X_(c) - X_(a)) * R2D; if (rot > 90) rot -= 180; if (rot < -90) rot += 180;
+      const nx = Math.sin(rot * D2R), ny = -Math.cos(rot * D2R), off = legW + 2.8; P.text(mx + nx * off, my + ny * off, `L = ${psN(t.L, 2)} m`, { size: 1.7, bold: true, anchor: 'middle', vAlign: 'middle', rot, color: '#065f46', bg: '#ffffff', layer: 'SET' }); }
+    return pairs.map(p => p[1]);
+  };
   items.forEach((t, i) => {
-    const no = i + 2; const vt = Math.max(0.15, t.v);
-    if (t.type === 'sling') {
-      const beam = items.slice(i + 1).find(q => q.type === 'spreader' || q.type === 'beam'); const tg = beam ? (across ? [0] : [-num(beam.L) / 2, num(beam.L) / 2]) : picks();
-      const pairs = pts.length === 1 ? tg.map(x => [pts[0], x]) : pts.length === tg.length ? pts.map((x, j) => [x, tg[j]]) : tg.map(x => [pts.reduce((a, q) => (Math.abs(q - x) < Math.abs(a - x) ? q : a), pts[0]), x]);
-      for (const [a, c] of pairs) { P.line(X_(a), Y_(v), X_(c), Y_(v + vt), { stroke: '#92400e', w: 1.1, layer: 'SET' }); P.line(X_(a), Y_(v), X_(c), Y_(v + vt), { stroke: '#f59e0b', w: 0.7, layer: 'SET' }); }
-      const [a, c] = pairs[pairs.length - 1]; balloon((X_(a) + X_(c)) / 2, (Y_(v) + Y_(v + vt)) / 2, no, c >= a ? 1 : -1);
-      if (!across && pairs.length > 1 && t.ang != null) { const [a0, c0] = pairs[0]; const ang = Math.atan2(vt, Math.abs(c0 - a0)) * R2D; psT(P, X_(c0) + 2, Y_(v + vt) - 2.5, `${psN(90 - ang, 1)}° FROM VERTICAL`, 1.7, { color: COL.green, bold: true }); }
-      pts = tg; v += vt;
-    } else if (t.type === 'spreader' || t.type === 'beam') {
-      const half = across ? 0.25 : num(t.L, 2) / 2; P.rect(X_(-half), Y_(v), half * 2 * k, Math.max(1.2, vt * k), { fill: '#fde047', stroke: '#713f12', w: 0.3, layer: 'SET' }); balloon(X_(half), Y_(v + vt / 2), no, 1);
-      pts = across ? [0] : [-half, half]; v += vt;
-    } else {
-      for (const x of pts) { const a = X_(x), y1 = Y_(v), y2 = Y_(v + vt);
-        if (t.type === 'shackle') { P.line(a, y1, a, y2, { stroke: '#1f2937', w: 0.25, layer: 'SET' }); P.circle(a, (y1 + y2) / 2, Math.max(0.8, Math.min(2, (y2 - y1) / 2)), { fill: 'none', stroke: '#be185d', w: 0.45, layer: 'SET' }); }
-        else if (t.type === 'chain') { P.rect(a - 1, y1 + (y2 - y1) * 0.35, 2, (y2 - y1) * 0.3, { fill: '#c026d3', stroke: '#4a044e', w: 0.2, layer: 'SET' }); P.line(a, y1, a, y2, { stroke: '#111827', w: 0.35, dash: true, layer: 'SET' }); }
-        else P.line(a, y1, a, y2, { stroke: '#374151', w: 0.5, layer: 'SET' }); }
-      balloon(X_(pts[pts.length - 1]), Y_(v + vt / 2), no, 1); v += vt;
-    }
+    const no = i + 2, vt = Math.max(0.15, t.v);
+    if (t.type === 'sling') { const beam = items.slice(i + 1).find(q => q.type === 'spreader' || q.type === 'beam'); const tg = beam ? (across ? [0] : [-num(beam.L) / 2, num(beam.L) / 2]) : pickX();
+      pts = slingLegs(t, pts, tg, v, v + vt, no); prevSling = t; v += vt; return; }
+    if (t.type === 'spreader' || t.type === 'beam') { const half = across ? 0.3 : num(t.L, 2) / 2; const y1 = Y_(v + vt * 0.25), bh = Math.max(1.6, vt * 0.5 * k);
+      P.rect(X_(-half), y1, half * 2 * k, bh, { fill: t.type === 'spreader' ? '#fde047' : '#d1d5db', stroke: '#713f12', w: 0.3, layer: 'SET' }); P.line(X_(-half), y1 + bh * 0.22, X_(half), y1 + bh * 0.22, { stroke: '#a16207', w: 0.12, layer: 'SET' }); P.line(X_(-half), y1 + bh * 0.78, X_(half), y1 + bh * 0.78, { stroke: '#a16207', w: 0.12, layer: 'SET' });
+      const ends = across ? [0] : [-half + 0.08, half - 0.08]; for (const e of ends) { psPadeye(P, X_(e), y1, Math.max(1.6, bh * 0.9)); const bp = [X_(e) - Math.max(0.8, bh * 0.4), y1 + bh, X_(e) + Math.max(0.8, bh * 0.4)]; P.poly([[bp[0], bp[1]], [X_(e), bp[1] + bh * 0.8], [bp[2], bp[1]]], { closed: true, fill: '#9ca3af', stroke: '#111827', w: 0.15, layer: 'SET' }); }
+      psT(P, X_(0), y1 + bh / 2, `${String(t.name || 'SPREADER').toUpperCase()} · SPAN ${psN(t.L, 2)} m`, Math.min(1.9, bh * 0.45), { anchor: 'middle', bold: true, color: '#713f12', maxW: half * 2 * k - 6 });
+      balloon(X_(half), y1 + bh / 2, no); pts = across ? [0] : [-half + 0.08, half - 0.08]; prevSling = null; v += vt; return; }
+    for (const x of pts) { const a = X_(x), y1 = Y_(v), y2 = Y_(v + vt);
+      if (t.type === 'shackle') psShackle(P, a, y1, Math.PI / 2, Math.max(2.4, Math.min(5, (y2 - y1) * 0.95)));
+      else if (t.type === 'chain') psChainBlock(P, a, y1, y2);
+      else { P.line(a, y1, a, y2, { stroke: '#374151', w: 0.5, layer: 'SET' }); psLink(P, a, y2 - 2, 2); } }
+    balloon(X_(pts[pts.length - 1]) + 1.5, Y_(v + vt / 2), no); v += vt;
   });
-  if (!items.length && pf) { const tg = picks(); for (const x of tg) { P.line(cx, Y_(v), X_(x), Y_(v + pf.H), { stroke: '#92400e', w: 1.1, layer: 'SET' }); P.line(cx, Y_(v), X_(x), Y_(v + pf.H), { stroke: '#f59e0b', w: 0.7, layer: 'SET' }); } v += pf.H; }
-  // the load
-  const ly = Y_(v); P.rect(X_(-bodyW / 2), ly, bodyW * k, lH * k, { fill: '#cbd5e1', stroke: '#0f172a', w: 0.35, layer: 'SET' });
-  psT(P, cx, ly + lH * k + 11, `${String(load.name || 'LOAD').toUpperCase()} · ${psN(r.W, 2)} t`, 2.4, { anchor: 'middle', bold: true, maxW: b.w - 6 });
-  for (const x of picks()) psReaction(P, X_(x), ly, 1.2);
-  const cg = across ? num(load.cogZ) : num(load.cogX); cogSymbol(P, X_(cg), ly + lH * k / 2, Math.min(1.6, Math.max(0.9, lH * k * 0.3)), 'SET');
-  // dimensions: load length / width, hook to load
+  if (!items.length && pf) { const t = { name: 'SLINGS', legs: pf.n, L: pf.pts[0]?.L }; pts = slingLegs(t, [0], pickX(), v, v + pf.H, 2); v += pf.H; }
+  // the load, its lifting points (padeyes), the centre of gravity
+  const ly = Y_(v); psLoadFront(P, X_(-bodyW / 2), ly, bodyW * k, lH * k, load.shape || 'box');
+  for (const x of pickX()) psPadeye(P, X_(x), ly, Math.max(1.4, Math.min(3, 0.18 * k)));
+  const cg = across ? num(load.cogZ) : num(load.cogX); cogSymbol(P, X_(cg), ly + lH * k / 2, Math.min(1.8, Math.max(1, lH * k * 0.22)), 'SET');
+  psT(P, X_(cg) + 2.4, ly + lH * k / 2 + 2.6, 'C.O.G.', 1.6, { bold: true, color: PSC.ink2 });
+  // dimensions: load length / width, lifting points, hook to load, load height
   dimA(P, [X_(-bodyW / 2), ly + lH * k], [X_(bodyW / 2), ly + lH * k], 4.5, String(mm(bodyW)), { side: 'down', size: 2.1 });
-  const hx = X_(-bodyW / 2) - 6; dimA(P, [hx, Y_(hbH)], [hx, ly], 0, String(mm(v - hbH)), { side: 'left', size: 2.1, extA: false, extB: false });
-  // balloons
-  for (const q of balloons) { const bx = q.x + q.dx * 9, by = q.y - 3; P.line(q.x, q.y, bx - q.dx * 2.2, by, { stroke: PSC.red, w: 0.18, layer: 'SET' }); P.circle(bx, by, 2.2, { fill: '#ffffff', stroke: PSC.blue, w: 0.3, layer: 'SET' }); psT(P, bx, by, String(q.n).padStart(2, '0'), 1.8, { anchor: 'middle', bold: true, color: PSC.blue }); }
+  const px = pickX(); if (px.length > 1) { const yd = ly + lH * k + 9.5; dimA(P, [X_(px[0]), yd], [X_(cg), yd], 0, String(mm(cg - px[0])), { side: 'down', size: 1.9, extA: false, extB: false }); dimA(P, [X_(cg), yd], [X_(px[px.length - 1]), yd], 0, String(mm(px[px.length - 1] - cg)), { side: 'down', size: 1.9, extA: false, extB: false });
+    for (const xx of [px[0], cg, px[px.length - 1]]) P.line(X_(xx), ly + lH * k + 1, X_(xx), yd + 1.2, { stroke: COL.red, w: 0.1, layer: 'DIM' }); }
+  const hx = X_(-spanMax / 2) - 7; dimA(P, [hx, Y_(hbH)], [hx, ly], 0, String(mm(v - hbH)), { side: 'left', size: 2.1, extA: false, extB: false });
+  P.line(hx - 1, Y_(hbH), X_(0) - 1, Y_(hbH), { stroke: COL.red, w: 0.1, dash: true, layer: 'DIM' });
+  dimA(P, [X_(bodyW / 2) + 4.5, ly], [X_(bodyW / 2) + 4.5, ly + lH * k], 0, String(mm(lH)), { side: 'right', size: 1.9, extA: false, extB: false });
+  psT(P, cx, ly + lH * k + 17, `${String(load.name || 'LOAD').toUpperCase()} · ${psN(r.W, 2)} t`, 2.4, { anchor: 'middle', bold: true, maxW: b.w - 6 });
+  // balloons, kept apart
+  balloons.sort((p, q) => p.y - q.y); let lastR = -99, lastL = -99;
+  for (const q of balloons) { const right = q.dx >= 0; let by = q.y - 2; if (right) { by = Math.max(by, lastR + 5); lastR = by; } else { by = Math.max(by, lastL + 5); lastL = by; }
+    const bx = right ? Math.min(b.x + b.w - 4, q.x + 10) : Math.max(b.x + 4, q.x - 10);
+    P.line(q.x, q.y, bx + (right ? -2.2 : 2.2), by, { stroke: PSC.red, w: 0.18, layer: 'SET' }); P.circle(q.x, q.y, 0.4, { fill: PSC.red, stroke: 'none', layer: 'SET' });
+    P.circle(bx, by, 2.2, { fill: '#ffffff', stroke: PSC.blue, w: 0.3, layer: 'SET' }); psT(P, bx, by, String(q.n).padStart(2, '0'), 1.8, { anchor: 'middle', bold: true, color: PSC.blue }); }
+}
+// the rig in 3D (isometric): load block, lifting points, every sling leg up to the hook, the spreader, tension labels
+function psRigIso(P, b, L, o = {}) {
+  const r = L.res, pf = L.pf, load = L.load, st = r.stack; if (!pf) return;
+  const lL = Math.max(0.5, num(load.l, 2)), lH = Math.max(0.3, num(load.h, 1.5)), wd = num(load.wd) > 0 ? num(load.wd) : Math.max(pf.across + 0.3, Math.min(lL, lH));
+  const items = st ? st.items : []; const H = st ? st.H : pf.H; const hb = 1.2;
+  const pr = (x, z, y) => [(x - z) * 0.866, (x + z) * 0.5 - y];                       // x along the load, z across, y up
+  const box3 = [[-lL / 2, -wd / 2, 0], [lL / 2, wd / 2, lH + H + hb]].flatMap(([x, z, y]) => [pr(x, z, y)]);
+  const corners = []; for (const x of [-lL / 2, lL / 2]) for (const z of [-wd / 2, wd / 2]) for (const y of [0, lH + H + hb]) corners.push(pr(x, z, y));
+  const xs = corners.map(c => c[0]), ys = corners.map(c => c[1]); const k = Math.min((b.w - 16) / (Math.max(...xs) - Math.min(...xs)), (b.h - 16) / (Math.max(...ys) - Math.min(...ys)));
+  const ox = b.x + (b.w - (Math.max(...xs) - Math.min(...xs)) * k) / 2 - Math.min(...xs) * k, oy = b.y + 8 - Math.min(...ys) * k;
+  const S = (x, z, y) => { const q = pr(x, z, y); return [ox + q[0] * k, oy + q[1] * k]; };
+  // ground shadow and the load block (three visible faces)
+  const f = (pts, fill) => P.poly(pts.map(p => S(...p)), { closed: true, fill, stroke: '#0f172a', w: 0.2, layer: 'SET' });
+  f([[-lL / 2 - 0.4, -wd / 2 - 0.4, 0], [lL / 2 + 0.4, -wd / 2 - 0.4, 0], [lL / 2 + 0.4, wd / 2 + 0.4, 0], [-lL / 2 - 0.4, wd / 2 + 0.4, 0]], '#f1f5f9');
+  f([[-lL / 2, wd / 2, 0], [lL / 2, wd / 2, 0], [lL / 2, wd / 2, lH], [-lL / 2, wd / 2, lH]], '#94a3b8');
+  f([[lL / 2, -wd / 2, 0], [lL / 2, wd / 2, 0], [lL / 2, wd / 2, lH], [lL / 2, -wd / 2, lH]], '#64748b');
+  f([[-lL / 2, -wd / 2, lH], [lL / 2, -wd / 2, lH], [lL / 2, wd / 2, lH], [-lL / 2, wd / 2, lH]], '#cbd5e1');
+  { const g = S(pf.cx, pf.cz, lH); cogSymbol(P, g[0], g[1], 1.3, 'SET'); }
+  // levels from the hook down: the hook above the C.O.G., then each sling / beam
+  const top = lH + H; let lvl = [{ x: pf.cx, z: pf.cz }], y = top; const legs = [];
+  const picks3 = pf.pts.map(q => ({ x: q.x, z: q.z, id: q.id, T: q.T }));
+  if (items.length) items.forEach((t, i) => { const vt = Math.max(0.15, t.v);
+    if (t.type === 'sling') { const beam = items.slice(i + 1).find(q => q.type === 'spreader' || q.type === 'beam'); const tg = beam ? [{ x: pf.cx - num(beam.L) / 2, z: pf.cz }, { x: pf.cx + num(beam.L) / 2, z: pf.cz }] : picks3;
+      for (const p of tg) { const from = lvl.reduce((a, q) => (Math.hypot(q.x - p.x, q.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? q : a), lvl[0]); legs.push({ a: [from.x, from.z, y], c: [p.x, p.z, y - vt], t, p }); }
+      lvl = tg; }
+    else if (t.type === 'spreader' || t.type === 'beam') { const a = S(pf.cx - num(t.L) / 2, pf.cz, y - vt / 2), c = S(pf.cx + num(t.L) / 2, pf.cz, y - vt / 2); P.line(a[0], a[1], c[0], c[1], { stroke: '#713f12', w: 2.2, layer: 'SET' }); P.line(a[0], a[1], c[0], c[1], { stroke: '#fde047', w: 1.4, layer: 'SET' }); }
+    else for (const q of lvl) { const a = S(q.x, q.z, y), c = S(q.x, q.z, y - vt); P.line(a[0], a[1], c[0], c[1], { stroke: t.type === 'shackle' ? '#db2777' : '#1f2937', w: 0.7, layer: 'SET' }); }
+    y -= vt; });
+  else for (const p of picks3) legs.push({ a: [pf.cx, pf.cz, top], c: [p.x, p.z, lH], t: { name: 'sling' }, p });
+  legs.sort((p, q) => (p.c[0] + p.c[1]) - (q.c[0] + q.c[1]));
+  for (const lg of legs) { const a = S(...lg.a), c = S(...lg.c); psSling(P, a, c, psSlingKind(lg.t), psSlingCol(lg.t), 1.1); }
+  for (const p of picks3) { const c = S(p.x, p.z, lH); psReaction(P, c[0], c[1], 1.1); if (o.tension) psT(P, c[0] + 1.6, c[1] + 2.8, `${p.id.replace('R', 'T')} ${psN(p.T, 2)} Te`, 1.8, { bold: true, color: PSC.blue, bg: '#ffffff' }); }
+  { const h = S(pf.cx, pf.cz, top + hb * 0.15); P.poly([[h[0] - 1.8, h[1] - hb * k * 0.75], [h[0] + 1.8, h[1] - hb * k * 0.75], [h[0] + 1.2, h[1]], [h[0] - 1.2, h[1]]], { closed: true, fill: '#facc15', stroke: '#111827', w: 0.25, layer: 'SET' }); P.line(h[0], b.y + 1, h[0], h[1] - hb * k * 0.75, { stroke: '#111827', w: 0.25, layer: 'SET' }); }
 }
 function psRigging(pg, X, L) {
   const P = pg.P, D = PS_DA; const r = L.res; const rows = psTackleRows(L);
@@ -450,7 +569,8 @@ function psRigging(pg, X, L) {
   psBox(P, fb); psBox(P, sb);
   psRigDraw(P, fb, L, 'front'); psCaption(P, fb.x + fb.w / 2, fb.y + fb.h + 4.4, 'TACKLE ARRANGEMENT — FRONT VIEW', 'NOT TO SCALE');
   psRigDraw(P, sb, L, 'side'); psCaption(P, sb.x + sb.w / 2, sb.y + sb.h + 4.4, 'SIDE VIEW', 'NOT TO SCALE');
-  let iy = psHead(P, ib.x, ib.y, ib.w, 'RIGGING SUMMARY');
+  const isoH = Math.min(78, Math.max(50, ib.h * 0.42)); psBox(P, { x: ib.x, y: ib.y, w: ib.w, h: isoH }); psRigIso(P, { x: ib.x, y: ib.y, w: ib.w, h: isoH }, L); psT(P, ib.x + 2, ib.y + 3, 'ISOMETRIC VIEW (NOT TO SCALE)', 1.8, { bold: true, color: PSC.ink2 });
+  let iy = psHead(P, ib.x, ib.y + isoH + 3, ib.w, 'RIGGING SUMMARY');
   const pf = L.pf; const sl = r.stack?.items?.filter(t => t.type === 'sling') || [];
   iy = psTable(P, ib.x, iy, [{ w: ib.w - 26, a: 'l' }, { w: 26, a: 'r' }], [
     ['Rigging height (hook to load)', `${psN(r.rigH, 2)} m`], ['Hook height above landing', `${psN(r.hookY, 2)} m`], ['Boom tip height', `${psN(r.tipY, 2)} m`], ['Headroom needed (incl. hook allowance)', `${psN(r.reqTipY, 2)} m`],
@@ -491,29 +611,45 @@ function psCalc(pg, X, L) {
   box('DEFINITIONS', ['R1…Rn: vertical reaction at lifting point 1…n.', 'T1…Tn: tension in the lifting appliance at lifting point 1…n.', 'W: weight of the load with contingency and D.A.F.', 'L_H: load carried by the crane hook block.', 'C.O.G.: the load\'s centre of gravity.'], { num: true });
   if (pf?.assumed?.length) box('ASSUMED — CHECK ON SITE', pf.assumed.map(a => a.charAt(0).toUpperCase() + a.slice(1) + '.'), { col: PSC.warn });
   if (pf && !pf.inside) box('C.O.G. OUTSIDE THE LIFTING POINTS', ['The load will tip until its centre of gravity is under the hook. Move the lifting points or re-rig before lifting.'], { col: PSC.fail });
-  // location of forces (plan view) + tension diagrams
+  // location of forces (plan view), the tensions in 3D, and a small elevation of every leg
   if (!pf) return;
   const yb = Math.max(y + 2, fy - 2); const bh = D.y + D.h - yb - 9; if (bh < 40) return;
-  const pb = { x: D.x, y: yb, w: 190, h: bh }; psBox(P, pb);
+  const pb = { x: D.x, y: yb, w: 128, h: bh }, ib = { x: pb.x + pb.w + 3, y: yb, w: 92, h: bh }, tb = { x: ib.x + ib.w + 3, y: yb, w: D.x + D.w - ib.x - ib.w - 3, h: bh };
+  [pb, ib, tb].forEach(q => psBox(P, q));
   const lL = Math.max(0.5, num(L.load.l, 2)), wd = num(L.load.wd) > 0 ? num(L.load.wd) : Math.max(pf.across + 0.3, Math.min(lL, num(L.load.h, 1.5)));
-  const k = Math.min((pb.w - 34) / lL, (pb.h - 26) / wd); const cx = pb.x + pb.w / 2, cy = pb.y + pb.h / 2 + 2; const S2 = (x, z) => [cx + x * k, cy - z * k];
-  { const a = S2(-lL / 2, wd / 2); P.rect(a[0], a[1], lL * k, wd * k, { fill: '#e2e8f0', stroke: '#0f172a', w: 0.35, layer: 'SET' }); }
+  const k = Math.min((pb.w - 36) / lL, (pb.h - 40) / wd); const cx = pb.x + pb.w / 2, cy = pb.y + pb.h / 2 - 2; const S2 = (x, z) => [cx + x * k, cy - z * k];
+  { const a = S2(-lL / 2, wd / 2); P.rect(a[0] + 1.4, a[1] + 1.4, lL * k, wd * k, { fill: '#e2e8f0', stroke: 'none', layer: 'SET' }); P.rect(a[0], a[1], lL * k, wd * k, { fill: '#f8fafc', stroke: '#0f172a', w: 0.35, layer: 'SET' });
+    P.line(a[0], cy, a[0] + lL * k, cy, { stroke: '#94a3b8', w: 0.12, dash: true, layer: 'SET' }); P.line(cx, a[1], cx, a[1] + wd * k, { stroke: '#94a3b8', w: 0.12, dash: true, layer: 'SET' });
+    psT(P, cx, a[1] + wd * k - 2.4, String(L.load.name || 'LOAD').toUpperCase() + ' (FROM ABOVE)', 1.8, { anchor: 'middle', bold: true, color: PSC.ink2, maxW: lL * k - 10 }); }
   const G = S2(pf.cx, pf.cz);
-  pf.pts.forEach(q => { const a = S2(q.x, q.z); P.line(a[0], a[1], G[0], G[1], { stroke: PSC.blue, w: 0.18, dash: true, layer: 'SET' }); });
-  pf.pts.forEach(q => { const a = S2(q.x, q.z); psReaction(P, a[0], a[1], 1.9); const up = q.z >= 0; psT(P, a[0], a[1] + (up ? -4.2 : 4.6), `${q.id} = ${psN(q.R, 3)} Te`, 2.1, { anchor: 'middle', bold: true, color: PSC.red, bg: '#ffffff' }); });
-  cogSymbol(P, G[0], G[1], 2, 'SET'); psT(P, G[0] + 3, G[1] + 3.6, `W = ${psN(pf.W, 3)} Te`, 2.1, { bold: true, color: PSC.blue, bg: '#ffffff' });
-  if (pf.n === 2) { const a = S2(pf.pts[0].x, 0), c = S2(pf.pts[1].x, 0); const yl = cy + wd * k / 2 + 6; dimA(P, [a[0], yl], [G[0], yl], 0, `D1 = ${mm(pf.pts[0].d)}`, { size: 2, side: 'down', extA: false, extB: false }); dimA(P, [G[0], yl], [c[0], yl], 0, `D2 = ${mm(pf.pts[1].d)}`, { size: 2, side: 'down', extA: false, extB: false }); }
-  else { const a = S2(-pf.along / 2, -pf.across / 2), c = S2(pf.along / 2, -pf.across / 2); dimA(P, a, c, wd * k / 2 - pf.across * k / 2 + 6, String(mm(pf.along)), { side: 'down', size: 2 }); const d = S2(pf.along / 2, pf.across / 2); dimA(P, c, d, (lL - pf.along) * k / 2 + 6, String(mm(pf.across)), { side: 'right', size: 2 }); }
+  pf.pts.forEach(q => { const a = S2(q.x, q.z); P.line(a[0], a[1], G[0], G[1], { stroke: PSC.blue, w: 0.2, dash: true, layer: 'SET' }); const m = [(a[0] + G[0]) / 2, (a[1] + G[1]) / 2]; let rot = Math.atan2(G[1] - a[1], G[0] - a[0]) * R2D; if (rot > 90) rot -= 180; if (rot < -90) rot += 180; P.text(m[0], m[1] - 1, `D=${mm(q.d)}`, { size: 1.6, anchor: 'middle', rot, color: PSC.blue, bold: true, bg: '#f8fafc', layer: 'SET' }); });
+  pf.pts.forEach(q => { const a = S2(q.x, q.z); P.rect(a[0] - 1.6, a[1] - 1.6, 3.2, 3.2, { fill: '#9ca3af', stroke: '#111827', w: 0.15, layer: 'SET' }); psReaction(P, a[0], a[1], 1.7); const up = q.z >= 0; psT(P, a[0], a[1] + (up ? -4.4 : 4.8), `${q.id} = ${psN(q.R, 3)} Te`, 2, { anchor: 'middle', bold: true, color: PSC.red, bg: '#ffffff' }); });
+  cogSymbol(P, G[0], G[1], 2, 'SET'); psT(P, G[0] + 3, G[1] + 3.4, `W = ${psN(pf.W, 3)} Te`, 2, { bold: true, color: PSC.blue, bg: '#ffffff' });
+  // set-out of the points and the C.O.G. from the load's middle
+  const xs = [...new Set([...pf.pts.map(q => q.x), pf.cx])].sort((a, b) => a - b), zs = [...new Set([...pf.pts.map(q => q.z), pf.cz])].sort((a, b) => a - b);
+  const yl = cy + wd * k / 2 + 6; for (let i = 0; i + 1 < xs.length; i++) if (xs[i + 1] - xs[i] > 0.01) dimA(P, [S2(xs[i], 0)[0], yl], [S2(xs[i + 1], 0)[0], yl], 0, String(mm(xs[i + 1] - xs[i])), { size: 1.8, side: 'down', extA: false, extB: false });
+  for (const xx of xs) P.line(S2(xx, 0)[0], cy + wd * k / 2 + 0.6, S2(xx, 0)[0], yl + 1.2, { stroke: COL.red, w: 0.1, layer: 'DIM' });
+  if (zs.length > 1) { const xl = cx + lL * k / 2 + 6; for (let i = 0; i + 1 < zs.length; i++) if (zs[i + 1] - zs[i] > 0.01) dimA(P, [xl, S2(0, zs[i])[1]], [xl, S2(0, zs[i + 1])[1]], 0, String(mm(zs[i + 1] - zs[i])), { size: 1.8, side: 'right', extA: false, extB: false });
+    for (const zz of zs) P.line(cx + lL * k / 2 + 0.6, S2(0, zz)[1], xl + 1.2, S2(0, zz)[1], { stroke: COL.red, w: 0.1, layer: 'DIM' }); }
+  dimA(P, S2(-lL / 2, -wd / 2), S2(lL / 2, -wd / 2), 13, String(mm(lL)), { side: 'down', size: 1.9 });
+  psT(P, pb.x + 2, pb.y + 3, pf.off ? `C.O.G. ${mm(pf.cx)} mm ALONG, ${mm(pf.cz)} mm ACROSS FROM THE MIDDLE` : 'C.O.G. IN THE MIDDLE OF THE LOAD', 1.7, { bold: true, color: PSC.ink2, maxW: pb.w - 4 });
   psCaption(P, pb.x + pb.w / 2, pb.y + pb.h + 4.4, 'LOCATION OF FORCES (PLAN VIEW)', 'DISTANCES IN mm');
-  // tension diagrams — each leg against the vertical
-  const tb = { x: pb.x + pb.w + 4, y: yb, w: D.x + D.w - pb.x - pb.w - 4, h: bh }; psBox(P, tb);
-  const n = pf.pts.length, cw = tb.w / n; const hk = Math.min((tb.h - 24) / pf.H, (cw - 14) / Math.max(0.3, ...pf.pts.map(q => q.d)));
-  pf.pts.forEach((q, i) => { const dir = q.x - pf.cx >= 0 ? 1 : -1; const ox = tb.x + cw * i + (dir > 0 ? 7 : cw - 7), oy = tb.y + Math.max(8, (tb.h - 16 - pf.H * hk) / 2); const px = ox + dir * q.d * hk, py = oy + pf.H * hk;
-    P.line(ox, oy, ox, py, { stroke: PSC.ink3, w: 0.15, dash: true, layer: 'SET' }); P.line(ox, oy, px, py, { stroke: PSC.blue, w: 0.4, layer: 'SET' }); P.line(px - 4, py, px + 4, py, { stroke: '#64748b', w: 1.2, layer: 'SET' });
-    psReaction(P, px, py, 1.2); P.circle(ox, oy, 1, { fill: '#6b7280', stroke: '#111', w: 0.15, layer: 'SET' });
-    const ra = Math.min(8, pf.H * hk * 0.45); P.arc(ox, oy, ra, 270, 270 + (px >= ox ? 1 : -1) * q.beta, { stroke: PSC.red, w: 0.2, layer: 'SET' }); // from straight down to the leg
-    psT(P, ox + (px >= ox ? 1 : -1) * (ra * 0.55 + 2.5), oy + ra + 3.2, `${psN(q.beta, 2)}°`, 2, { anchor: px >= ox ? 'start' : 'end', bold: true, color: PSC.red, bg: '#ffffff' });
-    const mx = tb.x + cw * i + cw / 2; psT(P, mx, tb.y + tb.h - 7, `T${i + 1} = ${psN(q.T, 3)} Te`, 2.2, { anchor: 'middle', bold: true, color: PSC.blue }); psT(P, mx, tb.y + tb.h - 3.6, `${q.id} · ${psN(q.R, 3)} Te VERTICAL`, 1.5, { anchor: 'middle', color: PSC.ink3 }); if (i) P.line(tb.x + cw * i, tb.y + 4, tb.x + cw * i, tb.y + tb.h - 4, { stroke: PSC.hair, w: 0.15, layer: 'SET' }); });
+  psRigIso(P, ib, L, { tension: true }); psCaption(P, ib.x + ib.w / 2, ib.y + ib.h + 4.4, 'TENSION FORCES (ISOMETRIC)', 'NOT TO SCALE');
+  // one small elevation per leg: hook straight above the C.O.G., the leg to its lifting point, the angle from vertical
+  const n = pf.pts.length, nc = n > 2 ? 2 : n, nr = Math.ceil(n / nc), cw = tb.w / nc, ch = tb.h / nr; const lH2 = Math.max(0.4, num(L.load.h, 1.5));
+  const dmax = Math.max(0.3, ...pf.pts.map(q => q.d)); const kk = Math.min((cw - 12) / (2 * dmax + 0.8), (ch - 18) / (pf.H + Math.min(lH2, pf.H * 0.4)));
+  const slT = (L.res.stack?.items || []).filter(t => t.type === 'sling').pop() || { name: 'sling' };
+  pf.pts.forEach((q, i) => { const ox = tb.x + cw * (i % nc), oy = tb.y + ch * Math.floor(i / nc); const hx = ox + cw / 2, hy = oy + 6; const dir = (q.x - pf.cx) + (q.z - pf.cz) * 0.001 >= 0 ? 1 : -1;
+    const topY = hy + pf.H * kk, lh = Math.min(lH2, pf.H * 0.4) * kk, px = hx + dir * q.d * kk;
+    psLoadFront(P, hx - (dmax + 0.4) * kk, topY, (2 * dmax + 0.8) * kk, lh, L.load.shape || 'box');
+    psPadeye(P, px, topY, Math.max(1, Math.min(2, 0.2 * kk)));
+    P.line(hx, hy, hx, topY + lh / 2, { stroke: '#64748b', w: 0.15, dash: true, layer: 'SET' }); cogSymbol(P, hx, topY + lh / 2, Math.min(1.3, Math.max(0.8, lh * 0.25)), 'SET');
+    psSling(P, [hx, hy], [px, topY], psSlingKind(slT), psSlingCol(slT), 1);
+    P.poly([[hx - 1.6, hy - 3.2], [hx + 1.6, hy - 3.2], [hx + 1, hy], [hx - 1, hy]], { closed: true, fill: '#facc15', stroke: '#111827', w: 0.2, layer: 'SET' });
+    const ra = Math.min(7, pf.H * kk * 0.4); P.arc(hx, hy, ra, 270, 270 + dir * q.beta, { stroke: PSC.red, w: 0.22, layer: 'SET' });
+    psT(P, hx + dir * (ra * 0.55 + 2.4), hy + ra + 1.8, `${psN(q.beta, 2)}°`, 1.9, { anchor: dir > 0 ? 'start' : 'end', bold: true, color: PSC.red, bg: '#ffffff' });
+    psT(P, hx, oy + ch - 5.4, `T${i + 1} = ${psN(q.T, 3)} Te`, 2.1, { anchor: 'middle', bold: true, color: PSC.blue }); psT(P, hx, oy + ch - 2.6, `${q.id} ${psN(q.R, 3)} Te · LEG ${psN(q.L, 2)} m`, 1.45, { anchor: 'middle', color: PSC.ink3 });
+    if (i % nc) P.line(ox, oy + 3, ox, oy + ch - 3, { stroke: PSC.hair, w: 0.15, layer: 'SET' }); if (Math.floor(i / nc)) P.line(ox + 3, oy, ox + cw - 3, oy, { stroke: PSC.hair, w: 0.15, layer: 'SET' }); });
   psCaption(P, tb.x + tb.w / 2, tb.y + tb.h + 4.4, 'TENSION FORCES — ANGLE FROM VERTICAL', `HOOK ${psN(pf.H, 2)} m ABOVE THE LIFTING POINTS`);
 }
 
