@@ -3,7 +3,7 @@
 //   node test_v9.js        (exits non-zero on any failure)
 const fs = require('fs'), vm = require('vm');
 const strip = s => s.replace(/\nif \(typeof module[\s\S]*$/, '\n');
-const FILES = ['gen/assets', 'src/data', 'src/library', 'src/engine', 'src/outrig', 'src/tandem', 'src/draw', 'src/rigging', 'src/crane2d', 'src/fixes', 'src/samples', 'src/gis', 'src/app'];
+const FILES = ['gen/assets', 'src/data', 'src/library', 'src/engine', 'src/duty', 'src/outrig', 'src/tandem', 'src/draw', 'src/rigging', 'src/crane2d', 'src/fixes', 'src/samples', 'src/gis', 'src/app'];
 const code = FILES.map(f => strip(fs.readFileSync(f + '.js', 'utf8'))).join('\n') + `
 this.X = { DEFAULT_CRANES, DEFAULT_SETTINGS, SAMPLE_PLANS, blankPlan, normalizePlan, computePlan, computeLoad, cranes, lookupCap, curveCap, getChart, parseChart, windTabOf,
   tandemStatic, tandemHang, tandemPose, tandemDefault, computeTandem, findCranes, bestPerCrane, GIS, outAt, outSweep, outTipHook, outPads, outMassModel, outExtOf, outMargin, outCog, outMasses,

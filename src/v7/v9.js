@@ -138,7 +138,7 @@ SA_EXTRA.ffSide = (d) => { ffState().side = d.v; $$('[data-sa="ffSide"]').forEac
 SA_EXTRA.ffPick = (d) => {
   const p = state.plan, li = activeLi(), l = p.loads[li], F = ffState();
   if (num(F.w) > 0) { l.w = r2(num(F.w)); l.empty = false; } if (num(F.R) > 0) { l.by = 'radius'; l.R = r2(num(F.R)); }
-  if (F.side && F.side !== sideOfLoad(l)) { if (!hasCarrierRot(p.sitePlan)) p.sitePlan = { ...(p.sitePlan || {}), carrierRot: Math.round(carrierHeadingFor(p, l)) }; l.side = F.side; }
+  if (F.side && F.side !== sideOfLoad(l)) { if (!hasCarrierRot(p.sitePlan)) p.sitePlan = { ...(p.sitePlan || {}), carrierRot: Math.round(carrierHeadingFor(p, l)) }; l.side = F.side; l.slew = r2(normDeg(SIDE_OFFSET[F.side])); }
   setCrane(d.id); p.chartIdx = +d.chi; p.colIdx = +d.ci; p.boomOverride = ''; p.loads.forEach(x => { x.colIdx = ''; });
   if (num(F.oh) > 0 && F.put !== false) { const x = r2(num(F.ox) > 0 ? num(F.ox) : num(F.R) * 0.6); const o = p.site.obstacles.find(q => q.label === 'OBSTRUCTION'); if (o) Object.assign(o, { x, h: num(F.oh) }); else p.site.obstacles.push({ type: 'wall', x, y: 0, w: 0.3, h: num(F.oh), label: 'OBSTRUCTION' }); }
   state.ff = null; commit({ sheet: true }); closeSheet(true); toast(`${curCrane().model} set up: boom ${fmt(state.calc.loads[li]?.tele?.L, 1)} m, ${fmt(num(curChart().ch?.cwt, curCrane().cwt), 1)} t counterweight`);

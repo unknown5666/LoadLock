@@ -12,15 +12,21 @@ const LIFT_SIDES = ['left', 'right', 'rear', 'front'];
 const SIDE_OFFSET = { rear: 180, left: 90, right: -90, front: 0 };
 const SIDE_WORD = { rear: 'rear', left: 'left side', right: 'right side', front: 'front' };      // "lifting over the rear / left side / right side / front"
 const SIDE_NAME = { rear: 'REAR', left: 'LEFT SIDE', right: 'RIGHT SIDE', front: 'FRONT' };       // "OVER REAR / OVER LEFT SIDE / OVER RIGHT SIDE / OVER FRONT" on the sheet
-function sideOf(load) { const s = String(typeof load === 'string' ? load : load?.side ?? '').toLowerCase(); return s === 'left' || s === 'right' || s === 'rear' || s === 'front' ? s : 'rear'; }
+function sideOf(load) { if (hasSlew(load)) return sideFromSlew(load.slew); const s = String(typeof load === 'string' ? load : load?.side ?? '').toLowerCase(); return s === 'left' || s === 'right' || s === 'rear' || s === 'front' ? s : 'rear'; }
+// v11 slew: the boom can point any way, one degree at a time. load.slew = boom direction relative to the carrier, degrees counter-clockwise
+// from the way the cab faces (0 front, 90 left, 180 rear, 270 right); '' = straight over load.side. The side (the chart sector) follows the
+// slew: front within 45° of the cab's way, then left, rear and right quarters.
+function hasSlew(load) { return !!load && typeof load === 'object' && load.slew !== '' && load.slew != null && Number.isFinite(parseFloat(String(load.slew).replace(',', '.'))); }
+function sideFromSlew(a) { a = normDeg(a); return a >= 45 && a < 135 ? 'left' : a >= 135 && a < 225 ? 'rear' : a >= 225 && a < 315 ? 'right' : 'front'; }
+function slewOf(load) { return hasSlew(load) ? normDeg(num(load.slew)) : normDeg(SIDE_OFFSET[sideOf(load)]); }
 function normDeg(a) { return ((num(a) % 360) + 360) % 360; }                      // 0 ≤ a < 360
 function degDiff(a, b) { const d = normDeg(num(a) - num(b)); return d > 180 ? d - 360 : d; } // signed a − b, −180 < d ≤ 180
 function hasCarrierRot(sp) { return !!sp && sp.carrierRot !== '' && sp.carrierRot != null && Number.isFinite(parseFloat(String(sp.carrierRot).replace(',', '.'))); }
 // Carrier heading (degrees, the way the cab faces). When sitePlan.carrierRot is set it rules; when it is empty the carrier simply follows the
 // boom (sitePlan.rot) so that the boom stays on the chosen side — which also keeps every v6 plan's boom heading exactly where it was.
-function carrierHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) : num(sp.rot) - SIDE_OFFSET[sideOf(load)]); }
+function carrierHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) : num(sp.rot) - slewOf(load)); }
 // Boom (= load) heading in degrees: carrier heading + 180 (rear) / +90 (left) / −90 (right) / +0 (front).
-function boomHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) + SIDE_OFFSET[sideOf(load)] : num(sp.rot)); }
+function boomHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) + slewOf(load) : num(sp.rot)); }
 // v6 plans: which side was the boom on? `boom` and `carrier` are headings; v6 drew the carrier cab at the −u end, so the cab faced carrier + 180°.
 // Boom within 45° of the way the cab faced = a lift over the FRONT (v6 drew it, so it stays a front lift and the front check applies).
 function sideFromHeadings(boom, carrier) {
@@ -313,7 +319,8 @@ const ACC_LABELS = { flyjib: 'Fly jib', luffing: 'Luffing jib', yguy: 'Y-guying'
 function accState(plan, crane, chartDef) {
   const a = plan.acc || {}; const avail = crane?.acc || ['flyjib'];
   const cfg = String(chartDef?.config || '').toUpperCase();
-  return { yguy: avail.includes('yguy') && (!!a.yguy || /^TY/.test(cfg)), yguyAuto: /^TY/.test(cfg), superlift: avail.includes('superlift') && !!a.superlift, runner: avail.includes('runner') && !!a.runner,
+  const ty = /^TY/.test(cfg) || (typeof chartFam === 'function' && !!chartDef && chartFam(chartDef).yguy); // v11: any guyed chart (TY, TYF, TYN, T3Y…)
+  return { yguy: (avail.includes('yguy') || ty) && (!!a.yguy || ty), yguyAuto: ty, superlift: avail.includes('superlift') && !!a.superlift, runner: avail.includes('runner') && !!a.runner,
     slRadius: num(a.slRadius, 15), slBallast: num(a.slBallast, 100), avail };
 }
 // capacity chart + geometry used for one load; a manual fly / luffing jib (no jib chart) overrides the geometry
@@ -412,19 +419,26 @@ function computeLoad(plan, crane, load, settings) {
   const design = daf ? r2(total * daf) : total;
   const res = { R, W, contW, cont, contOn, hb, tk, ex, jd, rope, ropeInfo: { kgm: ropeKgM, falls, len: ropeLen }, total, daf, dafAuto: Dd.on && Dd.mode !== 'manual', design, empty, stack, checks: [], col, ci, chartDef, angleMode, heightMode, manualJib: G.manual, gChart: G.gChart, gCol: G.gCol, boomOv, tele: G.tele, spec: G.spec, acc: G.acc };
   // capacity — capAt reads the chart at any radius the same way (used again for the wind drift)
+  const dutyC = typeof dutyCheck === 'function' ? dutyCheck(plan, crane, chartDef, G) : null; res.dutyWhy = !chartDef && dutyC ? dutyC.m : '';
   const capAt = (Rq) => {
     if (load.capOverride !== '' && load.capOverride != null && num(load.capOverride) > 0) return { cap: num(load.capOverride), manual: true };
+    if (!parsed && !G.manual && res.dutyWhy) return { cap: null, why: res.dutyWhy };
     if (G.manual) return num(plan.attach?.swl) > 0 ? { cap: num(plan.attach.swl), manual: true, jib: true } : { cap: null, why: 'Enter the jib SWL from the ' + (G.manual === 'fly' ? 'fly-jib' : 'luffing-jib') + ' load chart' };
     if (parsed && chartDef.kind === 'main' && boomOv > 0 && col && Math.abs(boomOv - col.L) > 0.05) {
       // boom between chart columns → take the lower capacity of the bracketing lengths
       const Ls = [...new Set(parsed.cols.map(c => c.L))].sort((a, b) => a - b);
       const lower = [...Ls].reverse().find(L => L <= boomOv), upper = Ls.find(L => L >= boomOv);
       if (upper == null) return { cap: null, why: `Boom ${boomOv} m is longer than the longest chart column (${Ls[Ls.length - 1]} m)` };
+      if (lower == null) return { cap: null, why: `Boom ${boomOv} m is shorter than the shortest column on this chart (${Ls[0]} m)` }; // v11: e.g. a Y-guy chart that starts at 31.7 m
       const cand = parsed.cols.map((c, i) => ({ c, i })).filter(o => (o.c.L === lower || o.c.L === upper) && (o.c.label || '') === (col.label || ''));
       const caps = cand.map(o => lookupCap(parsed, o.i, Rq, S.lookup)).filter(x => x.cap != null);
       return caps.length ? { cap: Math.min(...caps.map(x => x.cap)), row: caps[0].row, between: [lower ?? upper, upper] } : { cap: null, why: 'Boom length outside chart columns' };
     }
-    return lookupCap(parsed, ci, Rq, S.lookup);
+    // v11: a column printed twice (some imported tables carry the same boom / offset more than once) → the lower of the two
+    const twins = parsed && col ? parsed.cols.map((c, i) => i).filter(i => i !== ci && parsed.cols[i].L === col.L && (parsed.cols[i].label || '') === (col.label || '')) : [];
+    const own = lookupCap(parsed, ci, Rq, S.lookup); if (!twins.length) return own;
+    const all = [own, ...twins.map(i => lookupCap(parsed, i, Rq, S.lookup))].filter(x => x.cap != null);
+    return all.length ? all.reduce((a, b) => (b.cap < a.cap ? b : a)) : own;
   };
   let capInfo = capAt(R);
   res.capChart = capInfo.cap;
@@ -449,11 +463,14 @@ function computeLoad(plan, crane, load, settings) {
   if (res.cap != null && res.cap > 0) { res.util = r2(design / res.cap * 100); res.sf = Math.round(res.cap / design * 10000) / 10000; }
   // net capacity: what the load itself (with its margin) may weigh once the hook, tackles and deductions come off the chart value
   if (res.cap != null) { res.ded = r2(hb + tk + ex + jd + rope); res.netCap = r2(res.cap / (daf || 1) - res.ded); res.margin = res.cap > 0 ? r2((res.cap - design) / res.cap * 100) : null; }
+  // v11: the chart has to be the one for the set-up on the crane (Y-guying, counterweight, jib) — duty.js. With no chart at all the
+  // 'Chart capacity' check below already carries the reason.
+  if (dutyC && chartDef && !capInfo.manual) res.checks.push(dutyC);
   if (chartDef && chartDef.verify) res.checks.push({ s: 'warn', t: 'Load chart', m: 'This chart was transcribed from a public datasheet (' + (chartDef.source || 'unverified') + ') — check it against the crane\'s own chart before issuing' });
   if (G.tele.mode === 'manual' && !G.tele.locked) res.checks.push({ s: 'info', t: 'Telescoping', m: `Sections set by hand (${G.tele.fr.map(f => Math.round(f * 100)).join(' / ')} %) → ${G.tele.L} m boom. Capacity is read for that length; check the crane's telescoping sequence gives the same chart` });
   res.geo = g;
   // lift side: the selected chart must be valid for the side the load is lifted over (a hand-entered capacity is the user's own responsibility)
-  res.side = sideOf(load); res.sideOk = true;
+  res.side = sideOf(load); res.slew = slewOf(load); res.sideOk = true;
   if (chartDef && !G.manual && !capInfo.manual && !chartCoversSide(chartDef, res.side)) {
     res.sideOk = false;
     res.checks.push({ s: 'fail', t: 'Lift side', m: `Chart does not cover lifting over the ${SIDE_WORD[res.side]} — this chart is only valid ${chartSectorLabel(chartDef)}. Pick a load chart that covers the ${SIDE_WORD[res.side]}, or lift over the rear instead.` });
@@ -476,6 +493,9 @@ function computeLoad(plan, crane, load, settings) {
   const allowance = num(plan.hookAllowance, 3);
   res.reqTipY = r2(surface + loadH + rig + allowance);
   res.hookY = r2(surface + loadH + rig);
+  // v11 hoist: the load lifted off its landing (cab controls). Only the picture moves: the checks stay on the landed load (the worst case for
+  // headroom is kept by stopping the hook short of the boom head, hook allowance included).
+  res.lift = g.tip ? r2(Math.max(0, Math.min(num(load.hoist, 0), g.tip.y - allowance - res.hookY))) : 0; res.liftMax = g.tip ? r2(Math.max(0, g.tip.y - allowance - res.hookY)) : 0;
   // checks
   const lim = num(S.utilMax, 85), warn = num(S.utilWarn, 75);
   if (res.cap == null) res.checks.push({ s: 'fail', t: 'Chart capacity', m: capInfo.why || 'No capacity' });

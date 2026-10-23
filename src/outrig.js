@@ -213,7 +213,7 @@ function outriggerCrane(pv, crane, lifts, op = {}) {
   let anyLift = false;
   for (const { li, res } of lifts) {
     if (!res?.geo) continue; anyLift = true;
-    const side = res.side || 'rear', theta = OUT_SLEW[side] ?? 180, hookT = num(res.design, num(res.total)), R = num(res.R);
+    const side = res.side || 'rear', theta = res.slew != null && Number.isFinite(res.slew) ? res.slew : OUT_SLEW[side] ?? 180, hookT = num(res.design, num(res.total)), R = num(res.R);
     const at = outAt(mm, pads, res.geo, theta, hookT, R);
     const tip = outTipHook(mm, pads, res.geo, theta, R);
     const sw = outSweep(mm, pads, res.geo, hookT, R, 5);

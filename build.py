@@ -4,7 +4,7 @@ import re, os, sys
 src = 'src'
 rd = lambda p: open(p, encoding='utf-8').read()
 strip = lambda s: re.sub(r"\nif \(typeof module[\s\S]*$", "\n", s)
-CORE = ['data', 'library', 'engine', 'outrig', 'tandem', 'env', 'draw', 'rigging', 'crane2d', 'fixes', 'samples', 'weather', 'gis', 'three3d', 'scene']
+CORE = ['data', 'library', 'engine', 'duty', 'outrig', 'tandem', 'env', 'draw', 'rigging', 'crane2d', 'fixes', 'samples', 'weather', 'gis', 'three3d', 'scene']
 TARGETS = {
     'v6': (CORE + ['wizard', 'login', 'app', 'studio', 'deck', 'pages', 'tour', 'main'], 'shell.html', 'dist/index.html'),
     'v7': (CORE + ['app', 'v7/core', 'v7/ui', 'v7/sheets', 'v7/rigging', 'v7/legs', 'v7/v9', 'v7/rams', 'v7/report', 'v7/risk', 'v7/share', 'v7/pages', 'v7/login', 'v7/main'], 'v7/shell.html', 'dist/v7.html'),

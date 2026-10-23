@@ -287,7 +287,7 @@ function hookOf(crane) { // the crane's own CAD hook block, else a generic one s
 function drawHookAndLoad(P, T, k, crane, geo, res, load, o = {}) {
   const base = o.baseY || 0;
   const tip = { x: geo.tip.x, y: geo.tip.y + base };
-  const R = res.R, landY = res.landY + base;
+  const R = res.R, landY = res.landY + base + num(res.lift, 0); // v11: hoisted off the landing by the cab controls
   const lL = num(load.l, 2), lH = num(load.h, 1.5);
   const rigH = res.rigH != null ? res.rigH : num(load.rigH, num(o.rigH, 3));
   const hk = hookOf(crane);
@@ -634,7 +634,8 @@ function drawSideGlyph(P, x, y, w, crane, side, o = {}) {
   const Ra = Math.max(0.55 * Lc, oT + 5), xm = Ra + 0.9, yTop = 0.64 * Lc + 4.4, yBot = -Math.max(0.36 * Lc, Ra) - 0.9;   // metres
   const s = w / (2 * xm), hDraw = (yTop - yBot) * s, labH = ds * 2.1, H = hDraw + labH;
   const G = (mx, my) => [x + (mx + xm) * s, y + (yTop - my) * s];
-  const d = { rear: [0, -1], left: [-1, 0], right: [1, 0], front: [0, 1] }[side];
+  const sa = o.slew != null && Number.isFinite(+o.slew) ? +o.slew * D2R : null; // v11: the boom drawn at its real slew angle (CCW from the cab's way)
+  const d = sa != null ? [-Math.sin(sa), Math.cos(sa)] : { rear: [0, -1], left: [-1, 0], right: [1, 0], front: [0, 1] }[side];
   const GB = (u, v) => G(u * d[0] - v * d[1], u * d[1] + v * d[0]);                  // boom frame: u along the boom, v to its left
   P.rect(x, y, w, H, { fill: '#ffffff', stroke: '#555', w: 0.25, layer: LY });
   P.circle(...G(0, 0), tail * s, { stroke: '#a0a0a0', w: 0.18, fill: 'none', layer: LY });
@@ -649,7 +650,7 @@ function drawSideGlyph(P, x, y, w, crane, side, o = {}) {
   const f = G(0, 0.64 * Lc + 0.5), f2 = G(0, 0.64 * Lc + 2.1); P.line(f[0], f[1], f2[0], f2[1], { stroke: '#333', w: 0.3, layer: LY });
   P.poly([f2, [f2[0] - 0.9 * s, f2[1] + 1.1 * s], [f2[0] + 0.9 * s, f2[1] + 1.1 * s]], { closed: true, fill: '#333', stroke: '#333', w: 0.1, layer: LY });
   const ft = G(0, 0.64 * Lc + 3.35); P.text(ft[0], ft[1], 'FRONT', { size: Math.max(1.6, ds * 0.62), anchor: 'middle', vAlign: 'middle', color: '#333', layer: LY });
-  const lab = 'LIFT OVER ' + SIDE_NAME[side].replace(' SIDE', ''); const ls = Math.min(ds * 1.05, fitSize(lab, w - 3, ds * 1.05, true));
+  const lab = 'LIFT OVER ' + SIDE_NAME[side].replace(' SIDE', '') + (sa != null && Math.abs(degDiff(+o.slew, SIDE_OFFSET[side])) > 0.5 ? ` · SLEW ${Math.round(normDeg(+o.slew))}°` : ''); const ls = Math.min(ds * 1.05, fitSize(lab, w - 3, ds * 1.05, true));
   P.text(x + w / 2, y + hDraw + labH / 2, lab, { size: ls, bold: true, anchor: 'middle', vAlign: 'middle', color: '#000', layer: LY });
   return { w, h: H };
 }
@@ -798,7 +799,7 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
       const cand = [[box.x + m, box.y + m], [box.x + box.w - gw - m, box.y + m], [box.x + m, box.y + m + gh + 3], [box.x + box.w - gw - m, box.y + m + gh + 3]];
       const free = cand.find(([cx, cy]) => !hits(cx, cy)); if (free) [gx, gy] = free;
     }
-    drawSideGlyph(P, gx, gy, gw, crane, liftSide, { ds });
+    drawSideGlyph(P, gx, gy, gw, crane, liftSide, { ds, slew: hasSlew(load) ? slewOf(load) : null });
   }
   return { scale: sc, T, ext };
 }

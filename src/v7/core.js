@@ -211,7 +211,7 @@ function setSide(side) {
   const p = state.plan, li = activeLi(), l = p.loads[li]; if (!['left', 'right', 'rear', 'front'].includes(side)) return;
   // the truck is parked: keep its heading and swing the boom to the new side
   if (typeof hasCarrierRot === 'function' && typeof carrierHeadingFor === 'function' && !hasCarrierRot(p.sitePlan)) p.sitePlan = { ...(p.sitePlan || {}), carrierRot: Math.round(carrierHeadingFor(p, l)) };
-  l.side = side;
+  l.side = side; l.slew = r2(normDeg(SIDE_OFFSET[side])); // v11: the four buttons are shortcuts for 0 / 90 / 180 / 270° of slew
   const crane = curCrane();
   if (typeof bestChartForSide === 'function' && crane) { const bi = bestChartForSide(crane, side, +p.chartIdx); if (bi != null && bi >= 0 && bi !== +p.chartIdx) { p.chartIdx = bi; p.colIdx = 0; p.boomOverride = ''; p.loads.forEach(x => x.colIdx = ''); toast('Load chart changed to one that covers this side'); } }
   if (state.twin) state.twin.reframe();
@@ -329,7 +329,7 @@ function twinPad(x, y, phase) {
   if (phase === 'end') { histMark(); sheetLive(); return; }
   const p = state.plan, li = activeLi(), l = p.loads[li], crane = curCrane(); const sp = sitePlanState(p, l);
   const ang = Math.atan2(y - sp.cy, x - sp.cx) * R2D, R = Math.max(1, Math.round(Math.hypot(x - sp.cx, y - sp.cy) * 10) / 10);
-  p.sitePlan = { ...(p.sitePlan || {}), rot: Math.round(normDeg(ang)), carrierRot: Math.round(normDeg(ang - SIDE_OFFSET[sp.side])) };
+  p.sitePlan = { ...(p.sitePlan || {}), rot: Math.round(normDeg(ang)), carrierRot: Math.round(normDeg(ang - slewOf(l))) };
   if (l.by === 'angle' || l.by === 'height') { const G = geoSetup(p, crane, l); const a = angleFromRadius(crane, G.gChart, G.gCol, R, G.boomOv); if (l.by === 'angle') l.angle = a; else l.tipH = r2(tipFromAngle(crane, G.gChart, G.gCol, a, G.boomOv).y); }
   else l.R = r2(R);
   markDirty(); refresh(true);

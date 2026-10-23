@@ -666,7 +666,7 @@ C3D.twin = (host0, opts = {}) => {
     gg.state.loadSize = [Math.max(0.6, num(load.l, 2)), Math.max(0.3, num(load.h, 1.5)), Math.max(0.6, num(load.l, 2) * 0.6)]; gg.state.rig = res.rigH || 3;
     { const tk = (load.tackles || []).find(t => t && t.type === 'sling') || (load.tackles || []).find(t => t) || null; let si = null; try { si = typeof SLING_INFO === 'function' && tk ? SLING_INFO(tk) : null; } catch {}
       gg.state.slingCol = (si && (si.colour || si.color)) || '#d13b2a'; let lg = Math.round(num(tk?.legs, 0)); if (!(lg > 0)) { try { lg = typeof slingInfo === 'function' ? num(slingInfo(load)?.legs, 0) : 0; } catch { lg = 0; } } gg.state.legs = Math.max(1, Math.min(4, lg || 4)); }
-    gg.state.empty = !!res.empty; gg.state.hookY = res.empty && res.hookY != null ? res.hookY + 0.95 : res.landY + num(load.h, 1.5) + (res.rigH || 3) + 0.95 + 0.5;
+    gg.state.empty = !!res.empty; gg.state.hookY = (res.empty && res.hookY != null ? res.hookY + 0.95 : res.landY + num(load.h, 1.5) + (res.rigH || 3) + 0.95 + 0.5) + num(res.lift, 0);
     gg.root.rotation.y = carHd * D2R; C3D.pose(gg, gg.state, scene);
   };
   const api = {

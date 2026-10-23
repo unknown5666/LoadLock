@@ -3,7 +3,7 @@
 const fs = require('fs'), vm = require('vm');
 const strip = s => s.replace(/\nif \(typeof module[\s\S]*$/, '\n');
 const load = (files, extra) => { const ctx = { console, window: {}, Date }; vm.createContext(ctx); vm.runInContext(files.map(f => strip(fs.readFileSync(f + '.js', 'utf8'))).join('\n') + '\n' + extra, ctx); return ctx; };
-const BASE = ['gen/assets', 'src/data', 'src/engine'];
+const BASE = ['gen/assets', 'src/data', 'src/engine', 'src/duty'];
 const full = load([...BASE, 'src/rigging', 'src/fixes'], 'this.X = { DEFAULT_CRANES, DEFAULT_SETTINGS, computeLoad, SLING_INFO, rgModeFactor, rgEnColour, rgNormTackle, rgKind, rgChainTypical, rgWebWidth, rgSchedule, rgDescribe, RG_COLOURS };').X;
 const bare = load([...BASE, 'src/fixes'], 'this.X = { DEFAULT_CRANES, DEFAULT_SETTINGS, computeLoad };').X; // engine alone, as the older tests load it
 let fails = 0, passes = 0;
@@ -102,7 +102,7 @@ near(rgWebWidth(2), 60, 'usual width for 2 t'); near(rgChainTypical(13, '8'), 5.
 
 // ---------- 6. an old saved plan loads, and gets the new defaults ----------
 {
-  const FILES = ['gen/assets', 'src/data', 'src/engine', 'src/outrig', 'src/tandem', 'src/draw', 'src/rigging', 'src/crane2d', 'src/fixes', 'src/samples', 'src/gis', 'src/app'];
+  const FILES = ['gen/assets', 'src/data', 'src/engine', 'src/duty', 'src/outrig', 'src/tandem', 'src/draw', 'src/rigging', 'src/crane2d', 'src/fixes', 'src/samples', 'src/gis', 'src/app'];
   const ctx = { console, window: {}, localStorage: { getItem() { return null; }, setItem() {} }, performance, Date }; vm.createContext(ctx);
   vm.runInContext(FILES.map(f => strip(fs.readFileSync(f + '.js', 'utf8'))).join('\n') + '\nthis.X = { SAMPLE_PLANS, normalizePlan, computePlan, DEFAULT_CRANES, DEFAULT_SETTINGS, buildSheet, toSVG, toDXF };', ctx);
   const X = ctx.X, plan = JSON.parse(JSON.stringify(X.SAMPLE_PLANS[0].make()));

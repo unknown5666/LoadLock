@@ -2,7 +2,7 @@
 // hand-typed (illustration) pad loads and the computePlan wiring. No browser.   node test_outrig.js   (exits non-zero on any failure)
 const fs = require('fs'), vm = require('vm');
 const strip = s => s.replace(/\nif \(typeof module[\s\S]*$/, '\n');
-const FILES = ['gen/assets', 'src/data', 'src/library', 'src/engine', 'src/outrig', 'src/draw', 'src/rigging', 'src/crane2d', 'src/fixes', 'src/samples', 'src/app'];
+const FILES = ['gen/assets', 'src/data', 'src/library', 'src/engine', 'src/duty', 'src/outrig', 'src/draw', 'src/rigging', 'src/crane2d', 'src/fixes', 'src/samples', 'src/app'];
 const code = FILES.map(f => strip(fs.readFileSync(f + '.js', 'utf8'))).join('\n') + `
 this.X = { DEFAULT_CRANES, DEFAULT_SETTINGS, SAMPLE_PLANS, blankPlan, normalizePlan, computePlan, computeLoad, buildSheet, toSVG, OUT_G, OUT_PADS, outPlane, outSolve, outAt,
   outTipHook, outSweep, outMargin, outPads, outSpans, outExtOf, outMassModel, outPressure, outMatSide, chartOutExt, outriggerCrane, CRANE_KEYS, rigPick, sheetBlocks, sheetOverrides, groundRows };`;

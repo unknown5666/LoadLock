@@ -259,12 +259,12 @@ function sceneMoveDrag(e) {
   } else if (d.kind === 'step') plan.site.stepX = r2(Math.max(0.5, snap(w.x)));
   else if (d.kind === 'pcrane') { plan.sitePlan = { ...(plan.sitePlan || {}), cx: r2(snap(num(O.sp.cx) + dx)), cy: r2(snap(num(O.sp.cy) + dy)) }; }
   else if (d.kind === 'pload') { // dragging the load swings the whole crane: the carrier turns so the boom stays on the chosen lift side
-    const sp = sitePlanState(plan, load); const ang = Math.round(Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D); const off = SIDE_OFFSET[sp.side];
+    const sp = sitePlanState(plan, load); const ang = Math.round(Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D); const off = typeof slewOf === 'function' ? slewOf(load) : SIDE_OFFSET[sp.side];
     plan.sitePlan = { ...(plan.sitePlan || {}), rot: Math.round(normDeg(ang)), carrierRot: Math.round(normDeg(ang - off)) };
     setRadius(load, Math.hypot(w.x - sp.cx, w.y - sp.cy));
   } else if (d.kind === 'pcar') { // dragging the cab end turns the carrier; the boom follows to the same side (sitePlan.rot is kept in step for older code)
     const sp = sitePlanState(plan, load); const ch = Math.round(normDeg(Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D));
-    plan.sitePlan = { ...(plan.sitePlan || {}), carrierRot: ch, rot: Math.round(normDeg(ch + SIDE_OFFSET[sp.side])) };
+    plan.sitePlan = { ...(plan.sitePlan || {}), carrierRot: ch, rot: Math.round(normDeg(ch + (typeof slewOf === 'function' ? slewOf(load) : SIDE_OFFSET[sp.side]))) };
   }
   Scene.hooks.edited('drag');
 }

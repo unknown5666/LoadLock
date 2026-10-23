@@ -2,7 +2,7 @@
 // the outrigger slew angle and the drawings. Loads the modules straight from src/ — no browser, no dist build.   node test_side.js   (exits non-zero on any failure)
 const fs = require('fs'), vm = require('vm');
 const strip = s => s.replace(/\nif \(typeof module[\s\S]*$/, '\n');
-const FILES = ['gen/assets', 'src/data', 'src/library', 'src/engine', 'src/outrig', 'src/draw', 'src/rigging', 'src/crane2d', 'src/fixes', 'src/samples', 'src/app'].filter(f => fs.existsSync(f + '.js'));
+const FILES = ['gen/assets', 'src/data', 'src/library', 'src/engine', 'src/duty', 'src/outrig', 'src/draw', 'src/rigging', 'src/crane2d', 'src/fixes', 'src/samples', 'src/app'].filter(f => fs.existsSync(f + '.js'));
 const code = FILES.map(f => strip(fs.readFileSync(f + '.js', 'utf8'))).join('\n') + `
 this.X = { DEFAULT_CRANES, DEFAULT_SETTINGS, SAMPLE_PLANS, IMPORTED_CHARTS, CRANE_DRAWINGS, blankPlan, normalizePlan, computePlan, buildSheet, toSVG, Prims, drawElevation, drawSitePlan,
   sideOf, chartCoversSide, chartSectorsOf, chartSectorLabel, bestChartForSide, boomHeadingFor, carrierHeadingFor, sideFromHeadings, normDeg, degDiff, SIDE_OFFSET, SIDE_NAME, LIFT_SIDES,

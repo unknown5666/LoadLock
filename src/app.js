@@ -233,7 +233,7 @@ function normalizePlan(p) {
     side0 = sideFromHeadings(num(out.sitePlan.rot), num(out.sitePlan.carrierRot));
     out.sitePlan.carrierRot = r2(normDeg(num(out.sitePlan.rot) - SIDE_OFFSET[side0]));
   }
-  out.loads.forEach(l => { l.side = legacySide ? side0 : sideOf(l); });
+  out.loads.forEach(l => { l.side = legacySide ? side0 : sideOf(l); if (!hasSlew(l)) l.slew = ''; else l.slew = r2(normDeg(num(l.slew))); l.hoist = num(l.hoist, 0) > 0 ? r2(num(l.hoist)) : 0; }); // v11: any slew angle, hoist (cab controls)
   out.sheetRows = { hide: {}, show: {}, custom: [], ov: {}, ...(p.sheetRows || {}) };
   // outriggers (v8): beams per side and hand-typed leg loads are per crane; plans from before v8 have neither → full legs, nothing typed
   const legs = (o) => { o.outExt = { left: 'full', right: 'full', ...(o.outExt && typeof o.outExt === 'object' ? o.outExt : {}) }; o.padMan = o.padMan && typeof o.padMan === 'object' ? { ...o.padMan } : {}; };
