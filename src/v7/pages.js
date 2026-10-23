@@ -51,6 +51,27 @@ const ACC_ALL = [['flyjib', 'Fly jib'], ['luffing', 'Luffing jib'], ['extension'
 const fleetCur = () => clone(cranes().find(x => x.id === state.libSel));
 let libSaveT;
 function fleetCommit(c, rerender) { clearTimeout(libSaveT); state.userCranes[c.id] = c; _chartCache.clear(); libSaveT = setTimeout(() => saveCrane(c), 500); if (rerender) renderFleet(); if (state.plan?.craneId === c.id) refresh(true); }
+// ---- Documents group (crane library): load charts, spec sheets and CAD drawings collected for this crane (src/library.js). Links open in a new tab. ----
+const LIB_KIND = { chart: 'Load chart', spec: 'Spec sheet', cad: 'CAD drawing' };
+const LIB_MATCH = { exact: ['Exact model', 'var(--safe)', 'var(--safe-soft)'], variant: ['Same model, other build', 'var(--info)', 'var(--info-soft)'], nearest: ['Nearest match', 'var(--warn)', 'var(--warn-soft)'], collection: ['Many cranes', 'var(--ink-2)', 'var(--fill)'] };
+function fleetDocRow(d) {
+  const url = /^https?:\/\//i.test(d.url || '') ? d.url : ''; const m = LIB_MATCH[d.match];
+  const sub = [d.source, LIB_KIND[d.kind] || d.kind, d.login ? 'free sign-in needed' : ''].filter(Boolean).join(' · ');
+  const badge = m ? `<span style="flex:none;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap;color:${m[1]};background:${m[2]}">${h(m[0])}</span>` : '';
+  const inner = `<span class="lb"><b>${h(d.name)}</b><small>${h(sub)}</small></span>${badge}<span class="ch" aria-hidden="true">↗</span>`;
+  return url ? `<a class="it tap" href="${h(url)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">${inner}</a>` : `<div class="it">${inner}</div>`;
+}
+function fleetDocsGrp(c) {
+  const lib = typeof CRANE_LIBRARY !== 'undefined' ? CRANE_LIBRARY[c.id] : null; const docs = lib?.docs || [];
+  const borrowed = c.drawProxy && c.drawing && !c.customBody; if (!docs.length && !borrowed) return '';
+  const exact = docs.find(d => d.kind === 'cad' && (d.match === 'exact' || d.match === 'variant'));
+  const note = borrowed ? `The 2D body is borrowed from the ${h(typeof CRANE_DRAWINGS !== 'undefined' && CRANE_DRAWINGS[c.drawing]?.label || c.drawing)}.${exact ? ` A drawing of the real ${h(c.model)} is in the library (${h(exact.name)}), ready for the next drawing update.` : ''}` : '';
+  const nonCad = docs.filter(d => d.kind !== 'cad'); const hide = new Set(nonCad.slice(4)); // always show the drawings (they carry the match badge) and the first four charts / sheets
+  const first = docs.filter(d => !hide.has(d)), rest = docs.filter(d => hide.has(d));
+  const inner = first.map(fleetDocRow).join('') + (rest.length ? `<details style="width:100%"><summary class="it tap" style="cursor:pointer;list-style:none"><span class="lb"><b>${rest.length} more document${rest.length === 1 ? '' : 's'}</b></span>${ic('chevD', 18, 2.2).replace('<svg', '<svg class="ch"')}</summary>${rest.map(fleetDocRow).join('')}</details>` : '');
+  const foot = [docs.length ? 'Other makers\' and shops\' public documents, for reference only. Check every value against the maker\'s chart for the exact machine before a lift.' : '', note].filter(Boolean).join(' ');
+  return grp('Documents (' + docs.length + ')', docs.length ? inner : '<p class="hint" style="padding:10px 14px;margin:0">No documents collected for this crane yet.</p>', { foot });
+}
 function renderFleet() {
   if (state.page !== 'fleet') return; const cr = cranes();
   if (!state.libSel || !cr.find(c => c.id === state.libSel)) state.libSel = cr[0]?.id;
@@ -76,6 +97,7 @@ function renderFleet() {
         ${c.dimsImg && !(c.imgDimsId || c.imgDimsData) ? Fx.swRaw('data-c="dimsSchematic" data-ct="bool"', 'Use the sketch instead', !!c.dimsSchematic) : ''}`)}
       <section class="grp"><h3>Load charts (${(c.charts || []).length})<span class="sp"></span><button type="button" class="tap" data-fl="addChart">Add chart</button></h3>
         ${(c.charts || []).map((ch, i) => `<details class="list" data-chi="${i}" style="margin-bottom:8px"><summary class="it tap" style="cursor:pointer;list-style:none"><span class="lb"><b>${h(ch.name)}</b><small>${h({ main: 'telescopic boom', fixedjib: 'fly jib', luffing: 'luffing jib' }[ch.kind || 'main'])}${ch.verify ? ' · check this chart' : ''}</small></span>${ic('chevD', 18, 2.2).replace('<svg', '<svg class="ch"')}</summary><div class="chart-body" data-chi="${i}" style="padding:4px 14px 14px"></div></details>`).join('')}</section>
+      ${fleetDocsGrp(c)}
     </div>` : '<p class="hint">No cranes. Add one.</p>'}</div>`;
   pageFrame('Cranes and charts', body);
   $$('#page details[data-chi][open]').forEach(d => fillChart(d));
@@ -86,7 +108,8 @@ function chartEditor(c, ch, i) {
   return `<div style="display:grid;gap:10px">${ch.source ? `<p class="hint">${h(ch.source)}</p>` : ''}
     <div class="row">${chf('name', 'Name', ch.name)}<label class="f"><span class="fl">Type</span><select data-ch="${i}.kind">${[['main', 'Telescopic boom'], ['luffing', 'Luffing jib (columns = boom angle)'], ['fixedjib', 'Fly jib (columns = offset)']].map(([v, l]) => `<option value="${v}"${(ch.kind || 'main') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div>
     <div class="row r3">${chf('config', 'Config', ch.config)}${chf('cwt', 'Counterweight t', ch.cwt)}${chf('outrigger', 'Legs', ch.outrigger)}</div>
-    <div class="row">${chf('sectors', 'Covers (360, rear, side)', Array.isArray(ch.sectors) ? ch.sectors.join(', ') : (ch.sector || '360'))}<span></span></div>
+    <div class="row">${chf('sectors', 'Covers (360, rear, side, front)', Array.isArray(ch.sectors) ? ch.sectors.join(', ') : (ch.sector || '360'))}<span></span></div>
+    <p class="hint" style="margin:-4px 0 0">360 = the chart is good all the way round. rear = only over the back. side = over the left and right. front = the chart also allows lifting over the front, above the cab. Separate the words with commas.</p>
     ${ch.kind && ch.kind !== 'main' ? `<div class="row r3">${chf('mainLen', 'Main boom (m)', ch.mainLen)}${chf('mainLabel', 'Main boom printed', ch.mainLabel)}${chf('jibLen', 'Jib length (m)', ch.jibLen)}</div>` : ''}
     <label class="f"><span class="fl">Chart · paste from Excel</span><textarea class="code" rows="8" data-ch="${i}.src" spellcheck="false">${h(ch.src)}</textarea></label>
     <p class="hint">${p.cols.length} boom columns · ${p.rows.length} reach rows</p>${p.errors.length ? `<p class="errs">${p.errors.slice(0, 4).map(h).join('<br>')}</p>` : ''}
@@ -160,7 +183,7 @@ function bindPages(el) {
     if (t.dataset.cjib) { const c = fleetCur(); const [ty, ix] = t.dataset.cjib.split('.'); c.jib = c.jib || {}; const r = (c.jib[ty] || jibRange(c, ty)).slice(); r[+ix] = num(t.value, r[+ix]); c.jib[ty] = [Math.min(r[0], r[1]), Math.max(r[0], r[1])]; fleetCommit(c, false); return; }
     if (t.dataset.ch) { const c = fleetCur(); const [i, k] = t.dataset.ch.split('.'); let v = t.value;
       if (['cwt', 'mainLen', 'mainLabel', 'jibLen'].includes(k) && v !== '' && !isNaN(+v)) v = +v;
-      if (k === 'sectors') { const s = v.toLowerCase().split(/[\s,;/]+/).filter(x => ['360', 'rear', 'side'].includes(x)); v = s.length && !s.includes('360') ? s : ['360']; }
+      if (k === 'sectors') { const s = v.toLowerCase().split(/[\s,;/]+/).filter(x => ['360', 'rear', 'side', 'front'].includes(x)); v = s.length && !s.includes('360') ? s : ['360']; }
       c.charts[+i][k] = v; fleetCommit(c, false);
       const body = el.querySelector(`.chart-body[data-chi="${i}"]`); if (body) body.innerHTML = chartEditor(c, c.charts[+i], +i);
       const sm = el.querySelector(`details[data-chi="${i}"] summary b`); if (sm && k === 'name') sm.textContent = t.value; }

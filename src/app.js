@@ -93,21 +93,35 @@ function dbMsg(e) { return e?.code === 'invalid_argument' ? 'You have view acces
 let draftT; function draft() { if (state.tour) return; clearTimeout(draftT); draftT = setTimeout(() => { if (!state.tour) LS.set('lp.draft', state.plan); }, 500); }
 function markDirty() { if (!state.dirty) { state.dirty = true; updateSaveState(); } }
 function updateSaveState() {
-  const el = $('#saveState'); if (!el) return;
+  const el = $('#saveState'), st = $('#tbState'); if (!el && !st) return;
   const p = state.plan; const where = state.db ? 'shared library' : 'this browser';
-  if (state.dirty) el.innerHTML = `<span class="dirty">● Unsaved changes</span> · ${h(p?.meta?.client || 'no client')}`;
-  else if (state.savedAt) el.textContent = `Saved ${state.savedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} · ${where}`;
-  else el.textContent = p?.id ? `Saved plan · ${where}` : `Not saved yet · ${where}`;
+  const at = state.savedAt ? state.savedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+  if (el) {
+    if (state.dirty) el.innerHTML = `<span class="dirty">● Unsaved changes</span> · ${h(p?.meta?.client || 'no client')}`;
+    else if (state.savedAt) el.textContent = `Saved ${at} · ${where}`;
+    else el.textContent = p?.id ? `Saved plan · ${where}` : `Not saved yet · ${where}`;
+  }
+  if (st) { // phone: the second row of the top bar. One tap saves.
+    const saved = !state.dirty && (state.savedAt || p?.id);
+    st.classList.toggle('dirty', !!state.dirty); st.classList.toggle('saved', !!saved);
+    st.innerHTML = state.dirty ? `<i></i><span>Not saved</span><b>Save</b>` : saved ? `<i></i><span>${state.savedAt ? 'Saved ' + at : 'Saved'}</span>` : `<i></i><span>Not saved yet</span><b>Save</b>`;
+    st.setAttribute('aria-label', state.dirty || !saved ? 'Save the plan' : 'The plan is saved. Tap to save again.');
+  }
 }
 
 // ---------- downloads / exports ----------
 async function offerFile(filename, blob) {
+  if (typeof shareCapture === 'function' && shareCapture(filename, blob)) return; // v10: a Share & print card is waiting for this file (Save / Share / Print happen from its buttons)
+  return saveFileNow(filename, blob);
+}
+async function saveFileNow(filename, blob) { // download the file: the artifact runtime when it is there, else a normal browser download
   if (state.downloads) {
     try { await state.downloads.save({ filename, data: blob }); return; }
     catch (e) { if (e?.code === 'declined') return; if (e?.code !== 'unavailable' && e?.code !== 'not_granted') { toast('Download failed: ' + (e.message || e.code)); return; } }
   }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
+function progressStep(f, label) { if (typeof shareProgress === 'function') shareProgress(f, label); } // v10: feeds the progress bar on the Share & print card (no-op in v6)
 function fileBase() { const m = state.plan.meta; return ((m.client ? m.client + ' ' : '') + (m.title || state.plan.name || 'lifting plan')).replace(/[^\w\- ]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'lifting plan'; }
 async function inlineImages(svg) {
   const urls = [...new Set([...svg.matchAll(/href="([^"]+)"/g)].map(m => m[1]).filter(u => !u.startsWith('data:')))];
@@ -122,26 +136,36 @@ function currentSheet(extra = {}) {
   return { calc, P, scale };
 }
 async function exportPDF(paper = 'A1') {
-  const btn = $('#bPdf'); if (btn) btn.classList.add('busy'); toast('Building the ' + paper + ' PDF…');
+  const btn = $('#bPdf'); if (btn) btn.classList.add('busy'); if (!(typeof shareBusy === 'function' && shareBusy())) toast('Building the ' + paper + ' PDF…');
   try {
-    await ensureEnvLoaded(state.plan);
+    progressStep(0.06, 'Loading the pictures…'); await ensureEnvLoaded(state.plan);
+    progressStep(0.14, 'Drawing the sheet…');
     const { P } = currentSheet({ paper }); const svg = toSVG(P, { width: '100%', height: '100%' });
     if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('PDF library did not load');
     const [pw, ph] = paper === 'A3' ? [420, 297] : [841, 594];
-    const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: [pw, ph], compress: true });
-    if (typeof PDF_FONTS !== 'undefined') {
-      doc.addFileToVFS('LiberationSans-Regular.ttf', PDF_FONTS.regular); doc.addFont('LiberationSans-Regular.ttf', 'Arial', 'normal');
-      doc.addFileToVFS('LiberationSans-Bold.ttf', PDF_FONTS.bold); doc.addFont('LiberationSans-Bold.ttf', 'Arial', 'bold');
+    let doc;
+    if (typeof pdfNew === 'function') doc = pdfNew({ orientation: 'landscape', unit: 'mm', format: [pw, ph] }); // v10: locked (print only) and fonts embedded
+    else {
+      doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: [pw, ph], compress: true });
+      if (typeof PDF_FONTS !== 'undefined') {
+        doc.addFileToVFS('LiberationSans-Regular.ttf', PDF_FONTS.regular); doc.addFont('LiberationSans-Regular.ttf', 'Arial', 'normal');
+        doc.addFileToVFS('LiberationSans-Bold.ttf', PDF_FONTS.bold); doc.addFont('LiberationSans-Bold.ttf', 'Arial', 'bold');
+      }
     }
+    progressStep(0.3, 'Putting the drawing on the page…');
     const stage = $('#pdfStage'); stage.innerHTML = await inlineImages(svg); const el = stage.querySelector('svg');
     el.setAttribute('width', String(pw)); el.setAttribute('height', String(ph));
+    progressStep(0.4, 'Turning the drawing into a PDF…');
     await doc.svg(el, { x: 0, y: 0, width: pw, height: ph });
     stage.innerHTML = '';
-    doc.setProperties({ title: fileBase(), creator: 'FHE Lift Planner' });
+    progressStep(0.94, 'Locking and finishing…');
+    if (typeof pdfFinish === 'function') pdfFinish(doc, { title: fileBase(), docNo: sheetDocNo(), subject: 'Crane lifting plan' + (paper === 'A3' ? ' (A3)' : ' (A1)') });
+    else doc.setProperties({ title: fileBase(), creator: 'FHE Lift Planner' });
     await offerFile(fileBase() + (paper === 'A3' ? ' (A3)' : '') + '.pdf', doc.output('blob'));
-  } catch (e) { toast('PDF export failed: ' + e.message); }
+  } catch (e) { console.error(e); if (typeof shareFail === 'function') shareFail(e); toast('PDF export failed: ' + e.message); }
   finally { if (btn) btn.classList.remove('busy'); }
 }
+function sheetDocNo() { const m = state.plan?.meta || {}; return String(m.drawingNo || m.sheetNo || '').trim() || ('FHE-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(state.plan?.id || state.plan?.name || 'plan').replace(/[^\w]/g, '').slice(-4).toUpperCase()); }
 async function exportDXF() {
   await ensureEnvLoaded(state.plan);
   const { P, scale } = currentSheet(); const S = scale ? scale.N : 100;
@@ -195,6 +219,7 @@ function normalizePlan(p) {
   out.acc = { yguy: false, superlift: false, runner: false, slRadius: 15, slBallast: 100, ...(p.acc || {}) };
   out.weather = p.weather && typeof p.weather === 'object' ? { limit: 9, start: '07:00', hours: 4, manual: {}, ...p.weather } : null;
   out.loads = (p.loads && p.loads.length ? p.loads : b.loads).map(l => ({ ...b.loads[0], by: 'radius', angle: '', tipH: '', rigType: '', slingL: '', slingAng: 60, slingWLL: '', liftType: '', notes: '', contOn: true, empty: false, crane: 0, tackles: [], ...l, daf: { on: false, mode: 'auto', cls: 'HC1', vh: 0.1, v: 1.1, ...(l.daf || {}) } }));
+  out.loads.forEach(l => { l.tackles = (Array.isArray(l.tackles) ? l.tackles : []).filter(t => t && typeof t === 'object').map(t => typeof rgNormTackle === 'function' ? rgNormTackle(t) : t); }); // v10: material, hitch, vertical WLL, certificate… (rigging.js)
   // cranes in the plan: top-level fields are the active crane, others parked here
   out.activeCrane = Math.max(0, Math.round(num(p.activeCrane, 0)));
   out.cranes = Array.isArray(p.cranes) && p.cranes.length ? p.cranes.map(c => ({ ...c })) : [rigPick(out)];
@@ -213,6 +238,9 @@ function normalizePlan(p) {
   // outriggers (v8): beams per side and hand-typed leg loads are per crane; plans from before v8 have neither → full legs, nothing typed
   const legs = (o) => { o.outExt = { left: 'full', right: 'full', ...(o.outExt && typeof o.outExt === 'object' ? o.outExt : {}) }; o.padMan = o.padMan && typeof o.padMan === 'object' ? { ...o.padMan } : {}; };
   legs(out); out.cranes.forEach(legs);
+  // v10 report pack: which sections go in the RAMS pack (ids from REPORT_SECTIONS; missing = the defaults) and the site hazards the AP ticked (risk.js)
+  out.reportInc = Array.isArray(p.reportInc) ? p.reportInc.filter(x => typeof x === 'string') : (typeof REPORT_SECTIONS !== 'undefined' ? REPORT_SECTIONS.filter(x => x.def).map(x => x.id) : null);
+  out.risk = { haz: {}, extra: [], ...(p.risk && typeof p.risk === 'object' ? p.risk : {}) }; if (!out.risk.haz || typeof out.risk.haz !== 'object') out.risk.haz = {}; out.risk.extra = (Array.isArray(out.risk.extra) ? out.risk.extra : []).filter(x => x && typeof x === 'object');
   return out;
 }
 // ---------- several cranes on one plan ----------

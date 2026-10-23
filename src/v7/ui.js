@@ -18,7 +18,8 @@ function startStudio() {
   ensureEnvLoaded(state.plan).then(ch => { if (ch) refresh(); });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if ((state.settings.theme || 'auto') === 'auto') applyTheme(); });
   window.matchMedia('(min-width: 900px)').addEventListener?.('change', () => { $('#panel').dataset.sig = ''; refresh(true); renderFloats(); });
-  if (!LS.get('lp.coach7', false)) setTimeout(coachStart, 900);
+  if (!LS.get('lp.coach7', false)) { LS.set('lp.new10', true); setTimeout(coachStart, 900); } // first run: the tips are enough
+  else if (!LS.get('lp.new10', false)) setTimeout(() => { if (V7.sheet || state.page || V7.coach != null || document.body.classList.contains('locked')) return; LS.set('lp.new10', true); openSheet('new10'); }, 1500); // once, for people who had version 9
 }
 
 // ---------- top bar ----------
@@ -28,16 +29,17 @@ function renderTop() {
   const sig = [p.loads.length, li, isDesk()].join('|');
   if (el.dataset.sig !== sig) {
     el.dataset.sig = sig;
-    el.innerHTML = `<button type="button" class="brand tap" data-act="plans" aria-label="Plans"><span class="mk">${ic('crane', 22, 2)}</span><span class="nm"><b id="tbName"></b><small id="saveState"></small></span></button>
-      <nav class="lifts" role="tablist" aria-label="Lifts">${p.loads.map((x, i) => `<button type="button" role="tab" class="lift-t tap" data-act="lift" data-i="${i}" aria-selected="${i === li}"><i class="dot" id="ltd${i}"></i><span>Lift ${i + 1}</span><span class="lt-w num" id="ltw${i}"></span></button>`).join('')}${p.loads.length < 6 ? `<button type="button" class="lift-t add tap" data-act="liftAdd" aria-label="Add a lift">${ic('plus', 18, 2.2)}</button>` : ''}</nav>
+    el.innerHTML = `<div class="tb-r tb-r1"><button type="button" class="brand tap" data-act="plans" aria-label="Plans. This plan: ${h(p.name || p.meta?.title || 'Untitled plan')}" title="Open your plans"><span class="mk">${ic('crane', 22, 2)}</span><span class="nm"><b id="tbName"></b><small id="saveState"></small></span><span class="nm-chev" aria-hidden="true">${ic('chevD', 16, 2.6)}</span></button>
       <button type="button" class="tb-btn tb-undo tap" data-act="undo" id="tbUndo" aria-label="Undo" title="Undo (Ctrl Z)">${ic('undo', 22)}</button>
-      <button type="button" class="tb-btn tb-undo tap" data-act="redo" id="tbRedo" aria-label="Redo" title="Redo (Ctrl Shift Z)">${ic('redo', 22)}</button>
+      <button type="button" class="tb-btn tb-redo tap" data-act="redo" id="tbRedo" aria-label="Redo" title="Redo (Ctrl Shift Z)">${ic('redo', 22)}</button>
       <button type="button" class="tb-btn tb-save tap" data-act="save" id="tbSave" aria-label="Save plan" title="Save (Ctrl S)">${ic('save', 22)}<i></i></button>
-      <button type="button" class="tb-pdf tap" data-act="pdf" id="bPdf">${ic('dl', 18, 2.2)}PDF</button>
-      <button type="button" class="tb-btn tap" data-act="more" aria-label="More">${ic('more', 26, 3)}</button>`;
+      <button type="button" class="tb-share tap" data-act="share" id="bPdf" aria-label="Share and print" title="Make a PDF, then save, AirDrop or print it">${ic('share', 20, 2.2)}<span class="l-long">Share &amp; print</span><span class="l-short">Share</span></button></div>
+      <div class="tb-r tb-r2"><nav class="lifts" role="tablist" aria-label="Lifts">${p.loads.map((x, i) => `<button type="button" role="tab" class="lift-t tap" data-act="lift" data-i="${i}" aria-selected="${i === li}"><i class="dot" id="ltd${i}"></i><span>Lift ${i + 1}</span><span class="lt-w num" id="ltw${i}"></span></button>`).join('')}${p.loads.length < 6 ? `<button type="button" class="lift-t add tap" data-act="liftAdd" aria-label="Add a lift" title="Add another lift">${ic('plus', 18, 2.2)}</button>` : ''}</nav>
+      <button type="button" class="tb-state tap" data-act="save" id="tbState" aria-label="Save the plan"></button>
+      <button type="button" class="tb-btn tb-more tap" data-act="more" aria-label="More" title="More">${ic('more', 26, 3)}</button></div>`;
     updateSaveState();
   }
-  const nm = $('#tbName'); if (nm) nm.textContent = p.name || p.meta?.title || 'Untitled plan';
+  const nm = $('#tbName'); if (nm) { const t = p.name || p.meta?.title || 'Untitled plan'; if (nm.textContent !== t) { nm.textContent = t; $('.brand')?.setAttribute('aria-label', 'Plans. This plan: ' + t); } }
   p.loads.forEach((x, i) => { const r = state.calc.loads[i]; const d = $('#ltd' + i); if (d) d.className = 'dot ' + utilCls(r); const w = $('#ltw' + i); if (w) w.textContent = x.empty ? 'empty' : fmt(num(x.w), 1) + ' t'; });
   $('#tbSave')?.classList.toggle('dirty', !!state.dirty);
   renderTopUndo();
@@ -146,7 +148,7 @@ function bindUI() {
     else if (a === 'pip') pipToggle();
     else if (a === 'undo') histGo(-1); else if (a === 'redo') histGo(1);
     else if (a === 'save') savePlan(false).then(() => renderTop());
-    else if (a === 'pdf') exportPDF('A1');
+    else if (a === 'share' || a === 'pdf') openSheet('print');
     else if (a === 'plans') openPage('plans');
     else if (a === 'more') openSheet('more');
     else if (a === 'checks') openSheet('checks');
@@ -199,3 +201,4 @@ function coachShow() {
   $('#coNext').onclick = () => { V7.coach++; coachShow(); };
   setTimeout(() => $('#coNext')?.focus(), 50);
 }
+

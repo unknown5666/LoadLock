@@ -1,6 +1,6 @@
 const fs=require('fs'); const vm=require('vm');
 const strip=s=>s.replace(/if \(typeof module[\s\S]*$/,'');
-const code=['../gen/assets','data','engine','outrig','draw','crane2d','fixes','samples'].map(f=>strip(fs.readFileSync((f.startsWith('..')?'src/'+f:'src/'+f)+'.js','utf8'))).join('\n')+'\nthis.DIMS_IMG=DIMS_IMG;this.X={DEFAULT_CRANES,DEFAULT_SETTINGS,SAMPLE_PLANS,computePlan,buildSheet,toSVG,toDXF};';
+const code=['../gen/assets','data','library','engine','outrig','draw','rigging','crane2d','fixes','samples'].map(f=>strip(fs.readFileSync((f.startsWith('..')?'src/'+f:'src/'+f)+'.js','utf8'))).join('\n')+'\nthis.DIMS_IMG=DIMS_IMG;this.X={DEFAULT_CRANES,DEFAULT_SETTINGS,SAMPLE_PLANS,computePlan,buildSheet,toSVG,toDXF};';
 const ctx={console}; vm.createContext(ctx); vm.runInContext(code,ctx);
 const X=ctx.X; fs.mkdirSync('out',{recursive:true});
 for(const s of X.SAMPLE_PLANS){const plan=s.make(); const calc=X.computePlan(plan,X.DEFAULT_CRANES,X.DEFAULT_SETTINGS);

@@ -121,7 +121,7 @@ function computeTandem(plan, craneList, settings, load, li) {
   const axis = num(T.axis) * D2R, ax = { x: Math.cos(axis), y: Math.sin(axis) }, nx = { x: -ax.y, y: ax.x };
   const lead = sitePlanStateT(plan);                                                    // where the lead crane stands
   const picks = T.picks.slice(0, 4).map((pk, k) => ({ k, crane: Math.max(0, Math.round(num(pk.crane, k))), x: num(pk.x), z: num(pk.z), R: Math.max(1, num(pk.R, 10)), psi: num(pk.psi), side: sideOf(pk.side), tk: num(pk.tk), hb: pk.hb, cap: pk.cap, mv: { boom: num(pk.mv?.boom), swing: num(pk.mv?.swing), hoist: num(pk.mv?.hoist) } }));
-  const out = { derate, W: Wl, picks: [], checks: [], axis: num(T.axis), cog: { x: num(T.cog), z: num(T.cogZ), h: num(T.cogH) } };
+  const out = { derate, W: Wl, picks: [], checks: [], axis: num(T.axis), cog: { x: num(T.cog), z: num(T.cogZ), h: num(T.cogH) }, li, dim: { l: num(load.l, 2), h: num(load.h, 1.5), shape: load.shape || 'box', name: load.name || '' } };
   // pick 0 is the lift itself: the lead crane is the lift's crane (load.crane), stands where the plan puts it and lifts over the lift's side
   picks[0].crane = rigIndexOf(plan, load); picks[0].side = sideOf(load); picks[0].psi = normDeg(boomHeadingFor(plan, load) + 180); picks[0].own = true;
   const P0 = { x: lead.cx + picks[0].R * Math.cos((picks[0].psi + 180) * D2R), y: lead.cy + picks[0].R * Math.sin((picks[0].psi + 180) * D2R) };
@@ -216,4 +216,153 @@ function tandemMergeChecks(res) {
 // sitePlanState lives in draw.js (loaded later in the bundle, absent in some Node tests) — the lead crane's position only
 function sitePlanStateT(plan) { const sp = plan?.sitePlan || {}; return { cx: num(sp.cx), cy: num(sp.cy) }; }
 
-if (typeof module !== 'undefined') module.exports = { TANDEM_DERATE, tandemMergeChecks, tandemOf, tandemDefault, tandemStatic, tandemPose, tandemTension, tandemHang, computeTandem };
+
+// ===== v10: the tandem lift in the 2D elevation (app canvas, A1 sheet and report) =====
+// The picture uses the LEAD crane's own elevation frame: x runs from its slew centre towards its lifting point, y up from the ground. Everything is
+// projected onto the vertical plane through the pick line (the second crane is drawn in its own boom plane, with its boom head over its lifting
+// point, so hoist lines hang as the engine worked them out). The two cranes face each other; each is drawn with the same body code as a single crane.
+// Nothing here changes a number — it only draws what computeTandem returned.
+function tandemElevModel(plan, res) {
+  const TD = res && res.tandem; if (!TD || !Array.isArray(TD.picks) || TD.picks.length < 2) return null;
+  const pks = TD.picks, p0 = pks[0], p1 = pks[1];
+  if (!p0.res?.geo?.tip || !p1.res?.geo?.tip || !p0.pos || !p1.pos || !p0.base || !p1.base) return null;
+  const ax = { x: Math.cos(num(TD.axis) * D2R), y: Math.sin(num(TD.axis) * D2R) };
+  const live = TD.live && TD.live.pose && Array.isArray(TD.live.pose.P) && TD.live.pose.P.length >= 2 ? TD.live : null;
+  const sAt = (pk, q) => pk.x + (q.x - pk.pos.x) * ax.x + (q.y - pk.pos.y) * ax.y;          // position along the pick line (m)
+  const sBase = (pk) => sAt(pk, pk.base);
+  const sHead = (pk) => { const hd = (num(pk.boomHd) + (live ? num(pk.mv?.swing) : 0)) * D2R, R = live ? num(pk.Rnow, pk.R) : num(pk.R); return sAt(pk, { x: pk.base.x + R * Math.cos(hd), y: pk.base.y + R * Math.sin(hd) }); };
+  const sH0 = sHead(p0), sgn = sH0 - sBase(p0) >= 0 ? 1 : -1, xh0 = num(p0.res.R);
+  const fx = (s) => xh0 + sgn * (s - sH0);
+  const cranes = [p0, p1].map((pk, k) => {
+    const crane = pk.res.crane, geo = pk.res.geo, R = num(pk.res.R), dS = sHead(pk) - sBase(pk);
+    const d = k === 0 ? 1 : Math.abs(dS) < 0.02 ? -1 : sgn * (dS > 0 ? 1 : -1);               // +1: boom points right in the picture, −1: left
+    const xh = fx(sHead(pk)), xc = xh - d * R;
+    const body = typeof liftBodyCrane === 'function' ? liftBodyCrane(crane, pk.side) : crane;
+    const drw = craneDrawing(body), cbx = !drw && typeof customBody === 'function' ? customBody(crane) : null;
+    let bx0 = drw ? Math.max(-16, drw.bbox[0]) - 1.5 : cbx ? Math.max(-30, customBBox(cbx)[0]) - 1.5 : -Math.max(num(crane.tail, 4), num(crane.outTrans, 7) / 2) - 1.5;
+    const bx1 = drw ? Math.max(drw.bbox[2], 3) + 1 : cbx ? Math.max(3, customBBox(cbx)[2]) + 1 : Math.max(0.64 * num(crane.carrierLen, 12), 4) + 1;
+    if (body._endDeck != null) bx0 = Math.min(bx0, -num(crane.outTrans, 7) / 2 - 1.5);
+    if (pk.res.acc?.superlift) bx0 = Math.min(bx0, -num(pk.res.acc.slRadius, 15) - 4);
+    return { k, pk, crane, body, geo, res: pk.res, d, xc, xh, R, tipY: geo.tip.y, x0: d > 0 ? xc + bx0 : xc - bx1, x1: d > 0 ? xc + bx1 : xc - bx0, pv: typeof rigOf === 'function' ? rigOf(plan, pk.crane) : plan };
+  });
+  // the load: a box of its real length and height, hanging from the lifting points (level, or tilted as the two-line solve settled it)
+  const dim = TD.dim || {}, l = Math.max(0.1, num(dim.l, 2)), h = Math.max(0.1, num(dim.h, 1.5));
+  const cogC = num(TD.cog?.x), cogH = TD.cog && TD.cog.h != null ? num(TD.cog.h) : -h / 2;
+  const yP0 = num(p0.res.landY) - (cogH - h / 2);                                              // pick plane: the load stands on its landing level
+  const dy = live ? yP0 - num(live.pickY) : 0, al = live ? num(live.pose.al) : 0, ca = Math.cos(al), sa = Math.sin(al);
+  const Ps = pks.map((pk, k) => (live && k < 2 ? { s: live.pose.P[k].s, y: live.pose.P[k].y + dy } : { s: pk.x, y: yP0 }));
+  const at = (c, e) => ({ s: Ps[0].s + (c - p0.x) * ca - e * sa, y: Ps[0].y + (c - p0.x) * sa + e * ca });
+  const W = (q) => ({ x: fx(q.s), y: q.y });
+  const poly = [at(cogC - l / 2, cogH - h / 2), at(cogC + l / 2, cogH - h / 2), at(cogC + l / 2, cogH + h / 2), at(cogC - l / 2, cogH + h / 2)].map(W);
+  const picks = pks.map((pk, k) => ({ k, pk, ...W(Ps[k]) })), cog = W(at(cogC, cogH));
+  for (const c of cranes) { // hook block: its underside sits the rigging height above the lifting point
+    const hk = typeof hookOf === 'function' ? hookOf(c.crane) : null, blkH = hk ? hk.h : Math.max(0.9, Math.min(2.2, 0.6 + num(c.crane.cls, 100) / 400));
+    c.hk = hk; c.blkH = blkH; c.blkW = hk ? hk.w : Math.max(0.6, blkH * 0.55); c.xp = picks[c.k].x; c.hookBot = picks[c.k].y + Math.max(0.2, num(c.res.rigH, 3)); c.blkTop = c.hookBot + blkH;
+  }
+  const xs = [...cranes.flatMap(c => [c.x0, c.x1, c.xh]), ...poly.map(q => q.x)];
+  return { TD, live, sgn, cranes, picks, poly, cog, l, h, shape: dim.shape || 'box', W: num(TD.W), xmin: Math.min(...xs), xmax: Math.max(...xs), ytop: Math.max(...cranes.map(c => c.tipY), ...poly.map(q => q.y)), more: pks.length - 2, dPlan: Math.hypot(p1.base.x - p0.base.x, p1.base.y - p0.base.y) };
+}
+// room for both cranes, the load and the crane labels (merged into the lead crane's extents by elevationExtents)
+function tandemElevExtents(ext, plan, res) {
+  let M = null; try { M = tandemElevModel(plan, res); } catch (e) { M = null; }
+  if (!M) return ext;
+  return { xmin: Math.min(ext.xmin, M.xmin - 2), xmax: Math.max(ext.xmax, M.xmax + 3), ymin: ext.ymin, ymax: Math.max(ext.ymax, M.ytop + 2) + 6 };
+}
+// both cranes (body + boom), hook blocks, hoist lines, the load, centre of gravity, lifting points and the crane labels. Returns what the dimensions need.
+function tandemDrawRig(P, T, k, plan, M, o = {}) {
+  const ds = o.dimSize || 4.4, avoid = []; const TD = M.TD;
+  for (const c of M.cranes) {
+    const Tk = (x, y) => T(c.xc + c.d * x, y);
+    const sd = sideOf(c.pk.side); if (c.body._endDeck != null) drawCarrierEndView(P, Tk, c.crane, c.pv, c.body._endDeck, c.d > 0 ? sd : sd === 'left' ? 'right' : sd === 'right' ? 'left' : sd);
+    const ce = drawCraneElevation(P, Tk, k, c.body, c.geo, c.res, c.pv, { livery: o.livery }); c.cad = ce?.cad; c.T = Tk;
+    for (const [a, b] of c.geo.segments || []) { const p = Tk(a.x, a.y), q = Tk(b.x, b.y); avoid.push([p[0], p[1], q[0], q[1]]); }
+  }
+  // load
+  const pts = M.poly.map(q => T(q.x, q.y)); const shape = M.shape;
+  P.poly(pts, { closed: true, stroke: '#1d1d1d', w: 0.2, fill: shape === 'container' ? '#7a8fa6' : shape === 'tc' ? '#7cd65a' : shape === 'chiller' ? '#c3cad3' : shape === 'bundle' ? '#8d9298' : '#d8d8d8', layer: 'LOAD' });
+  if (shape === 'box' || shape === 'beam') { P.line(pts[0][0], pts[0][1], pts[2][0], pts[2][1], { stroke: '#999', w: 0.1, layer: 'LOAD' }); P.line(pts[3][0], pts[3][1], pts[1][0], pts[1][1], { stroke: '#999', w: 0.1, layer: 'LOAD' }); }
+  for (let i = 0; i < 4; i++) { const a = pts[i], b = pts[(i + 1) % 4]; avoid.push([a[0], a[1], b[0], b[1]]); }
+  // hoist lines, hook blocks, rigging down to the lifting points
+  for (const c of M.cranes) {
+    const pt = M.picks[c.k], hk = c.hk, blkH = c.blkH;
+    const fall = hk ? Math.max(0.12, Math.min(0.42, hk.w * 0.2)) : 0.3, sheaveY = c.geo.tip.y - (c.cad ? c.cad.sheaveR * 0.6 : 0.25);
+    const sty = { stroke: '#1d1d1d', w: 0.16, layer: 'HOOK' };
+    for (const dx of [-fall, fall]) { const a = T(c.xh + dx, sheaveY), b = T(pt.x + dx, c.blkTop - 0.05); P.line(a[0], a[1], b[0], b[1], sty); avoid.push([a[0], a[1], b[0], b[1]]); }
+    if (hk) emitItems(P, hk.items, hk.pal, (x, y) => T(pt.x + x * hk.s, c.blkTop + y * hk.s), { tint: null, w: 0.08, layer: 'HOOK' });
+    else P.poly([T(pt.x - c.blkW / 2, c.blkTop), T(pt.x + c.blkW / 2, c.blkTop), T(pt.x + c.blkW / 2, c.hookBot + blkH * 0.35), T(pt.x - c.blkW / 2, c.hookBot + blkH * 0.35)], { closed: true, stroke: '#222', w: 0.18, fill: '#e3b505', layer: 'HOOK' });
+    const a = T(pt.x, c.hookBot), b = T(pt.x, pt.y); P.line(a[0], a[1], b[0], b[1], { stroke: '#5a3a12', w: 0.24, layer: 'RIGGING' });
+  }
+  // lifting points (all of them), centre of gravity
+  for (const pt of M.picks) { const q = T(pt.x, pt.y); P.circle(q[0], q[1], 0.9, { fill: '#7a007a', stroke: 'none', layer: 'SITE-LOAD' }); if (pt.k >= 2) P.text(q[0], q[1] - 2.6, `C${pt.pk.crane + 1} ${(+pt.pk.share).toFixed(1)}T`, { size: ds * 0.65, bold: true, anchor: 'middle', color: '#7a007a', bg: '#ffffff', layer: 'SITE-LOAD' }); }
+  { const g = T(M.cog.x, M.cog.y), r = 1.5; P.circle(g[0], g[1], r, { stroke: '#000', w: 0.2, fill: '#ffffff', layer: 'LOAD' });
+    for (const [a0, a1] of [[0, 90], [180, 270]]) { const arc = [[g[0], g[1]]]; for (let i = 0; i <= 8; i++) { const an = (a0 + (a1 - a0) * i / 8) * D2R; arc.push([g[0] + r * Math.cos(an), g[1] - r * Math.sin(an)]); } P.poly(arc, { closed: true, fill: '#000', stroke: 'none', layer: 'LOAD' }); }
+    P.text(g[0], g[1] + r + ds * 0.55, 'C.O.G.', { size: ds * 0.55, anchor: 'middle', vAlign: 'middle', color: '#000', bg: '#ffffff', layer: 'LOAD' });
+    const lc = [(pts[0][0] + pts[2][0]) / 2, (pts[0][1] + pts[2][1]) / 2]; const lt = `${M.W.toFixed(1)}T`; P.text(lc[0], lc[1] - r - ds * 0.35, lt, { size: ds * 0.8, bold: true, anchor: 'middle', vAlign: 'middle', color: '#000', bg: '#ffffff', layer: 'LOAD' }); }
+  if (M.more > 0) { const hb = Math.max(M.cranes[0].blkTop, M.cranes[1].blkTop), tp = Math.min(M.cranes[0].tipY, M.cranes[1].tipY), hx = (M.cranes[0].xh + M.cranes[1].xh) / 2, hy = hb + Math.max(1.5, (tp - hb) * 0.5); const q = T(hx, hy); // between the two hoist lines, half way up
+    P.text(q[0], q[1], `+${M.more} MORE CRANE${M.more > 1 ? 'S' : ''} — SEE SITE PLAN`, { size: ds * 0.7, bold: true, anchor: 'middle', vAlign: 'middle', color: '#7a007a', bg: '#ffffff', layer: 'SITE-LOAD' }); }
+  // crane labels: C1 / C2, share (t and %), utilisation against the derated chart — above each boom head, on the outer side
+  for (const c of M.cranes) {
+    const pk = c.pk, cap = pk.cap, der = cap != null ? cap * TD.derate / 100 : null, u = cap != null && pk.util != null ? pk.util / TD.derate * 100 : null;
+    const L = [`C${pk.crane + 1} · ${String(pk.model || c.crane.model || '').toUpperCase()}`, `${(+pk.share).toFixed(2)}T · ${(+pk.pct).toFixed(0)}%`, u != null ? `${u.toFixed(1)}% OF DERATED ${der.toFixed(1)}T` : 'NO CAPACITY'];
+    const H = T(c.xh, c.tipY), sz = ds * 0.78, lh = sz * 1.28, outer = c.d > 0 ? -1 : 1, bad = u == null || u > 100;
+    const x = H[0] - outer * 2, y0 = H[1] - 14;   // starts over the head and runs outwards, clear of the boom-length dimension
+    L.forEach((s, i) => P.text(x, y0 - (L.length - 1 - i) * lh, s, { size: i === 0 ? sz * 1.05 : sz, bold: i < 2, anchor: outer < 0 ? 'end' : 'start', vAlign: 'middle', color: i === 2 && bad ? COL.red : '#000', bg: '#ffffff', layer: 'DIMTEXT' }));
+    const wd = Math.max(...L.map(s => textW(s, sz, true))); avoid.push([x - (outer < 0 ? wd : 0), y0 - 2.5 * lh, x + (outer < 0 ? 0 : wd), y0 - 2.5 * lh], [x - (outer < 0 ? wd : 0), y0 + lh, x + (outer < 0 ? 0 : wd), y0 + lh]);
+  }
+  return { avoid };
+}
+// dimensions: each crane's radius, distance between slew centres, hook heights, boom angle and length of the second crane. `o.hdim(x0, x1, y0w, y1w, row, label, size)` draws a row under the ground.
+function tandemElevDims(P, T, k, plan, M, o) {
+  const ds = o.dimSize || 4.4; let row = o.row; const c0 = M.cranes[0], c1 = M.cranes[1];
+  // radius of the second crane (same row as the lead's when they do not overlap)
+  const a = Math.min(c1.xh, c1.xc), b = Math.max(c1.xh, c1.xc), lead = Math.max(c0.xh, c0.xc);
+  o.hdim(a, b, 0, 0, a > lead + 0.5 ? 0 : row++, String(mm(c1.R)), ds);
+  // distance between the slew centres (the true plan distance when the cranes are not in line)
+  const dr = Math.abs(c1.xc - c0.xc), lab = Math.abs(dr - M.dPlan) <= Math.max(0.05, 0.02 * M.dPlan) ? String(mm(dr)) : `${mm(M.dPlan)} (PLAN)`;
+  o.hdim(Math.min(c0.xc, c1.xc), Math.max(c0.xc, c1.xc), 0, 0, row++, lab, ds);
+  // hook heights: outside the load, ground to the underside of each hook block
+  const left = M.cranes[0].xh <= M.cranes[1].xh ? M.cranes[0] : M.cranes[1], right = left === M.cranes[0] ? M.cranes[1] : M.cranes[0];
+  const xl = Math.min(...M.poly.map(q => q.x), left.xp) - 1.8, xr = Math.max(...M.poly.map(q => q.x), right.xp) + 1.8;
+  for (const [c, xd, sd] of [[left, xl, 'left'], [right, xr, 'right']]) {
+    const g = T(xd, 0), t = T(xd, c.hookBot), e = T(c.xp + (xd < c.xp ? -1 : 1) * (c.blkW / 2 + 0.2), c.hookBot);
+    P.line(t[0] + (xd < c.xp ? -1.2 : 1.2), t[1], e[0], e[1], { stroke: COL.red, w: 0.12, layer: 'DIM' });
+    dimA(P, g, t, 0, String(mm(c.hookBot)), { side: sd, size: ds, extA: false, extB: false });
+  }
+  // second crane: boom length and boom angle in its own mirrored frame
+  { const c = c1, A = c.geo.pivot, deg = c.geo.kind === 'main' ? c.geo.theta : c.geo.theta, Lm = c.geo.kind === 'main' ? c.geo.L : c.geo.Lb, u = [Math.cos(deg * D2R), Math.sin(deg * D2R)];
+    const cad = craneDrawing(c.crane), top = cad && cad.v === 2 ? Math.max(0.2, cad.secs[0].n1) : num(c.crane.boomDepth, 1.2) * 0.6;
+    const p = c.T(A.x, A.y), q = c.T(A.x + Lm * u[0], A.y + Lm * u[1]); dimA(P, p, q, Math.max(5, top * k + 4.5), String(mm(Lm)), { side: 'up', size: ds });
+    const rr = Math.max(13, Math.min(34, Math.max(6.5, Lm * 0.3) * k)), th = c.geo.theta, ea = th * D2R, am = th / 2 * D2R, dd = c.d;
+    if (dd > 0) P.arc(p[0], p[1], rr, 0, th, { stroke: COL.red, w: 0.14, layer: 'DIM' }); else P.arc(p[0], p[1], rr, 180 - th, 180, { stroke: COL.red, w: 0.14, layer: 'DIM' });
+    P.line(p[0] + dd * (rr - 2.2), p[1], p[0] + dd * (rr + 2.2), p[1], { stroke: COL.red, w: 0.14, layer: 'DIM' });
+    arrow(P, p[0] + dd * rr * Math.cos(ea), p[1] - rr * Math.sin(ea), dd > 0 ? -ea - Math.PI / 2 : ea + 3 * Math.PI / 2, { stroke: COL.red, al: 1.8, aw: 0.5 });
+    P.text(p[0] + dd * Math.cos(am) * (rr + 3.6), p[1] - Math.sin(am) * (rr + 3.6), (Math.round(th * 10) / 10).toFixed(1).replace(/\.0$/, '') + '°', { size: ds, color: COL.green, anchor: dd > 0 ? 'start' : 'end', vAlign: 'middle', layer: 'DIMTEXT', bg: '#ffffff' }); }
+  return row;
+}
+// the TANDEM block of the A1 data panel: one row per fact. `mk(id, label, value)` makes a sheet row (so typed-over values work like everywhere else).
+function tandemSheetRows(i, r, mk) {
+  const TD = r && r.tandem; if (!TD) return [];
+  const n = TD.picks.length, rows = [], der = TD.derate, compact = n > 2;
+  const t2 = (v) => v == null || !isFinite(v) ? '—' : (+v).toFixed(2) + 'T';
+  rows.push(mk(`d${i}.type`, 'LIFT TYPE', `TANDEM · ${n} CRANES`));
+  rows.push(mk(`d${i}.derate`, 'TANDEM LIMIT (DERATE)', `${der}% OF CHART`));
+  rows.push(mk(`d${i}.load`, 'LOAD, ALL CRANES', t2(TD.W)));
+  TD.picks.forEach((p, k) => {
+    const c = `C${p.crane + 1}`, cap = p.cap, dc = cap != null ? cap * der / 100 : null, u = cap != null && p.util != null ? p.util : null, du = u != null ? u / der * 100 : null;
+    const line = `${Math.abs(num(p.lineAng)).toFixed(1)}°`;
+    rows.push(mk(`d${i}.c${k}.share`, `${c} SHARE`, `${t2(p.share)} · ${(+p.pct).toFixed(0)}%`));
+    if (compact) {
+      rows.push(mk(`d${i}.c${k}.cap`, `${c} R / CHART / DERATED`, `${(+p.Rnow).toFixed(1)}M / ${cap != null ? cap.toFixed(1) : '—'}T / ${dc != null ? dc.toFixed(1) : '—'}T`));
+      rows.push(mk(`d${i}.c${k}.util`, `${c} UTIL. / LINE`, `${du != null ? du.toFixed(1) + '% DERATED' : '—'} · ${line}`));
+    } else {
+      rows.push(mk(`d${i}.c${k}.radius`, `${c} RADIUS`, fmtM(p.Rnow)));
+      rows.push(mk(`d${i}.c${k}.cap`, `${c} CHART CAPACITY`, t2(cap)));
+      rows.push(mk(`d${i}.c${k}.der`, `${c} DERATED CAPACITY`, t2(dc)));
+      rows.push(mk(`d${i}.c${k}.util`, `${c} UTILISATION`, u != null ? `${u.toFixed(1)}% CHART · ${du.toFixed(1)}% DERATED` : '—'));
+      rows.push(mk(`d${i}.c${k}.line`, `${c} HOIST LINE`, `${line} OUT OF PLUMB`));
+    }
+  });
+  return rows;
+}
+
+if (typeof module !== 'undefined') module.exports = { TANDEM_DERATE, tandemMergeChecks, tandemOf, tandemDefault, tandemStatic, tandemPose, tandemTension, tandemHang, computeTandem, tandemElevModel, tandemElevExtents, tandemSheetRows };

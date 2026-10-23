@@ -38,7 +38,7 @@ function legsSvg(O, L, crane) {
   // boom towards the lift side (shortened to stay on the picture) and the load
   if (L) {
     const t = L.theta * Math.PI / 180, [ox, oy] = S(0, 0); const len = Math.min(num(L.R) * k, 128); const ex = ox - Math.sin(t) * len, ey = oy - Math.cos(t) * len;
-    g += `<line class="boom" x1="${ox}" y1="${oy}" x2="${ex}" y2="${ey}"/><circle cx="${ex}" cy="${ey}" r="8" class="hk"/><text class="hkt" x="${ex}" y="${ey + (Math.cos(t) > 0.5 ? -14 : 22)}" text-anchor="middle">${fmt(L.hookT, 1)} t · ${fmt(L.R, 1)} m</text>`;
+    g += `<line class="boom" x1="${ox}" y1="${oy}" x2="${ex}" y2="${ey}"/><circle cx="${ex}" cy="${ey}" r="8" class="hk"/>${Math.cos(t) > 0.85 ? `<text class="hkt" x="${ex + 14}" y="${ey - 2}" text-anchor="start">${fmt(L.hookT, 1)} t · ${fmt(L.R, 1)} m</text><text class="hkt" x="${ex + 14}" y="${ey + 13}" text-anchor="start">over the ${SIDE_WORD[L.side]}</text>` : `<text class="hkt" x="${ex}" y="${ey + (Math.cos(t) > 0.5 ? -14 : 22)}" text-anchor="middle">${fmt(L.hookT, 1)} t · ${fmt(L.R, 1)} m</text><text class="hkt" x="${ex}" y="${ey + (Math.cos(t) > 0.5 ? -28 : 36)}" text-anchor="middle">over the ${SIDE_WORD[L.side]}</text>`}`; // v10: the picture says which side the load is lifted over (front lifts too)
     g += `<circle cx="${ox}" cy="${oy}" r="9" class="ring"/>`;
     const [cgx, cgy] = S(L.at.cog.x, L.at.cog.y); const cs = L.at.state === 'tipped' || L.at.state === 'tipping-limit' ? 'fail' : L.at.lifted.length ? 'warn' : 'ok';
     g += `<g class="cog ${cs}"><circle cx="${cgx}" cy="${cgy}" r="7"/><path d="M${cgx - 11} ${cgy}h22M${cgx} ${cgy - 11}v22"/></g>`;

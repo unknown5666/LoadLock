@@ -354,26 +354,37 @@ SH.find = {
 };
 
 // ---------- lift side ----------
+const SIDE_HELP = {
+  left: 'Over the left side of the crane. Common when the crane drives along the building.',
+  rear: 'Over the back of the crane. The strongest side on most load charts.',
+  right: 'Over the right side of the crane. Common when the crane drives along the building.',
+  front: "Over the front — over the driver's cab. Many load charts give a lot less here, and some give nothing, so the app checks it."
+};
+function sideIco(k, s = 30) { // little top-down crane with an arrow to the side you lift over
+  const A = { front: 'M16 16V3M12 7l4-4 4 4', rear: 'M16 16v13M12 25l4 4 4-4', left: 'M16 16H3M7 12l-4 4 4 4', right: 'M16 16h13M25 12l4 4-4 4' }[k] || '';
+  return `<svg viewBox="0 0 32 32" width="${s}" height="${s}" aria-hidden="true"><rect x="11.5" y="8" width="9" height="17" rx="2.5" fill="currentColor" fill-opacity=".14" stroke="currentColor" stroke-width="1.4"/><rect x="11.5" y="8" width="9" height="5.5" rx="2" fill="currentColor" fill-opacity=".5"/><path d="${A}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
 SH.side = {
   title: () => 'Lift side', icon: 'side',
   body() {
     const li = activeLi(), l = state.plan.loads[li], r = state.calc.loads[li]; const side = sideOfLoad(l);
-    const rot = { left: -90, rear: 180, right: 90 }[side];
+    const rot = { left: -90, rear: 180, right: 90, front: 0 }[side] ?? 180;
     const cx = 170, cy = 170, r0 = 100, r1 = 162;
     const sector = (a0, a1) => { const p = (a, rr) => [cx + rr * Math.cos((a - 90) * Math.PI / 180), cy + rr * Math.sin((a - 90) * Math.PI / 180)]; const [x0, y0] = p(a0, r1), [x1, y1] = p(a1, r1), [x2, y2] = p(a1, r0), [x3, y3] = p(a0, r0); return `M${x0} ${y0}A${r1} ${r1} 0 0 1 ${x1} ${y1}L${x2} ${y2}A${r0} ${r0} 0 0 0 ${x3} ${y3}Z`; };
     const lab = (a) => { const rr = (r0 + r1) / 2; return [cx + rr * Math.cos((a - 90) * Math.PI / 180), cy + rr * Math.sin((a - 90) * Math.PI / 180) + 5]; };
     const zone = (k, a0, a1, t, cls = '') => { const [tx, ty] = lab((a0 + a1) / 2); return `<g class="zone ${cls}${side === k ? ' on' : ''}" ${cls === 'no' ? '' : `data-sa="side" data-v="${k}" role="button" tabindex="0" aria-label="Lift on the ${t}"`}><path d="${sector(a0 + 2, a1 - 2)}"/><text x="${tx}" y="${ty}" text-anchor="middle">${t}</text></g>`; };
     const svg = `<svg viewBox="0 0 340 340" role="img" aria-label="Crane seen from above. Pick the side you lift on.">
-      ${zone('front', -45, 45, 'Never front', 'no')}${zone('right', 45, 135, 'Right')}${zone('rear', 135, 225, 'Behind')}${zone('left', 225, 315, 'Left')}
+      ${zone('front', -45, 45, 'Front')}${zone('right', 45, 135, 'Right')}${zone('rear', 135, 225, 'Behind')}${zone('left', 225, 315, 'Left')}
       <rect class="body" x="${cx - 30}" y="${cy - 78}" width="60" height="156" rx="10"/><rect class="cab" x="${cx - 26}" y="${cy - 74}" width="52" height="22" rx="6"/>
       <path d="M${cx - 30} ${cy - 40}h-22M${cx + 30} ${cy - 40}h22M${cx - 30} ${cy + 46}h-22M${cx + 30} ${cy + 46}h22" stroke="currentColor" stroke-width="5" stroke-linecap="round" opacity=".35"/>
       <circle cx="${cx}" cy="${cy}" r="20" fill="var(--card)" stroke="currentColor" stroke-width="2"/>
       <g style="transform:rotate(${rot}deg);transform-origin:${cx}px ${cy}px;transition:transform .6s var(--spring)"><line class="boom" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 90}"/><line class="boom-f" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 90}"/><circle cx="${cx}" cy="${cy - 90}" r="7" fill="var(--brand)" stroke="var(--brand-ink)" stroke-width="2"/></g>
       <text x="${cx}" y="${cy - 84}" text-anchor="middle" style="font:700 11px var(--f-ui);fill:var(--ink-2)">CAB</text></svg>`;
     const sideChk = (r?.checks || []).find(c => /side/i.test(c.t));
-    return `<div class="side-pick">${svg}<div class="side-btns">${SIDES.map(([k, t]) => `<button type="button" class="tap" data-sa="side" data-v="${k}" aria-pressed="${side === k}">${t}</button>`).join('')}</div></div>
-      ${sideChk && sideChk.s !== 'ok' ? note(sideChk.s === 'fail' ? 'fail' : 'warn', 'alert', `<b>${h(sideChk.t)}.</b> ${h(sideChk.m)}`) : note('ok', 'check', `Lifting <b>${side === 'rear' ? 'behind the crane' : 'on the ' + side + ' side'}</b>. The chart covers this side.`)}
-      <p class="hint" style="margin-top:12px">We never lift over the front. The cab and carrier take up that space and part of the reach can't be used.</p>`;
+    return `<div class="side-pick">${svg}<div class="side-btns">${SIDES.map(([k, t]) => `<button type="button" class="tap" data-sa="side" data-v="${k}" aria-pressed="${side === k}" title="${h(SIDE_HELP[k])}">${sideIco(k)}<span>${t}</span></button>`).join('')}</div></div>
+      <p class="side-help" aria-live="polite"><b>${h((SIDES.find(x => x[0] === side) || [0, side])[1])}.</b> ${h(SIDE_HELP[side])}</p>
+      ${sideChk && sideChk.s !== 'ok' ? note(sideChk.s === 'fail' ? 'fail' : 'warn', 'alert', `<b>${h(sideChk.t)}.</b> ${h(sideChk.m)}`) : note('ok', 'check', `Lifting <b>${side === 'rear' ? 'behind the crane' : side === 'front' ? 'over the front' : 'on the ' + side + ' side'}</b>. The chart covers this side.`)}
+      <p class="hint" style="margin-top:12px">The yellow dot is the boom. The cab is at the top of the picture.</p>`;
   }
 };
 
@@ -490,14 +501,12 @@ function layoutIco(v) {
   const g = { chart: `<path d="M38 4v51M4 30h34M8 10h26M8 15h26M8 20h26" stroke="currentColor" stroke-width="1.4" opacity=".5"/>${boom(46, 50, 24, 52)}`, full: boom(12, 52, 44, 50), elev2: `<path d="M36 4v51" stroke="currentColor" stroke-width="1.4" opacity=".5"/>${boom(8, 50, 22, 55)}${boom(42, 50, 22, 48)}`, rigging: `<path d="M44 4v51" stroke="currentColor" stroke-width="1.4" opacity=".5"/>${boom(8, 50, 28, 52)}<path d="M57 16l-6 14M57 16l6 14M49 30h16v7H49z" stroke="currentColor" stroke-width="1.6" fill="none"/>` }[v] || '';
   return `<svg viewBox="0 0 84 59" width="84" height="59" aria-hidden="true"><rect x="1" y="1" width="82" height="57" rx="5" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".4"/><rect x="71" y="4" width="9" height="51" rx="1.5" fill="currentColor" opacity=".18"/>${g}</svg>`;
 }
-SH.print = {
-  title: () => 'Print the plan', icon: 'print',
+SH.sheetDetails = { // v10: everything that is printed on the sheet. The export buttons live in "Share & print".
+  title: () => 'Sheet details', icon: 'sheet', sub: true,
   body() {
     const p = state.plan; const locked = !!(p.sheetView && p.sheetView.x1 > p.sheetView.x0);
-    let out = `<div style="display:grid;gap:8px"><button type="button" class="btn pri wide tap" data-sa="export" data-v="pdf">${ic('dl', 20, 2.4)}Download PDF · A1</button>
-      <button type="button" class="btn wide rams tap" data-sa="rams">${ic('shield', 20, 2.2)}RAMS pack · A4<small>risk assessment, method statement, drawings, load chart</small></button>
-      <div class="btns two"><button type="button" class="btn tap" data-sa="export" data-v="pdfA3">PDF · A3</button><button type="button" class="btn tap" data-sa="export" data-v="dxf">AutoCAD DXF</button></div>
-      <button type="button" class="btn plain wide tap" data-sa="view" data-v="sheet">${ic('eye', 20)}See the sheet first</button></div>`;
+    let out = `<p class="hint" style="margin:0 4px 12px">What is printed on the sheet and in the report. Changes show on the Sheet view straight away.</p><button type="button" class="btn plain wide tap" data-sa="view" data-v="sheet" style="margin-bottom:6px">${ic('eye', 20)}See the sheet</button>`;
+    if (typeof riskLink === 'function' && riskLink()) out += grp('Report', riskLink());
     out += grp('Job', `${Fx.text('name', 'Plan name', { ph: 'e.g. Al Deem School panels' })}${Fx.text('meta.client', 'Client')}${Fx.text('meta.project', 'Project', { ph: 'optional' })}${Fx.text('meta.title', 'Drawing title', { ph: 'e.g. LIFTING CHILLERS' })}${Fx.text('meta.date', 'Date')}${Fx.text('meta.drawnBy', 'Drawn by')}${Fx.text('meta.checkedBy', 'Checked by')}`);
     out += grp('Sheet layout', `<div class="otiles" style="grid-template-columns:repeat(2,minmax(0,1fr))">${LAYOUTS.map(([v, t]) => `<button type="button" class="ot tap" data-sa="layout" data-v="${v}" aria-pressed="${p.layout === v}">${layoutIco(v)}${h(t)}</button>`).join('')}</div>`, { raw: true });
     out += grp('More', `${Fx.text('meta.sheetNo', 'Sheet no')}${Fx.text('meta.drawingNo', 'Drawing no')}${Fx.text('meta.scale', 'Scale', { ph: 'auto' })}${p.layout === 'elev2' ? Fx.sel('secondLoad', 'Second drawing shows', p.loads.map((x, i) => [i, `Lift ${i + 1}${x.name ? ' · ' + x.name : ''}`]), { numeric: 1 }) : Fx.text('viewTitle1', 'Drawing caption', { ph: (curCrane()?.cls || '') + 'T MOBILE CRANE' })}
@@ -506,8 +515,6 @@ SH.print = {
     out += grp('Sling detail', `${Fx.sw('rigging.enabled', 'Add the sling drawing')}${p.rigging?.enabled ? `${Fx.sel('rigging.loadIdx', 'For lift', p.loads.map((l, i) => [i, 'Lift ' + (i + 1)]), { numeric: 1 })}${Fx.num('rigging.legs', 'Legs', '')}${Fx.num('rigging.effLegs', 'Legs that carry', '')}${Fx.num('rigging.slingL', 'Sling length', 'm')}${Fx.num('rigging.spread', 'Spread', 'm')}${Fx.num('rigging.slingWLL', 'Sling WLL', 't')}${Fx.num('rigging.shackleWLL', 'Shackle WLL', 't')}${Fx.text('rigging.slingDesc', 'Sling text', { ph: "10m x 20t round sling - 4No's" })}${Fx.text('rigging.shackleDesc', 'Shackle text', { ph: "25t BOW SHACKLE - 4No's" })}` : ''}`);
     out += grp('Changes (revisions)', (p.meta.revs || []).map((rv, i) => `<div class="it" style="gap:8px"><input class="fld" style="max-width:52px;text-align:left" data-k="meta.revs.${i}.rev" value="${h(rv.rev || '')}" aria-label="Revision"><input class="fld wide" data-k="meta.revs.${i}.desc" value="${h(rv.desc || '')}" placeholder="What changed" aria-label="Description"><input class="fld" style="max-width:96px" data-k="meta.revs.${i}.date" value="${h(rv.date || '')}" aria-label="Date"><button type="button" class="btn sm tap" data-sa="delRev" data-i="${i}" aria-label="Remove">${ic('x', 16)}</button></div>`).join('') + `<button type="button" class="it accent tap" data-sa="addRev">${ic('plus', 20, 2.4)}Add a change</button>`);
     out += grp('Notes', Fx.area('extraNotes', 'Extra notes · one per line', { rows: 4 }));
-    out += `<div class="btns two" style="margin-top:20px"><button type="button" class="btn tap" data-sa="save" data-v="">${ic('save', 18)}Save</button><button type="button" class="btn tap" data-sa="save" data-v="new">${ic('copy', 18)}Save a copy</button></div>
-      <button type="button" class="btn plain wide tap" data-sa="export" data-v="svg" style="margin-top:4px">SVG picture</button>`;
     return out;
   }
 };
@@ -550,8 +557,8 @@ SH.more = {
   title: () => 'More', icon: null,
   body() {
     const t = state.settings.theme || 'auto';
-    return grp('', `${Fx.link('page', 'Plans', { data: 'data-v="plans"', ic: icb('folder', 'var(--info-fill)'), sub: 'Open, copy or start a plan' })}<button type="button" class="it has-ic tap" data-sa="save" data-v="">${icb('save', 'var(--safe-fill)')}<span class="lb"><b>Save</b><small id="moreSave">${h($('#saveState')?.textContent || '')}</small></span></button><button type="button" class="it has-ic tap" data-sa="save" data-v="new">${icb('copy', 'var(--safe-fill)')}<span class="lb"><b>Save a copy</b></span></button><button type="button" class="it has-ic tap" data-sa="rams">${icb('shield', '#5856d6')}<span class="lb"><b>RAMS pack (A4 PDF)</b><small>Risk assessment and method statement with the drawings</small></span></button><button type="button" class="it has-ic tap" data-sa="export" data-v="json">${icb('dl', 'var(--ink-3)')}<span class="lb"><b>Send the plan as a file</b><small>To open it on another phone or computer</small></span></button>`)
-      + grp('', `${Fx.link('page', 'Cranes and charts', { data: 'data-v="fleet"', ic: icb('truck', '#ff9500') })}${Fx.link('page', 'Settings', { data: 'data-v="settings"', ic: icb('gear', 'var(--ink-3)') })}<button type="button" class="it has-ic tap" data-sa="coach">${icb('help', '#af52de')}<span class="lb"><b>Show the tips again</b></span></button>`)
+    return grp('', `${Fx.link('page', 'Plans', { data: 'data-v="plans"', ic: icb('folder', 'var(--info-fill)'), sub: 'Open, copy or start a plan' })}<button type="button" class="it has-ic tap" data-sa="open" data-k="print">${icb('share', 'var(--info-fill)')}<span class="lb"><b>Share &amp; print</b><small>Make the PDF, then save, AirDrop or print it</small></span></button><button type="button" class="it has-ic tap" data-sa="save" data-v="">${icb('save', 'var(--safe-fill)')}<span class="lb"><b>Save</b><small id="moreSave">${h($('#saveState')?.textContent || $('#tbState')?.textContent || '')}</small></span></button><button type="button" class="it has-ic tap" data-sa="save" data-v="new">${icb('copy', 'var(--safe-fill)')}<span class="lb"><b>Save a copy</b><small>A new plan with the same set-up</small></span></button>`)
+      + grp('', `${Fx.link('page', 'Cranes and charts', { data: 'data-v="fleet"', ic: icb('truck', '#ff9500') })}${Fx.link('page', 'Settings', { data: 'data-v="settings"', ic: icb('gear', 'var(--ink-3)') })}<button type="button" class="it has-ic tap" data-sa="coach">${icb('help', '#af52de')}<span class="lb"><b>Show the tips again</b></span></button><button type="button" class="it has-ic tap" data-sa="open" data-k="new10">${icb('sparkle', '#ff9500')}<span class="lb"><b>What is new in ${h(APP_VERSION.split('.')[0])}</b></span></button>`)
       + grp('Look', `<div class="it"><div class="seg" style="width:100%">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<button type="button" class="tap" data-sa="theme" data-v="${v}" aria-checked="${t === v}">${l}</button>`).join('')}</div></div>`)
       + grp('', `<button type="button" class="it has-ic tap" data-sa="signout">${icb('out', 'var(--stop-fill)')}<span class="lb"><b>Sign out</b><small>Signed in as ${h(V7.user || authUser() || '')}</small></span></button>`)
       + `<p class="hint" style="text-align:center;margin-top:20px">FHE Lift Planner · version ${APP_VERSION} · built by Saad Khan for Friendship Hall Est.</p>`;

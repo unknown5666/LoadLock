@@ -122,6 +122,10 @@ function sceneRender() {
   const W = host.clientWidth, H = host.clientHeight; if (W < 10 || H < 10) return;
   const plan = Scene.hooks.plan(), calc = Scene.hooks.calc(); if (!plan || !calc) return;
   const U = Scene.U = W < 600 ? 1.6 : 2;
+  { // a tandem lift needs both cranes in view: when it is switched on / off or changes size, frame the drawing again
+    const l0 = Math.min(plan.loads.length - 1, plan.activeLoad || 0), sig = calc.loads[l0]?.tandem ? calc.loads[l0].tandem.picks.length : 0;
+    if (sig !== Scene.tdSig) { const first = Scene.tdSig === undefined; Scene.tdSig = sig; if (!first) { Scene.views.elev = null; Scene.views.plan = null; } }
+  }
   let svg = '', info = {};
   try {
     if (Scene.mode === 'sheet') {

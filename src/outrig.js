@@ -9,7 +9,7 @@
 const OUT_G = 9.81;
 const OUT_PADS = ['FR', 'FL', 'RL', 'RR'];                                        // counter-clockwise seen from above
 const OUT_PAD_NAME = { FR: 'Front right', FL: 'Front left', RL: 'Rear left', RR: 'Rear right' };
-const OUT_SLEW = { rear: 180, left: 90, right: 270 };                             // slew angle for each lift side
+const OUT_SLEW = { front: 0, rear: 180, left: 90, right: 270 };                   // slew angle for each lift side (0 = boom over the cab)
 const OUT_RATED = 0.85;                                                           // mobile crane on outriggers: rated ≤ 85 % of tipping
 // Presumed allowable bearing (BS 8004 / OBC, preliminary only) — kPa; the app works in t/m² (kPa ÷ 9.81). A site value always overrides.
 const GROUND_PRESETS = [

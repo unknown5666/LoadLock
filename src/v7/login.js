@@ -41,10 +41,24 @@ function authSave(stay, name = 'Habib') {
 }
 function authClear() { try { sessionStorage.removeItem(AUTH_KEY); } catch {} try { localStorage.removeItem(AUTH_KEY); } catch {} }
 
-const Login = { hero: null, user: '', done: false };
+const Login = { hero: null, user: '', done: false, tone: 'dark' };
+// the sign-in follows the theme: a dusk scene with light text, or a soft morning scene with dark text. The scrims below keep the words readable over either picture.
+const LOGIN_TONE_CSS = `#login[data-tone="light"] { background: #dfe6ef; color: #0f141a; }
+#login[data-tone="light"] .lg-veil { background: linear-gradient(0deg, rgba(238,242,248,.9), rgba(238,242,248,.5) 38%, rgba(238,242,248,0) 62%); }
+@media (min-width: 900px) { #login[data-tone="light"] .lg-veil { background: none; } #login[data-tone="light"] .lg-in { background: linear-gradient(90deg, rgba(240,244,250,.92), rgba(240,244,250,.6) 72%, rgba(240,244,250,0)); } }
+#login[data-tone="light"] .lg-mark small, #login[data-tone="light"] .lg-foot { color: rgba(15,20,26,.62); }
+#login[data-tone="light"] .lg-card { background: rgba(255,255,255,.68); box-shadow: 0 0 0 .5px rgba(0,0,0,.09), 0 28px 70px rgba(30,50,80,.2); }
+#login[data-tone="light"] .lg-f { background: rgba(0,0,0,.055); } #login[data-tone="light"] .lg-f svg { color: rgba(15,20,26,.55); }
+#login[data-tone="light"] .lg-f input { color: #0f141a; } #login[data-tone="light"] .lg-f input::placeholder { color: rgba(15,20,26,.5); }
+#login[data-tone="light"] .lg-u { background: rgba(0,0,0,.05); color: rgba(15,20,26,.88); } #login[data-tone="light"] .lg-u .av { background: rgba(0,0,0,.09); color: #0f141a; }
+#login[data-tone="light"] .lg-u[aria-pressed="true"] { background: rgba(255,194,14,.26); color: #0f141a; } #login[data-tone="light"] .lg-u[aria-pressed="true"] .av { background: var(--brand); color: var(--brand-ink); }
+#login[data-tone="light"] .lg-keep { color: rgba(15,20,26,.82); } #login[data-tone="light"] .lg-err { color: #c4281c; }
+#login .lg3d canvas { transition: opacity .6s; }`;
+function loginTone() { const t = document.documentElement.getAttribute('data-theme'); return t === 'light' || (!t && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark'; }
 function loginShow(onDone) {
   document.body.classList.add('locked');
-  const el = $('#login'); el.hidden = false; el.className = '';
+  const el = $('#login'); el.hidden = false; el.className = ''; Login.tone = loginTone(); el.dataset.tone = Login.tone;
+  if (!document.getElementById('lgTone')) { const st = document.createElement('style'); st.id = 'lgTone'; st.textContent = LOGIN_TONE_CSS; document.head.appendChild(st); }
   Login.user = authFind(LS.get('fhe.lastUser', ''))?.u || '';
   el.innerHTML = `<div class="lg3d" id="lg3d" aria-hidden="true"></div><div class="lg-veil"></div>
     <div class="lg-in">
@@ -52,7 +66,7 @@ function loginShow(onDone) {
       <h1>Plan the lift.<br><em>Lift it safe.</em></h1>
       <form class="lg-card" id="lgForm" autocomplete="off" novalidate>
         <div class="lg-users" role="radiogroup" aria-label="Who are you?">${AUTH_USERS.map(a => `<button type="button" class="lg-u tap" role="radio" data-u="${a.u}" aria-checked="${Login.user === a.u}" aria-pressed="${Login.user === a.u}"><span class="av">${a.u[0]}</span>${a.u}</button>`).join('')}</div>
-        <label class="lg-f">${ic('key', 22)}<input id="lgPass" type="password" inputmode="numeric" placeholder="Your code" aria-label="Your code" autocomplete="current-password"><button type="button" class="tap" id="lgEye" aria-label="Show the code" style="color:rgba(245,245,247,.6)">${ic('eye', 22)}</button></label>
+        <label class="lg-f">${ic('key', 22)}<input id="lgPass" type="password" inputmode="numeric" placeholder="Your code" aria-label="Your code" autocomplete="current-password"><button type="button" class="tap" id="lgEye" aria-label="Show the code" style="color:inherit;opacity:.62">${ic('eye', 22)}</button></label>
         <div class="lg-err" id="lgErr" role="alert"></div>
         <button type="submit" class="lg-go tap" id="lgGo">Sign in ${ic('chev', 20, 2.6)}</button>
         <label class="lg-keep"><span>Keep me signed in</span><span class="sw"><input type="checkbox" id="lgStay" checked aria-label="Keep me signed in"><i></i></span></label>
@@ -60,14 +74,15 @@ function loginShow(onDone) {
       <div class="lg-foot">Version ${APP_VERSION} · designed and built by Saad Khan · © ${new Date().getFullYear()} Friendship Hall Est.</div>
     </div>`;
   const reduce = reduceMotion();
-  setTimeout(() => {
-    if (Login.hero || typeof C3D === 'undefined' || !C3D.ok()) return;
+  // the sign-in paints first; the 3D scene is built when the browser is idle and fades in once its first frame is drawn (it never delays the form)
+  const startHero = () => {
+    if (Login.hero || Login.done || el.hidden || typeof C3D === 'undefined' || !C3D.ok()) return;
     try {
-      const hero = cranes().find(c => c.id === 'ltm1500') || cranes().find(c => c.drawing) || cranes()[0];
-      Login.hero = C3D.hero($('#lg3d', el), () => {}, { crane: { ...hero, color: '#ffc20e', tint: true }, livery: settingsEff().boomText || settingsEff().company || 'FRIENDSHIP HALL EST', reduce });
-      requestAnimationFrame(() => el.classList.add('ready'));
+      const all = cranes(); const hero = ['ltm1250', 'ltm1300', 'ltm1500'].map(id => all.find(c => c.id === id)).find(Boolean) || all.find(c => c.drawing && !c.drawProxy) || all.find(c => c.drawing) || all[0];
+      Login.hero = C3D.hero($('#lg3d', el), () => {}, { crane: { ...hero, color: '#ffc20e', tint: true }, livery: settingsEff().boomText || settingsEff().company || 'FRIENDSHIP HALL EST', reduce, tone: Login.tone, onFirstFrame: () => requestAnimationFrame(() => el.classList.add('ready')) });
     } catch (err) { console.error(err); }
-  }, 60);
+  };
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (typeof requestIdleCallback === 'function') requestIdleCallback(startHero, { timeout: 500 }); else setTimeout(startHero, 80); }));
   const pass = $('#lgPass', el), err = $('#lgErr', el), form = $('#lgForm', el);
   const shake = () => { form.classList.remove('bad'); void form.offsetWidth; form.classList.add('bad'); };
   const pick = (u) => { Login.user = u; $$('.lg-u', el).forEach(b => { const on = b.dataset.u === u; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-checked', String(on)); }); err.textContent = ''; setTimeout(() => pass.focus({ preventScroll: true }), 30); };

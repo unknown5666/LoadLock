@@ -3,11 +3,11 @@
 //   node test_v9.js        (exits non-zero on any failure)
 const fs = require('fs'), vm = require('vm');
 const strip = s => s.replace(/\nif \(typeof module[\s\S]*$/, '\n');
-const FILES = ['gen/assets', 'src/data', 'src/engine', 'src/outrig', 'src/tandem', 'src/draw', 'src/crane2d', 'src/fixes', 'src/samples', 'src/gis', 'src/app'];
+const FILES = ['gen/assets', 'src/data', 'src/library', 'src/engine', 'src/outrig', 'src/tandem', 'src/draw', 'src/rigging', 'src/crane2d', 'src/fixes', 'src/samples', 'src/gis', 'src/app'];
 const code = FILES.map(f => strip(fs.readFileSync(f + '.js', 'utf8'))).join('\n') + `
 this.X = { DEFAULT_CRANES, DEFAULT_SETTINGS, SAMPLE_PLANS, blankPlan, normalizePlan, computePlan, computeLoad, cranes, lookupCap, curveCap, getChart, parseChart, windTabOf,
   tandemStatic, tandemHang, tandemPose, tandemDefault, computeTandem, findCranes, bestPerCrane, GIS, outAt, outSweep, outTipHook, outPads, outMassModel, outExtOf, outMargin, outCog, outMasses,
-  rigPick, switchRig, state, CRANE_KEYS, buildSheet, toSVG };`;
+  rigPick, switchRig, state, CRANE_KEYS, buildSheet, toSVG, Prims, drawElevation, drawSitePlan, elevationExtents, sitePlanExtents, sheetBlocks, sheetOverrides, tandemElevModel, tandemSheetRows };`;
 const ctx = { console, window: {}, localStorage: { getItem() { return null; }, setItem() {} }, performance }; vm.createContext(ctx); vm.runInContext(code, ctx);
 const X = ctx.X; const clone = (o) => JSON.parse(JSON.stringify(o)); const S0 = X.DEFAULT_SETTINGS;
 let fails = 0, passes = 0;
@@ -112,6 +112,76 @@ const CR = X.cranes(); const plan0 = (i = 0) => X.normalizePlan(X.SAMPLE_PLANS[i
   const p8 = clone(p); p8.cranes.push({ ...X.rigPick(p), craneId: 'ltm1300', chartIdx: 0, colIdx: 4 }); p8.loads[0].tandem = X.tandemDefault(p8.loads[0], 3, 12, 0); p8.loads[0].tandem.picks.forEach((q, i) => { q.crane = [own, 1, 2][i]; });
   const T8 = X.computePlan(p8, CR, S0).loads[0].tandem; ok(T8.picks.length === 3 && Math.abs(T8.picks.reduce((a, q) => a + q.share, 0) - 30) < 0.02, 'three cranes share the load'); ok(T8.checks.some(c => c.t === 'Tandem share'), 'three cranes: plumb-line share reported');
   let svg = ''; try { const sh = X.buildSheet(p, calc, S0); svg = X.toSVG(sh.P); } catch (e) { console.log(e); } ok(/C2 /.test(svg) || svg.length > 1000, 'A1 sheet still builds with a tandem lift');
+}
+
+// ---------- 6b. tandem in the 2D elevation, the A1 sheet and the site plan (v10) ----------
+{
+  const mk = (n, mod) => { const p = plan0(); p.loads[0].w = 30; p.loads[0].cont = 0; p.loads[0].l = 12; p.loads[0].h = 1.5; p.loads[0].R = 12; const own = Math.round(p.loads[0].crane || 0);
+    for (let i = 1; i < n; i++) p.cranes.push({ ...X.rigPick(p), craneId: 'ltm1250', chartIdx: 0, colIdx: 3 });
+    p.loads[0].tandem = X.tandemDefault(p.loads[0], n, 12, 0); p.loads[0].tandem.picks[0].crane = own; for (let i = 1; i < n; i++) p.loads[0].tandem.picks[i].crane = p.cranes.length - (n - i);
+    p.sitePlan = { enabled: true, cx: 0, cy: 0, rot: 0, carrierRot: '' }; if (mod) mod(p); return p; };
+  const elev = (p, calc, ctx = {}) => { const P = new X.Prims(); X.drawElevation(P, { x: 0, y: 0, w: 316, h: 300 }, p, calc, 0, ctx); return P; };
+  const texts = (P) => P.list.filter(q => q.t === 'text').map(q => q.s);
+  const lay = (P, l) => P.list.filter(q => q.layer === l);
+  const p = mk(2); const calc = X.computePlan(p, CR, S0); const r = calc.loads[0];
+  const single = mk(2, (q) => { q.loads[0].tandem.on = false; }); const calcS = X.computePlan(single, CR, S0);
+  const P = elev(p, calc), PS = elev(single, calcS);
+  // both cranes are drawn: twice the boom linework, four hoist falls, the load, the centre of gravity, the labels
+  ok(lay(P, 'BOOM').length > 1.6 * lay(PS, 'BOOM').length, `tandem elevation draws both cranes' booms (${lay(P, 'BOOM').length} boom prims vs ${lay(PS, 'BOOM').length} for one crane)`);
+  ok(lay(P, 'CRANE').length > 1.5 * lay(PS, 'CRANE').length, `...and both crane bodies (${lay(P, 'CRANE').length} vs ${lay(PS, 'CRANE').length})`);
+  ok(lay(P, 'HOOK').filter(q => q.t === 'line').length >= 4, 'four hoist-line falls (two per crane)');
+  ok(lay(P, 'LOAD').some(q => q.t === 'poly' && q.pts.length === 4), 'the load is drawn between the cranes'); ok(texts(P).includes('C.O.G.'), 'centre of gravity marked');
+  ok(texts(P).includes('TANDEM LIFT — ELEVATION'), 'elevation titled TANDEM LIFT — ELEVATION'); ok(!texts(PS).includes('TANDEM LIFT — ELEVATION'), 'a single-crane elevation keeps its own title');
+  const lab = texts(P).filter(t => /^C[12] · /.test(t)); ok(lab.length === 2 && /^C1 /.test(lab[0]) && /^C2 /.test(lab[1]), 'crane labels C1 / C2: ' + lab.join(' | '));
+  ok(texts(P).includes('15.00T · 50%') || texts(P).some(t => /^15\.0\dT · 50%$/.test(t)), 'each crane label carries its share (t and %)');
+  ok(texts(P).some(t => /^\d+\.\d% OF DERATED \d+\.\dT$/.test(t)), 'each crane label carries utilisation against the derated chart');
+  ok(!texts(PS).some(t => /^C\d · /.test(t)), 'no tandem labels on a one-crane lift');
+  // dimensions: each radius, distance between slew centres, hook heights
+  const dims = texts(P).filter(t => /^\d{3,6}( \(PLAN\))?$/.test(t)); ok(dims.filter(t => t === '12000').length >= 2, 'both radii dimensioned (12000 and 12000)');
+  const M = X.tandemElevModel(p, r); ok(!!M && M.cranes.length === 2, 'elevation model built'); 
+  if (M) {
+    ok(M.cranes[0].d === 1 && M.cranes[1].d === -1, 'the cranes face each other'); near(M.cranes[0].xc, 0, 'lead crane stands at the origin'); near(Math.abs(M.cranes[1].xc - M.cranes[0].xc), M.dPlan, 'distance between slew centres = the plan distance', 1e-6);
+    ok(dims.includes(String(Math.round(M.dPlan * 1000))), 'distance between slew centres dimensioned: ' + Math.round(M.dPlan * 1000));
+    ok(M.cranes.every(c => dims.includes(String(Math.round(c.hookBot * 1000)))), 'both hook heights dimensioned: ' + M.cranes.map(c => Math.round(c.hookBot * 1000)).join(' / '));
+    near(Math.max(...M.poly.map(q => q.x)) - Math.min(...M.poly.map(q => q.x)), 12, 'load drawn at its real length (12 m)', 1e-6); near(Math.max(...M.poly.map(q => q.y)) - Math.min(...M.poly.map(q => q.y)), 1.5, 'and its real height (1.5 m)', 1e-6);
+    near(M.picks[1].x - M.picks[0].x, 9.6, 'lifting points 9.6 m apart', 1e-6); ok(M.cog.x > M.picks[0].x && M.cog.x < M.picks[1].x, 'centre of gravity between the lifting points');
+    ok(M.cranes.every(c => c.hookBot > M.picks[c.k].y) && M.cranes.every(c => c.tipY > c.hookBot), 'hook above the lifting point, boom head above the hook');
+    const e = X.elevationExtents(p, r, calc.crane, r.geo); ok(e.xmax >= M.xmax + 3 - 1e-9 && e.xmin <= M.xmin - 2 + 1e-9 && e.ymax >= M.ytop + 2, 'elevation extents fit both cranes and the load');
+    const e1 = X.elevationExtents(single, calcS.loads[0], calcS.crane, calcS.loads[0].geo); ok(e.xmax > e1.xmax + 10, `extents are wider than one crane's (${e.xmax.toFixed(0)} m vs ${e1.xmax.toFixed(0)} m)`);
+    ok(M.xmax <= P.list.length * 1e9, 'model finite'); ok([M.xmin, M.xmax, M.ytop].every(Number.isFinite), 'model extents are finite');
+  }
+  // the live canvas (fixed view) draws the same without errors
+  { const PF = new X.Prims(); let err = null; try { const k = 6; X.drawElevation(PF, { x: 0, y: 0, w: 800, h: 500 }, p, calc, 0, { fixed: { T: (x, y) => [20 + x * k, 450 - y * k], k, ext: { xmin: -10, xmax: 60, ymin: -3, ymax: 60 } }, title: false, dimSize: 5.2 }); } catch (e2) { err = e2; } ok(!err && lay(PF, 'BOOM').length > 1.6 * lay(PS, 'BOOM').length * 0.5, 'live canvas (fixed view) draws the tandem without errors ' + (err ? err.message : '')); }
+  // moves: the load tilts, lines lean — still drawn, still finite
+  const pm = mk(2, (q) => { q.loads[0].tandem.picks[0].mv = { boom: 0, swing: 0, hoist: 0.6 }; q.loads[0].tandem.cogH = -1.5; q.loads[0].tandem.picks[1].mv = { boom: 2, swing: 0, hoist: 0 }; });
+  const cm = X.computePlan(pm, CR, S0), Mm = X.tandemElevModel(pm, cm.loads[0]); ok(!!Mm && Mm.live && Math.abs(Mm.poly[0].y - Mm.poly[1].y) > 0.01, 'after moves the load hangs tilted in the elevation (' + (Mm ? (Mm.poly[1].y - Mm.poly[0].y).toFixed(2) : '?') + ' m)');
+  ok(Mm && Mm.poly.every(q => Number.isFinite(q.x) && Number.isFinite(q.y)) && !/NaN/.test(X.toSVG(elev(pm, cm))), 'moved tandem draws with no NaN');
+  // 3 cranes: lead + second crane drawn, the rest named
+  const p3 = mk(3), c3 = X.computePlan(p3, CR, S0), P3 = elev(p3, c3);
+  ok(texts(P3).includes('+1 MORE CRANE — SEE SITE PLAN'), 'three cranes: "+1 more crane — see site plan"'); ok(texts(P3).filter(t => /^C[12] · /.test(t)).length === 2, 'three cranes: lead and second crane drawn');
+  ok(lay(P3, 'SITE-LOAD').some(q => q.t === 'text' && /^C3 /.test(q.s)), 'three cranes: the third lifting point is marked on the load');
+  const p4 = mk(4), c4 = X.computePlan(p4, CR, S0); ok(texts(elev(p4, c4)).includes('+2 MORE CRANES — SEE SITE PLAN'), 'four cranes: "+2 more cranes — see site plan"');
+  // site plan: every crane of the tandem is inside the view
+  { const ex = X.sitePlanExtents(p, calc); const b = r.tandem.picks[1].base, R1 = r.tandem.picks[1].Rnow; ok(ex.x1 >= b.x + R1 && ex.x0 <= b.x - R1, 'site plan view takes in the second crane and its radius'); }
+  // sheet: title, TANDEM block, load weight = the whole load
+  const sh = X.buildSheet(p, calc, S0); ok(texts(sh.P).includes('TANDEM LIFT — ELEVATION'), 'A1 sheet: elevation titled TANDEM LIFT — ELEVATION');
+  ok(!texts(X.buildSheet(single, calcS, S0).P).includes('TANDEM LIFT — ELEVATION'), 'A1 sheet of a one-crane lift unchanged');
+  const bl = X.sheetBlocks(p, calc, S0), tb = bl.find(b => /^TANDEM LIFT/.test(b.head || '')); ok(!!tb, 'A1 data panel has a TANDEM LIFT block');
+  if (tb) {
+    const row = (lbl) => tb.rows.find(q => q.label === lbl); const v = (lbl) => row(lbl)?.v;
+    ok(v('LIFT TYPE') === 'TANDEM · 2 CRANES', 'TANDEM block: lift type: ' + v('LIFT TYPE')); ok(v('TANDEM LIMIT (DERATE)') === '80% OF CHART', 'TANDEM block: derate %: ' + v('TANDEM LIMIT (DERATE)'));
+    for (const c of ['C1', 'C2']) for (const f of ['SHARE', 'RADIUS', 'CHART CAPACITY', 'DERATED CAPACITY', 'UTILISATION', 'HOIST LINE']) ok(!!row(`${c} ${f}`), `TANDEM block row: ${c} ${f}`);
+    ok(/^15\.0\dT · 50%$/.test(v('C1 SHARE')) && /^12\.0M$/.test(v('C1 RADIUS')), 'C1 share / radius values: ' + v('C1 SHARE') + ' / ' + v('C1 RADIUS'));
+    const t0 = r.tandem.picks[0]; ok(v('C1 CHART CAPACITY') === t0.cap.toFixed(2) + 'T' && v('C1 DERATED CAPACITY') === (t0.cap * 0.8).toFixed(2) + 'T', 'chart capacity and derated capacity (80 %): ' + v('C1 CHART CAPACITY') + ' / ' + v('C1 DERATED CAPACITY'));
+    ok(new RegExp(`^${t0.util.toFixed(1)}% CHART · ${(t0.util / 80 * 100).toFixed(1)}% DERATED$`).test(v('C1 UTILISATION')), 'utilisation shown against the chart and against the derated chart: ' + v('C1 UTILISATION'));
+    ok(/OUT OF PLUMB$/.test(v('C2 HOIST LINE')), 'hoist line out-of-plumb angle row: ' + v('C2 HOIST LINE'));
+    ok(tb.rows.every(q => /^d0\./.test(q.id)), 'TANDEM rows have stable ids (typed-over values work)'); const ov = clone(p); ov.sheetRows.ov = { 'd0.c0.share': '1.00T' };
+    const so = X.sheetOverrides(ov, calc, S0); ok(so.some(q => q.id === 'd0.c0.share' && q.safety), 'a typed-over tandem share is flagged as a safety value');
+  }
+  const ld = bl.find(b => /^LOAD DATA/.test(b.head || '')); const wrow = ld?.rows.find(q => /^LOAD WEIGHT/.test(q.label)); ok(wrow && wrow.label === 'LOAD WEIGHT, ALL CRANES' && wrow.v === '30.00T', 'LOAD DATA shows the whole load (30.00T), not crane 1\'s share: ' + (wrow ? wrow.label + ' ' + wrow.v : 'missing'));
+  ok(ld?.rows.some(q => /^C1 CHART CAPACITY$/.test(q.label)), 'crane-1 only rows in LOAD DATA say C1');
+  ok(!X.sheetBlocks(single, calcS, S0).some(b => /^TANDEM LIFT/.test(b.head || '')), 'no TANDEM block on a one-crane lift');
+  ok(!/NaN/.test(X.toSVG(sh.P).replace(/data:[^"')]+/g, '')), 'tandem sheet SVG has no NaN (embedded pictures left out)');
 }
 
 // ---------- 7. Fit-Filter ----------

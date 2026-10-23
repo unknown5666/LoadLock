@@ -1,7 +1,7 @@
 // ===== v7 core: icons, actions, refresh loop, undo history, views =====
 // The v7 interface keeps v6's engine, drawing and storage (app.js) and replaces every screen.
 
-const APP_VERSION = '9.0'; // shown on sign-in, More and Settings. v9 = tandem lifts, Fit-Filter, wind on the load, satellite site map, RAMS pack, live 3D window, offline
+const APP_VERSION = '10.0'; // shown on sign-in, More and Settings. v10 = front lifts, tandem in the drawings, sling detail, 12-page report pack, one-tap Share & print with AirDrop, locked PDFs, smoother motion (v9 = tandem lifts, Fit-Filter, wind on the load, satellite site map, RAMS pack, live 3D window, offline)
 
 // ---------- icons (24px grid, round caps; never emoji) ----------
 const IC = {
@@ -35,7 +35,7 @@ const IC = {
   file: 'M5 3h10l4 4v14H5zM14 3v5h5', dl: 'M12 3v12M7 10l5 5 5-5M4 20h16', star: 'M12 3l2.2 5.6L20 9.4l-4.5 3.8 1.4 5.8L12 16l-4.9 3 1.4-5.8L4 9.4l5.8-.8z',
   gap: 'M4 4v16M20 4v16M8 12h8M8 12l2-2M8 12l2 2M16 12l-2-2M16 12l-2 2', eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
   layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5', sliders: 'M4 6h9M17 6h3M15 4v4M4 12h3M11 12h9M9 10v4M4 18h11M19 18h1M17 16v4', help: 'M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5M12 17.5h.01',
-  phone: 'M7 3h10v18H7zM11 18h2', legs: 'M9 4h6v16H9zM9 7H4M15 7h5M9 17H4M15 17h5M3 5.5v3M21 5.5v3M3 15.5v3M21 15.5v3', hand: 'M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.7-2.3L3.5 14.6a1.6 1.6 0 0 1 2.4-2.1L8 14.5'
+  phone: 'M7 3h10v18H7zM11 18h2', share: 'M12 15V3.5M8 7.5l4-4 4 4M6 11H5v10h14V11h-1', airdrop: 'M12 12.6h.01M8.6 16.4a4.8 4.8 0 1 1 6.8 0M5.6 19.4a9 9 0 1 1 12.8 0', front: 'M7 21V9a5 5 0 0 1 10 0v12zM7 11h10M12 3.5V1.5M9.5 3l-1-1.5M14.5 3l1-1.5', sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z', legs: 'M9 4h6v16H9zM9 7H4M15 7h5M9 17H4M15 17h5M3 5.5v3M21 5.5v3M3 15.5v3M21 15.5v3', hand: 'M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.7-2.3L3.5 14.6a1.6 1.6 0 0 1 2.4-2.1L8 14.5'
 };
 const ic = (k, s = 22, w = 1.9) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" aria-hidden="true"><path d="${IC[k] || ''}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const OBJ_ICON = { building: 'M3 21V8l7-4 7 4v13M7 21v-4h6v4', wall: 'M3 18h18M3 13h18M3 8h18M8 8v5M14 13v5M16 8v5', box: 'M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8', container: 'M3 7h18v10H3zM7 7v10M11 7v10M15 7v10', trailer: 'M2 15h14v-3H2zM16 15h5v-4l-2-2h-3zM5 18a1.5 1.5 0 1 0 0-.01M18 18a1.5 1.5 0 1 0 0-.01', truck: 'M2 16h11V7H2zM13 16h7v-5l-3-3h-4zM6 19a1.5 1.5 0 1 0 0-.01M17 19a1.5 1.5 0 1 0 0-.01', towercrane: 'M8 21V5M12 21V5M8 5h13M3 5h5M8 9l4-4M8 13l4-4M8 17l4-4M19 5v5', tower: 'M12 3L6 21M12 3l6 18M8 14h8M4 8h16', person: 'M12 6a2 2 0 1 0 0-.01M12 9v6M9 21l3-6 3 6M8 12h8', tree: 'M12 21v-6M12 3a5 5 0 0 0-5 5 4 4 0 0 0 1 7h8a4 4 0 0 0 1-7 5 5 0 0 0-5-5z', pole: 'M12 3v18M6 6h12M7 6v2M17 6v2M10 21h4', shed: 'M3 11l9-7 9 7M5 10v11h14V10M10 21v-5h4v5' };
@@ -86,7 +86,7 @@ function renderDrawer() { sheetRefresh(); }
 function syncDrawer() { sheetLive(); }
 
 // ---------- commit: every user change goes through here (dirty flag + undo checkpoint + redraw) ----------
-function commit(o = {}) { markDirty(); histMark(); refresh(o.later ? false : true); if (o.sheet) sheetRefresh(); }
+function commit(o = {}) { markDirty(); histMark(); refresh(o.later ? false : true); if (o.sheet) sheetRefresh(); else if (V7.sheet && V7.sheet.kind === 'print' && typeof SHARE !== 'undefined') { SHARE.sigM = null; sheetRefresh(); } } // an open Share & print sheet shows at once that a made file is out of date
 function histInit() { V7.hist = { u: [], r: [], cur: JSON.stringify(state.plan), t: 0 }; renderTopUndo(); }
 function histMark() { // coalesce rapid edits (slider drags, typing) into one undo step
   clearTimeout(V7.hist.t);
@@ -203,12 +203,12 @@ function dialRange(k, li = activeLi()) {
   const [a, b] = heightRange(li); return [Math.min(a, res?.tipY ?? a), Math.max(b, res?.tipY ?? b)];
 }
 
-// ---------- lift side (left / right / rear — never the front) ----------
-const SIDES = [['left', 'Left'], ['rear', 'Behind'], ['right', 'Right']];
-function sideOfLoad(l) { if (typeof sideOf === 'function') return sideOf(l); return ['left', 'right', 'rear'].includes(l?.side) ? l.side : 'rear'; }
+// ---------- lift side (left / behind / right / front — v10 allows the front, with a warning when the chart does not cover it) ----------
+const SIDES = [['left', 'Left'], ['rear', 'Behind'], ['right', 'Right'], ['front', 'Front']];
+function sideOfLoad(l) { if (typeof sideOf === 'function') return sideOf(l); return ['left', 'right', 'rear', 'front'].includes(l?.side) ? l.side : 'rear'; }
 function sideCovers(ch, side) { if (typeof chartCoversSide === 'function') return chartCoversSide(ch, side); return true; }
 function setSide(side) {
-  const p = state.plan, li = activeLi(), l = p.loads[li]; if (!['left', 'right', 'rear'].includes(side)) return;
+  const p = state.plan, li = activeLi(), l = p.loads[li]; if (!['left', 'right', 'rear', 'front'].includes(side)) return;
   // the truck is parked: keep its heading and swing the boom to the new side
   if (typeof hasCarrierRot === 'function' && typeof carrierHeadingFor === 'function' && !hasCarrierRot(p.sitePlan)) p.sitePlan = { ...(p.sitePlan || {}), carrierRot: Math.round(carrierHeadingFor(p, l)) };
   l.side = side;
@@ -295,10 +295,14 @@ function wxLocate() {
 // ---------- views: drawing / top / 3D / sheet ----------
 function setView(v) {
   if (!['elev', 'plan', '3d', 'sheet'].includes(v)) v = 'elev';
+  const was = state.view, sc = $('#scene'), tw = $('#twin'); const swap = v !== was && state.started && !reduceMotion();
+  if (swap && was !== '3d' && sc && !sc.hidden && sc.firstElementChild) { // v10: a copy of the old picture fades away over the new one (a crossfade, opacity only)
+    const g = document.createElement('div'); g.className = 'ghost'; g.setAttribute('aria-hidden', 'true'); g.appendChild(sc.firstElementChild.cloneNode(true)); $('#stage').appendChild(g); setTimeout(() => g.remove(), 460);
+  }
   state.view = v; try { localStorage.setItem('lp.view', v); } catch {}
-  const sc = $('#scene'), tw = $('#twin');
   if (v === '3d') { sc.hidden = true; tw.hidden = false; ensureTwin(tw); }
   else { tw.hidden = true; sc.hidden = false; if (Scene.mode !== v) sceneSetMode(v); }
+  if (swap && was === '3d' && v !== '3d') { sc.classList.remove('vin'); void sc.offsetWidth; sc.classList.add('vin'); setTimeout(() => sc.classList.remove('vin'), 460); }
   pipSync();
   if (Scene.tool) sceneSetTool(null);
   if (v !== 'elev') { state.sel = Scene.sel = null; }

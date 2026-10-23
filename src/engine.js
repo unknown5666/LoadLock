@@ -3,49 +3,56 @@ const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const num = (v, d = 0) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : d; };
 const r2 = (v) => Math.round(v * 100) / 100;
 
-// ===== Lift side: the load is lifted over the LEFT, RIGHT or REAR of the carrier — never over the front, because the crane
-// would be sitting on part of its own working radius. Stored per load as load.side ('left' | 'right' | 'rear'). =====
-const LIFT_SIDES = ['left', 'right', 'rear'];
+// ===== Lift side: the load is lifted over the LEFT, RIGHT, REAR or FRONT of the carrier. Stored per load as load.side
+// ('left' | 'right' | 'rear' | 'front'). A front lift puts the boom over the cab: the maker's chart must allow it (a 360° chart does) and a truck crane
+// usually needs its front jack down — computeLoad adds a check for it. =====
+const LIFT_SIDES = ['left', 'right', 'rear', 'front'];
 // boom heading minus carrier heading, in degrees. Carrier heading = the way the cab faces; headings run counter-clockwise on the site plan
-// (north up), so "left" is the driver's left when sitting facing forward.
-const SIDE_OFFSET = { rear: 180, left: 90, right: -90 };
-const SIDE_WORD = { rear: 'rear', left: 'left side', right: 'right side' };      // "lifting over the rear / left side / right side"
-const SIDE_NAME = { rear: 'REAR', left: 'LEFT SIDE', right: 'RIGHT SIDE' };       // "OVER REAR / OVER LEFT SIDE / OVER RIGHT SIDE" on the sheet
-function sideOf(load) { const s = String(typeof load === 'string' ? load : load?.side ?? '').toLowerCase(); return s === 'left' || s === 'right' || s === 'rear' ? s : 'rear'; }
+// (north up), so "left" is the driver's left when sitting facing forward. Front = the boom points the way the cab faces.
+const SIDE_OFFSET = { rear: 180, left: 90, right: -90, front: 0 };
+const SIDE_WORD = { rear: 'rear', left: 'left side', right: 'right side', front: 'front' };      // "lifting over the rear / left side / right side / front"
+const SIDE_NAME = { rear: 'REAR', left: 'LEFT SIDE', right: 'RIGHT SIDE', front: 'FRONT' };       // "OVER REAR / OVER LEFT SIDE / OVER RIGHT SIDE / OVER FRONT" on the sheet
+function sideOf(load) { const s = String(typeof load === 'string' ? load : load?.side ?? '').toLowerCase(); return s === 'left' || s === 'right' || s === 'rear' || s === 'front' ? s : 'rear'; }
 function normDeg(a) { return ((num(a) % 360) + 360) % 360; }                      // 0 ≤ a < 360
 function degDiff(a, b) { const d = normDeg(num(a) - num(b)); return d > 180 ? d - 360 : d; } // signed a − b, −180 < d ≤ 180
 function hasCarrierRot(sp) { return !!sp && sp.carrierRot !== '' && sp.carrierRot != null && Number.isFinite(parseFloat(String(sp.carrierRot).replace(',', '.'))); }
 // Carrier heading (degrees, the way the cab faces). When sitePlan.carrierRot is set it rules; when it is empty the carrier simply follows the
 // boom (sitePlan.rot) so that the boom stays on the chosen side — which also keeps every v6 plan's boom heading exactly where it was.
 function carrierHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) : num(sp.rot) - SIDE_OFFSET[sideOf(load)]); }
-// Boom (= load) heading in degrees: carrier heading + 180 (rear) / +90 (left) / −90 (right).
+// Boom (= load) heading in degrees: carrier heading + 180 (rear) / +90 (left) / −90 (right) / +0 (front).
 function boomHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) + SIDE_OFFSET[sideOf(load)] : num(sp.rot)); }
 // v6 plans: which side was the boom on? `boom` and `carrier` are headings; v6 drew the carrier cab at the −u end, so the cab faced carrier + 180°.
-// Front lifts (and anything that is not clearly left or right) become 'rear'.
+// Boom within 45° of the way the cab faced = a lift over the FRONT (v6 drew it, so it stays a front lift and the front check applies).
 function sideFromHeadings(boom, carrier) {
   const rel = degDiff(boom, num(carrier) + 180);               // boom relative to the way the cab faces
-  return rel >= 45 && rel < 135 ? 'left' : rel <= -45 && rel > -135 ? 'right' : 'rear';
+  return rel >= 45 && rel < 135 ? 'left' : rel <= -45 && rel > -135 ? 'right' : Math.abs(rel) < 45 ? 'front' : 'rear';
 }
-// Which sectors a load chart is valid for: ['360'] (all round, the default) or any of 'rear', 'side'. Reads chart.sectors (or chart.sector),
-// else infers from the chart's name / source text (data.js inferChartSectors).
+// Which sectors a load chart is valid for: ['360'] (all round, the default) or any of 'front', 'rear', 'side'. Reads chart.sectors (or chart.sector),
+// else infers from the chart's name / source text (data.js inferChartSectors, which knows rear / side) plus "front" in the name.
 function chartSectorsOf(ch) {
   if (!ch) return ['360'];
   if (Array.isArray(ch.sectors) && ch.sectors.length) return ch.sectors.map(String);
   if (typeof ch.sector === 'string' && ch.sector) return ch.sector.split(/[\s,+&]+/).filter(Boolean);
-  return typeof inferChartSectors === 'function' ? inferChartSectors(ch) : ['360'];
+  let s = typeof inferChartSectors === 'function' ? inferChartSectors(ch) : ['360'];
+  const nm = String(ch.name || '').toLowerCase();
+  if (/\bfront\b/.test(nm) && !/360\s*°|360\s*deg|full[\s-]*(circle|slew)|all[\s-]*round/.test(nm)) s = s.filter(x => x !== '360').concat('front');   // "…over front only"
+  return s;
 }
-// Is this load chart valid for lifting over `side` ('left' | 'right' | 'rear')? A missing chart (manual capacity) never blocks.
+// Is this load chart valid for lifting over `side` ('left' | 'right' | 'rear' | 'front')? A missing chart (manual capacity) never blocks.
+// A 360° chart covers every side; "side" means left or right only (not the front); the front needs a 360° chart or a chart that says 'front'.
 function chartCoversSide(ch, side) {
   if (!ch) return true;
   const s = chartSectorsOf(ch); const sd = sideOf(side);
-  return s.includes('360') || s.includes(sd) || (sd !== 'rear' && s.includes('side'));
+  return s.includes('360') || s.includes(sd) || ((sd === 'left' || sd === 'right') && s.includes('side'));
 }
-// "all round (360°)" / "over the rear only" / "over the rear and sides" / "over the sides only" — plain wording for messages and the chart header
+// "all round (360°)" / "over the rear only" / "over the rear and sides" / "over the sides only" / "over the front only" — plain wording for messages and the chart header
 function chartSectorLabel(ch) {
   const s = chartSectorsOf(ch);
   if (s.includes('360')) return 'all round (360°)';
-  const rear = s.includes('rear'), side = s.includes('side') || s.includes('left') || s.includes('right');
-  return rear && side ? 'over the rear and sides' : rear ? 'over the rear only' : side ? 'over the sides only' : 'all round (360°)';
+  const front = s.includes('front'), rear = s.includes('rear'), side = s.includes('side') || s.includes('left') || s.includes('right');
+  const parts = [front && 'front', rear && 'rear', side && 'sides'].filter(Boolean);
+  if (!parts.length) return 'all round (360°)';
+  return 'over the ' + parts.join(parts.length === 2 ? ' and ' : ', ').replace(/, ([^,]*)$/, ' and $1') + (parts.length === 1 ? ' only' : '');
 }
 // The chart index to use when the side changes: the current one if it covers the side, else the first main-boom chart that does
 // (then any chart that does). If nothing covers the side the current index is returned unchanged (computeLoad then flags it).
@@ -351,6 +358,7 @@ const DAF_HC = { HC1: [1.05, 0.17], HC2: [1.10, 0.34], HC3: [1.15, 0.51], HC4: [
 function dafAuto(D) { const t = DAF_HC[D?.cls] || DAF_HC.HC1; return Math.round((t[0] + t[1] * Math.max(0, num(D?.vh, 0.1))) * 1000) / 1000; }
 // lifting tackles below the hook, listed top → bottom: names, lengths and weights the user keeps
 const TACKLE_TYPES = { sling: 'Sling legs', shackle: 'Shackle', spreader: 'Spreader beam', beam: 'Lifting beam', chain: 'Chain block', hook: 'Hook extension', other: 'Other' };
+const TACKLE_EXTRA_KEYS = ['mat', 'hitch', 'wllV', 'widthMm', 'dia', 'eye', 'cert', 'inspected', 'sleeve', 'colKey', 'grade', 'shape', 'std'];
 function tackleStack(load) {
   const list = (load.tackles || []).filter(t => t && (num(t.L) > 0 || num(t.w) > 0));
   if (!list.length) return null;
@@ -358,15 +366,17 @@ function tackleStack(load) {
   let H = 0, w = 0; const items = [];
   for (let i = 0; i < list.length; i++) {
     const t = list[i]; const ty = TACKLE_TYPES[t.type] ? t.type : 'other'; const L = num(t.L); w += num(t.w);
-    let v = 0, ang = null, sp = null;
-    if (ty === 'sling') { // from the hook (one point) or from the beam above, down to the next beam or the load's pick points
+    let v = 0, ang = null, sp = null; const legsN = Math.max(1, Math.round(num(t.legs, ty === 'sling' ? 2 : 1)));
+    if (ty === 'sling' && legsN === 1 && t.hitch !== 'basket') { v = Math.max(0.2, L); ang = 90; } // one leg (straight or choke) hangs straight down
+    else if (ty === 'sling') { // from the hook (one point) or from the beam above, down to the next beam or the load's pick points
       const isBeam = (x) => x.type === 'spreader' || x.type === 'beam';
       const below = list.slice(i + 1).find(isBeam), above = [...list.slice(0, i)].reverse().find(isBeam);
       sp = below ? Math.max(0.3, num(below.L, 2)) : pick; const top = above ? Math.max(0.3, num(above.L, 2)) : 0;
       const hh = Math.abs(sp - top) / 2; v = L > hh ? Math.sqrt(L * L - hh * hh) : Math.max(0.2, L * 0.4); ang = hh < 1e-6 ? 90 : L > hh ? Math.asin(v / L) * R2D : 10; }
     else if (ty === 'spreader' || ty === 'beam') v = Math.max(0.15, num(t.h, 0.45));
     else v = Math.max(0, L);
-    items.push({ j: load.tackles.indexOf(t), name: t.name || TACKLE_TYPES[ty], type: ty, L, w: num(t.w), legs: Math.max(1, Math.round(num(t.legs, ty === 'sling' ? 2 : 1))), wll: num(t.wll), v: r2(v), ang: ang != null ? r2(ang) : null, span: sp });
+    const more = {}; for (const kk of TACKLE_EXTRA_KEYS) if (t[kk] !== undefined && t[kk] !== '') more[kk] = t[kk]; // v10: material, hitch, vertical WLL, certificate… (see rigging.js)
+    items.push({ ...more, j: load.tackles.indexOf(t), name: t.name || TACKLE_TYPES[ty], type: ty, L, w: num(t.w), legs: legsN, wll: num(t.wll), v: r2(v), ang: ang != null ? r2(ang) : null, span: sp });
     H += v;
   }
   return { items, H: r2(H), w: r2(w) };
@@ -448,6 +458,13 @@ function computeLoad(plan, crane, load, settings) {
     res.sideOk = false;
     res.checks.push({ s: 'fail', t: 'Lift side', m: `Chart does not cover lifting over the ${SIDE_WORD[res.side]} — this chart is only valid ${chartSectorLabel(chartDef)}. Pick a load chart that covers the ${SIDE_WORD[res.side]}, or lift over the rear instead.` });
   }
+  // a lift over the FRONT puts the boom over the cab: say so on every front lift (the maker's chart / manual decides what is allowed)
+  if (res.side === 'front') {
+    const truck = /truck/i.test(crane?.type || '');
+    if (truck) res.checks.push({ s: 'warn', t: 'Lift side', m: 'Over the front: check the maker allows it — truck cranes usually need the front jack down and may have lower front capacity.' });
+    else if (chartDef && !G.manual && !capInfo.manual && res.sideOk) res.checks.push({ s: 'info', t: 'Lift side', m: `Over the front: this chart is ${chartSectorLabel(chartDef)}, so the front is allowed. Keep the cab and carrier clear of the load, and check the maker's notes for the front outriggers.` });
+    else if (!chartDef || G.manual || capInfo.manual) res.checks.push({ s: 'info', t: 'Lift side', m: 'Over the front: the capacity was typed by hand, so make sure it is the maker\'s figure for lifting over the front.' });
+  }
   // hook/load heights
   const landX = R; const landG = load.landY !== '' && load.landY != null ? num(load.landY) : null;
   const surface = landG != null ? landG : surfaceAt(plan.site, landX);
@@ -495,14 +512,24 @@ function computeLoad(plan, crane, load, settings) {
     }
   }
   if (stack && !empty) {
-    const Wl = W + contW; let below = Wl + stack.items.reduce((a, t) => a + t.w, 0);
+    const Wl = W + contW; let below = Wl + stack.items.reduce((a, t) => a + t.w, 0); let prev = null; const rgi = typeof SLING_INFO === 'function'; // rigging.js (v10); without it the old plain checks run
     for (const t of stack.items) {
-      below -= t.w;
-      if (t.type !== 'sling') continue;
-      const eff = t.legs >= 4 ? 3 : Math.max(1, t.legs); t.T = r2((below + t.w) / (eff * Math.sin(Math.max(5, t.ang) * D2R)));
-      t.util = t.wll > 0 ? r2(t.T / t.wll * 100) : null;
-      const s2 = t.ang < 30 ? 'fail' : t.util != null && t.util > 100 ? 'fail' : t.ang < 45 ? 'warn' : 'ok';
-      res.checks.push({ s: s2, t: 'Sling tension', m: `${t.name}: ${t.T.toFixed(2)} t per leg at ${Math.round(t.ang)}° to horizontal${t.wll ? ` vs WLL ${t.wll} t (${t.util.toFixed(0)}%)` : ''}` + (t.ang < 45 ? ' — angle under 45°, use longer slings or a spreader' : '') });
+      below -= t.w; const carry = r2(below + t.w); t.carry = carry; // what this item holds up: itself and everything under it
+      const info = rgi ? SLING_INFO(t) : null; t.rg = info;
+      if (t.type === 'sling') {
+        const eff = info ? info.eff : t.legs >= 4 ? 3 : Math.max(1, t.legs); t.T = r2(carry / (eff * Math.sin(Math.max(5, t.ang) * D2R)));
+        const lim = info && info.wll > 0 ? info.wllLeg : t.wll; // one leg's limit: vertical WLL × 1 (straight, basket) or × 0.8 (choke)
+        t.util = lim > 0 ? r2(t.T / lim * 100) : null;
+        const multi = info && (info.legs > 1 || info.hitch === 'basket'), overSet = !!(multi && info.wllEff > 0 && carry > info.wllEff * 1.0001); // the EN set rating at this angle
+        const s2 = t.ang < 30 ? 'fail' : t.util != null && t.util > 100 ? 'fail' : t.ang < 45 || (t.util != null && t.util > 90) || overSet ? 'warn' : 'ok';
+        res.checks.push({ s: s2, t: 'Sling tension', m: info ? rgSlingMsg(t, info, { T: t.T, util: t.util, ang: t.ang, carry }) : `${t.name}: ${t.T.toFixed(2)} t per leg at ${Math.round(t.ang)}° to horizontal${t.wll ? ` vs WLL ${t.wll} t (${t.util.toFixed(0)}%)` : ''}` + (t.ang < 45 ? ' — angle under 45°, use longer slings or a spreader' : '') });
+      } else if (info && info.wll > 0) { // shackles, beams, hooks with a WLL: carried load against it
+        const one = t.type === 'shackle' && prev && prev.type === 'sling' && prev.T != null; // a shackle under a sling set holds one leg
+        const c1 = one ? prev.T : carry; t.carry = c1; t.legLoad = one; t.util = r2(c1 / info.wllEff * 100);
+        res.checks.push({ s: t.util > 100 ? 'fail' : t.util > 90 ? 'warn' : 'ok', t: t.type === 'shackle' ? 'Shackle load' : 'Tackle load', m: rgLoadMsg(t, info, { carry: c1, util: t.util }) + (one ? ' (one sling leg)' : '') });
+      }
+      if (info && info.examMonths != null && info.examMonths > 6) res.checks.push({ s: 'warn', t: 'Tackle examination', m: rgExamMsg(t, info) });
+      prev = t;
     }
   }
   if (empty) res.checks.push({ s: 'info', t: 'Empty hook', m: `Hook block only${tk ? ' + tackles' : ''} — ${total.toFixed(2)} t on the hook` });

@@ -20,12 +20,13 @@ function pngTile() {
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await routes(p); const tile = pngTile(); let tiles = 0;
   await p.route(/server\.arcgisonline\.com/, r => { tiles++; r.fulfill({ body: tile, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' } }); });
-  await p.goto(pathToFileURL(path.join(process.cwd(), 'dist', 'v7.html')).href); await p.waitForTimeout(1200);
+  await p.goto(pathToFileURL(process.env.LL_HTML || path.join(process.cwd(), 'dist', 'v7.html')).href); await p.waitForTimeout(1200);
   const ev = (f, a) => p.evaluate(f, a);
   await p.click('.lg-u[data-u="Saad"]'); await p.fill('#lgPass', '786'); await p.click('#lgGo'); await p.waitForTimeout(3000);
+  await ev(() => { LS.set('lp.new10', true); });
   ok(await ev(() => !document.body.classList.contains('locked')), 'signed in');
   await ev(() => { LS.set('lp.coach7', true); document.getElementById('coach')?.remove(); });
-  ok(await ev(() => APP_VERSION === '9.0'), 'version 9.0');
+  ok(await ev(() => APP_VERSION === '10.0'), 'version 10.0');
 
   // ---- speed: a full recompute + redraw per change ----
   const ms = await ev(() => { const t = performance.now(); for (let i = 0; i < 30; i++) setDial('R', 12 + (i % 10) * 0.5); return (performance.now() - t) / 30; });
@@ -83,11 +84,21 @@ function pngTile() {
 
   // ---- RAMS pack (2 × A4) ----
   await ev(() => { closeSheet(true); openSheet('print'); }); await p.waitForTimeout(400);
-  const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }), p.click('[data-sa="rams"]')]);
+  await p.click('#sheet [data-sa="xbuild"][data-kind="rams"]'); await p.waitForSelector('#sheet .xc[data-kind="rams"] [data-sa="xsave"]', { timeout: 120000 });
+  const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }), p.click('#sheet [data-sa="xsave"][data-kind="rams"]')]);
   const fp = await dl.path(); const pdf = fs.readFileSync(fp); const info = await ev(() => state.lastRams);
   fs.mkdirSync('out', { recursive: true }); fs.writeFileSync(path.join('out', mobile ? 'rams_e2e_phone.pdf' : 'rams_e2e.pdf'), pdf); // rams_check.js reads it
   ok(pdf.slice(0, 4).toString() === '%PDF' && pdf.length > 40000, `RAMS PDF: ${(pdf.length / 1024).toFixed(0)} kB, ${dl.suggestedFilename()}`);
-  ok((pdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length === 2, 'two pages');
+  const nPages = (pdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length;
+  ok(nPages >= 2 && (!info || !info.pages || info.pages === nPages), `report pack has ${nPages} pages`);
+  // v10 locked PDFs: opens without a password, prints, but no copy / edit; text, fonts and images still read back with pdfjs
+  try {
+    const pdfjs = require('pdfjs-dist/legacy/build/pdf.js'); const d = await pdfjs.getDocument({ data: new Uint8Array(pdf), verbosity: 0 }).promise;
+    const perms = await d.getPermissions(); const pg1 = await d.getPage(1); const tc = await pg1.getTextContent(); const text = tc.items.map(x => x.str).join(' ');
+    ok(/\/Encrypt/.test(pdf.toString('latin1')) && perms.includes(4) && !perms.includes(16) && !perms.includes(8), 'report pack is locked: print allowed, copy and edit off (permissions ' + JSON.stringify(perms) + ')');
+    ok(d.numPages === nPages && text.length > 300 && /controlled copy/.test(text), `the locked PDF reads back: ${d.numPages} pages, ${text.length} characters on page 1, watermark present`);
+    const ops = await pg1.getOperatorList(); ok(ops.fnArray.some(f => f === pdfjs.OPS.paintImageXObject || f === pdfjs.OPS.paintJpegXObject), 'images survive the lock');
+  } catch (e) { ok(false, 'pdfjs could not read the locked PDF: ' + e.message); }
   ok(info && info.shot, '3D still included'); console.log('     RAMS built in', info?.ms, 'ms (headless software rendering)');
   ok(info && info.ms < 3000, `RAMS pack in under 3 s (${info?.ms} ms)`);
   await ev(() => { const l = state.plan.loads[activeLi()]; l.tandem.on = false; commit({ sheet: true }); closeSheet(true); });

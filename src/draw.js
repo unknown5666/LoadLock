@@ -177,7 +177,8 @@ function letterBoom(P, T, k, A, ang, sStart, sLen, qc, depth, text, fill, o = {}
   const size = cap / 0.72 * k; if (size < 0.7) return;
   const u = [Math.cos(ang), Math.sin(ang)], nn = [-u[1], u[0]], sc = sStart + sLen / 2;
   const p = T(A.x + sc * u[0] + qc * nn[0], A.y + sc * u[1] + qc * nn[1]);
-  let rot = -ang * R2D; if (o.upright) { const r = ((rot % 360) + 360) % 360; if (r > 90 && r < 270) rot += 180; }
+  const p2 = T(A.x + (sc + 1) * u[0] + qc * nn[0], A.y + (sc + 1) * u[1] + qc * nn[1]); const mir = p2[0] < p[0] - 1e-9; // mirrored picture (the second crane of a tandem lift): turn the lettering the right way up
+  let rot = mir ? Math.atan2(p2[1] - p[1], p2[0] - p[0]) * R2D : -ang * R2D; if (o.upright || mir) { const r = ((rot % 360) + 360) % 360; if (r > 90 && r < 270) rot += 180; }
   const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(fill || ''); let sat = 0; if (m) { const c = [1, 2, 3].map(i => parseInt(m[i], 16) / 255); const mx = Math.max(...c), mn = Math.min(...c); sat = mx > 0 ? (mx - mn) / mx : 0; }
   P.text(p[0], p[1], text, { size, bold: true, anchor: 'middle', vAlign: 'middle', rot, color: lumOf(fill) > 0.55 ? '#121212' : '#ffffff', layer: 'BOOM-LETTERING', keep: sat > 0.3 }); // painted (saturated) booms keep their lettering colour on the night canvas
 }
@@ -308,43 +309,9 @@ function drawHookAndLoad(P, T, k, crane, geo, res, load, o = {}) {
   const round = shape === 'drum' || shape === 'coil';
   const half = round ? lL * 0.35 : Math.max(0.15, (num(load.pick) > 0 ? num(load.pick) : lL - 0.3) / 2), pickY = round ? topY - lH * 0.15 : topY;
   const ln = (a, b, st) => { const p = T(a[0], a[1]), q = T(b[0], b[1]); P.line(p[0], p[1], q[0], q[1], { ...st, layer: 'RIGGING' }); };
-  const legStyle = (t) => /chain/i.test(t.name || '') ? { stroke: '#5a3a12', w: 0.22 } : /web|nylon|round/i.test(t.name || '') ? { stroke: '#d77a00', w: 0.3 } : { stroke: '#2b2b2b', w: 0.18 };
-  if (res.stack) { // named tackles, top → bottom, drawn to their real lengths
-    let y = hookBot, topSpan = 0; const labels = [];
-    const items = res.stack.items;
-    for (let i = 0; i < items.length; i++) {
-      const t = items[i]; const y1 = y - t.v;
-      if (t.type === 'sling') {
-        const below = items.slice(i + 1).find(x => x.type === 'spreader' || x.type === 'beam'); const bSpan = below ? below.L : 2 * half;
-        const st = legStyle(t); const ends = t.legs >= 4 ? [-1, -0.34, 0.34, 1] : [-1, 1];
-        for (const f of ends) ln([R + f * topSpan / 2, y], [R + f * bSpan / 2, y1], Math.abs(f) < 1 ? { ...st, w: st.w * 0.6 } : st);
-        labels.push([y - t.v / 2, R + Math.max(topSpan, bSpan) / 4 + 0.3, t]);
-      } else if (t.type === 'spreader' || t.type === 'beam') {
-        const p = T(R - t.L / 2, y), q = T(R + t.L / 2, y1);
-        P.rect(p[0], p[1], q[0] - p[0], q[1] - p[1], { stroke: '#1d1d1d', w: 0.16, fill: t.type === 'spreader' ? '#f2c230' : '#9aa4ad', layer: 'RIGGING' });
-        for (const e of [-1, 1]) { const c = T(R + e * (t.L / 2 - 0.12), y1 + t.v * 0.5); P.circle(c[0], c[1], Math.max(0.25, 0.07 * k), { stroke: '#1d1d1d', w: 0.1, fill: '#ffffff', layer: 'RIGGING' }); }
-        topSpan = t.L; labels.push([y - t.v / 2, R + t.L / 2 + 0.4, t]);
-      } else if (t.type === 'shackle') {
-        const w2 = Math.max(0.08, t.v * 0.32); const pts = []; for (let j = 0; j <= 12; j++) { const a2 = Math.PI * j / 12; pts.push(T(R + Math.cos(a2) * w2, y1 + w2 - Math.sin(a2) * w2)); }
-        P.poly([T(R - w2, y), ...pts.reverse(), T(R + w2, y)], { closed: false, stroke: '#1d1d1d', w: 0.18, fill: 'none', layer: 'RIGGING' });
-        const pn = T(R - w2 * 1.25, y), pq = T(R + w2 * 1.25, y); P.line(pn[0], pn[1], pq[0], pq[1], { stroke: '#1d1d1d', w: 0.2, layer: 'RIGGING' });
-        topSpan = 0; labels.push([y - t.v / 2, R + 0.4, t]);
-      } else {
-        const p = T(R, y), q = T(R, y1); P.line(p[0], p[1], q[0], q[1], { stroke: t.type === 'chain' ? '#5a3a12' : '#1d1d1d', w: t.type === 'chain' ? 0.32 : 0.22, dash: t.type === 'chain', layer: 'RIGGING' });
-        topSpan = 0; labels.push([y - t.v / 2, R + 0.4, t]);
-      }
-      y = y1;
-    }
-    if (o.callout !== false) {
-      const lx = Math.max(...labels.map(l => l[1]), R + half) + 0.6; let lastY = Infinity;
-      for (const [yy, x0, t] of labels) {
-        const p0 = T(x0, yy); let ty = T(lx, yy)[1]; if (ty < lastY + 3.2 && lastY !== Infinity) ty = lastY + 3.2; lastY = ty;
-        const p1 = [T(lx, yy)[0], ty];
-        P.line(p0[0], p0[1], p1[0] - 0.6, p1[1], { stroke: '#555', w: 0.1, layer: 'RIGGING' });
-        P.circle(p0[0], p0[1], 0.35, { stroke: 'none', fill: '#555', layer: 'RIGGING' });
-        P.text(p1[0], p1[1] + 0.9, `${String(t.name || '').toUpperCase()}${t.L ? ' ' + fmtM(t.L) : ''}${t.w ? ' · ' + (+t.w).toFixed(2) + 'T' : ''}${t.type === 'sling' && t.ang != null ? ' @' + Math.round(t.ang) + '°' : ''}`, { size: 2.3, color: '#333', layer: 'RIGGING' });
-      }
-    }
+  if (res.stack) { // named tackles, top → bottom, drawn to their real lengths: webbing, round and wire slings, chain, shackles, beams (rigging.js)
+    if (typeof rgDrawStack === 'function') rgDrawStack(P, T, k, { R, hookBot, half, items: res.stack.items, callout: o.callout });
+    else { let y = hookBot; for (const t of res.stack.items) { ln([R, y], [R, y - t.v], { stroke: '#2b2b2b', w: 0.2 }); y -= t.v; } }
   } else {
     // slings (style follows the rigging method)
     const sl = res.sling; const rt = sl ? sl.type : '';
@@ -570,7 +537,8 @@ function elevationExtents(plan, res, crane, geo) {
     ymax = Math.max(ymax, e.top + 2);
   }
   let ymin = Math.min(0, groundAt(site, xmax), ...(site.obstacles || []).map(o => objBase(site, o))) - 1.2;
-  return { xmin, xmax, ymin, ymax };
+  const base = { xmin, xmax, ymin, ymax };
+  return res.tandem && typeof tandemElevExtents === 'function' ? tandemElevExtents(base, plan, res) : base; // v10 tandem: room for the second crane, the load between them and the labels
 }
 
 // ---------- lift side in the elevation ----------
@@ -580,39 +548,44 @@ function elevationExtents(plan, res, crane, geo) {
 // superstructure `x1`, both in m — was checked by eye on every body; bodies that are not listed (or front = 0) are never touched.
 // A left / right lift would show the carrier end-on, which the CAD library has no view for, so those keep the side-on body (the glyph says which side).
 const CAD_CARRIER = {
-  ltm1090: { front: -1 }, ltm1100: { front: -1 }, ltm1220: { front: -1 }, ltm1650: { front: -1 }, ltm1750: { front: 0 }, ac700: { front: -1 }, ztc600v: { front: -1 },
+  // front = -1 bodies show the cab on the far side; for a FRONT lift the carrier is turned round too, and `back` = the x (m) where the cab ends and the superstructure begins
+  ltm1090: { front: -1, back: -4.4 }, ltm1100: { front: -1, back: -4.4 }, ltm1220: { front: -1, back: -5.0 }, ltm1650: { front: -1, back: -10.5 }, ltm1750: { front: 0 }, ac700: { front: -1, back: -10.5 }, ztc600v: { front: -1, back: -4.4 },
   ltm1110: { front: 1 }, ltm1160: { front: 1 }, ltm1230: { front: 1 }, ltm1250: { front: 1 }, ltm1300: { front: 1 }, ltm1300_63: { front: 1 }, ltm1400: { front: 1 }, ltm1450: { front: 1 },
   ltm1500: { front: 1 }, ltm11200: { front: 1 }, ztc1000v: { front: 1 }, ztc300v: { front: 1, deck: 1.5 }, zat2000v: { front: 1 }
 };
 // one flag per body item: carrier = not part of the superstructure (below the turntable, or beyond its front edge) and not stray linework far ahead of the machine
-function cadCarrierMask(dr, deck, xFront) {
+function cadCarrierMask(dr, deck, xFront, back) {
   const bb = dr.body.map(([, , fl]) => { let x0 = 1e9, x1 = -1e9, y0 = 1e9, sy = 0, n = 0; for (let i = 0; i < fl.length; i += 2) { const x = fl[i] / 100, y = fl[i + 1] / 100; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; sy += y; n++; } return { x0, x1, y0, cy: n ? sy / n : 0 }; });
-  const sup = bb.map(b => b.cy >= deck && b.y0 >= deck - 0.35 && b.x1 <= xFront + 0.001);
+  const sup = bb.map(b => b.cy >= deck && b.y0 >= deck - 0.35 && b.x1 <= xFront + 0.001 && (back == null || b.x0 >= back - 0.2));
   const frontX = Math.max(0, ...bb.filter((b, i) => !sup[i] && b.y0 < 1.0).map(b => b.x1));
   return bb.map((b, i) => !sup[i] && b.x0 <= frontX + 0.3);
 }
-// derived drawings, built once and kept out of Object.keys(CRANE_DRAWINGS): `~rear` = carrier mirrored (cab away from the load), `~side` = superstructure only
+// derived drawings, built once and kept out of Object.keys(CRANE_DRAWINGS): `~rear` = carrier mirrored (cab away from the load), `~front` = carrier mirrored
+// (cab towards the load), `~side` = superstructure only
 // (the carrier is then drawn end-on by drawCarrierEndView)
 function cadDerived(key, dr, kind) {
   const spec = CAD_CARRIER[key]; if (!spec || !dr || dr.v !== 2 || !Array.isArray(dr.body) || typeof CRANE_DRAWINGS === 'undefined') return null;
-  if (kind === 'rear' && spec.front !== 1) return null;
+  if (kind === 'rear' && spec.front !== 1) return null;       // rear lift: only a body with its cab on the boom side needs the carrier turned round
+  if (kind === 'front' && spec.front !== -1) return null;     // front lift: only a body with its cab on the far side needs it (front = 1 already shows the cab towards the load)
   const rk = key + '~' + kind;
   if (!Object.prototype.hasOwnProperty.call(CRANE_DRAWINGS, rk)) {
-    const mask = cadCarrierMask(dr, spec.deck ?? 2.05, spec.x1 ?? 3.2);
-    const body = kind === 'rear' ? dr.body.map((it, i) => mask[i] ? [it[0], it[1], it[2].map((v, j) => j % 2 ? v : -v)] : it) : dr.body.filter((_, i) => !mask[i]);
+    const mask = cadCarrierMask(dr, spec.deck ?? 2.05, spec.x1 ?? 3.2, kind === 'front' ? spec.back : null);
+    const body = kind === 'rear' || kind === 'front' ? dr.body.map((it, i) => mask[i] ? [it[0], it[1], it[2].map((v, j) => j % 2 ? v : -v)] : it) : dr.body.filter((_, i) => !mask[i]);
     let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9; for (const [, , fl] of body) for (let i = 0; i < fl.length; i += 2) { const x = fl[i] / 100, y = fl[i + 1] / 100; if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
     Object.defineProperty(CRANE_DRAWINGS, rk, { value: { ...dr, body, bbox: body.length ? [bx0, Math.min(0, by0), bx1, by1] : dr.bbox }, enumerable: false, configurable: true, writable: true });
   }
   return rk;
 }
 // The crane record to draw in the elevation for a lift side. REAR: same crane, carrier mirrored where the CAD body has its cab on the boom side.
+// FRONT: the cab must face the load, so the carrier is mirrored where the CAD body has its cab on the far side (front = -1); the others are already drawn that way.
 // LEFT / RIGHT: the boom is square to the carrier, so the carrier is seen end-on — the CAD body is cut down to its superstructure and `_endDeck` (turntable level, m)
 // tells drawElevation to draw the end-on carrier. Bodies that are not in CAD_CARRIER (or have no CAD body) come back untouched.
 function liftBodyCrane(crane, side) {
   if (!crane || !crane.drawing || crane.drawing === 'proc' || typeof CRANE_DRAWINGS === 'undefined') return crane;
   const key = (typeof DRAWING_ALIAS !== 'undefined' && DRAWING_ALIAS[crane.drawing]) || crane.drawing; const spec = CAD_CARRIER[key];
-  const rk = spec ? cadDerived(key, CRANE_DRAWINGS[key], sideOf(side) === 'rear' ? 'rear' : 'side') : null;
-  return rk ? (sideOf(side) === 'rear' ? { ...crane, drawing: rk } : { ...crane, drawing: rk, _endDeck: spec.deck ?? 2.05 }) : crane;
+  const sd = sideOf(side), kind = sd === 'rear' ? 'rear' : sd === 'front' ? 'front' : 'side';
+  const rk = spec ? cadDerived(key, CRANE_DRAWINGS[key], kind) : null;
+  return rk ? (kind !== 'side' ? { ...crane, drawing: rk } : { ...crane, drawing: rk, _endDeck: spec.deck ?? 2.05 }) : crane;
 }
 // carrier seen end-on (outrigger beams, jacks, mats, chassis, tyres, slewing ring) — the same end view the procedural body uses, standing under a CAD superstructure
 function drawCarrierEndView(P, T, crane, plan, deck0, side) {
@@ -649,7 +622,7 @@ function drawCarrierEndView(P, T, crane, plan, deck0, side) {
   rect(-1.3, deck, 1.3, deck0 + 0.06, { fill: '#3a3a3a' });
 }
 // Plan-view orientation glyph: the carrier from above (cab up, so the driver's left is the left of the picture) with the boom as a red arrow and the words
-// LIFT OVER REAR / LEFT / RIGHT. (x, y) = top-left corner, w = width in drawing units; o.ds = text size unit. Returns { w, h }.
+// LIFT OVER REAR / LEFT / RIGHT / FRONT. (x, y) = top-left corner, w = width in drawing units; o.ds = text size unit. Returns { w, h }.
 function sideGlyphH(crane, w, ds = 4.4) { // height of the glyph for a given width (it follows the crane's proportions)
   const Lc = num(crane?.carrierLen, 12), oT = num(crane?.outTrans, 7) / 2, Ra = Math.max(0.55 * Lc, oT + 5), xm = Ra + 0.9;
   return (0.64 * Lc + 4.4 + Math.max(0.36 * Lc, Ra) + 0.9) * w / (2 * xm) + ds * 2.1;
@@ -661,7 +634,7 @@ function drawSideGlyph(P, x, y, w, crane, side, o = {}) {
   const Ra = Math.max(0.55 * Lc, oT + 5), xm = Ra + 0.9, yTop = 0.64 * Lc + 4.4, yBot = -Math.max(0.36 * Lc, Ra) - 0.9;   // metres
   const s = w / (2 * xm), hDraw = (yTop - yBot) * s, labH = ds * 2.1, H = hDraw + labH;
   const G = (mx, my) => [x + (mx + xm) * s, y + (yTop - my) * s];
-  const d = { rear: [0, -1], left: [-1, 0], right: [1, 0] }[side];
+  const d = { rear: [0, -1], left: [-1, 0], right: [1, 0], front: [0, 1] }[side];
   const GB = (u, v) => G(u * d[0] - v * d[1], u * d[1] + v * d[0]);                  // boom frame: u along the boom, v to its left
   P.rect(x, y, w, H, { fill: '#ffffff', stroke: '#555', w: 0.25, layer: LY });
   P.circle(...G(0, 0), tail * s, { stroke: '#a0a0a0', w: 0.18, fill: 'none', layer: LY });
@@ -727,9 +700,14 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
   }
   drawObstacles(P, T, k, plan, { xmax: ctx.objXmax ?? ext.xmax });
   const liftSide = sideOf(load), bodyCrane = liftBodyCrane(crane, liftSide);
-  if (bodyCrane._endDeck != null) drawCarrierEndView(P, T, crane, plan, bodyCrane._endDeck, liftSide); // left / right lift: carrier end-on
-  const ce = drawCraneElevation(P, T, k, bodyCrane, geo, res, plan, { livery: ctx.livery });
-  const hl = drawHookAndLoad(P, T, k, crane, geo, res, load, { rigH: plan.rigging?.height, sheaveR: ce?.cad ? ce.cad.sheaveR * 0.6 : 0.25 });
+  // v10 tandem lift: both cranes (each with its own body, boom and hoist line), the one load between them, its centre of gravity and the crane labels (tandem.js)
+  let TDM = null, tdRig = null;
+  if (res.tandem && ctx.tandem !== false && typeof tandemElevModel === 'function') { try { TDM = tandemElevModel(plan, res); if (TDM) tdRig = tandemDrawRig(P, T, k, plan, TDM, { livery: ctx.livery, dimSize: ctx.dimSize || 4.4 }); } catch (e) { console.error(e); TDM = null; tdRig = null; } }
+  if (!TDM) {
+    if (bodyCrane._endDeck != null) drawCarrierEndView(P, T, crane, plan, bodyCrane._endDeck, liftSide); // left / right lift: carrier end-on
+    const ce = drawCraneElevation(P, T, k, bodyCrane, geo, res, plan, { livery: ctx.livery });
+    const hl = drawHookAndLoad(P, T, k, crane, geo, res, load, { rigH: plan.rigging?.height, sheaveR: ce?.cad ? ce.cad.sheaveR * 0.6 : 0.25 });
+  }
   // ---- dimensions: thin, CAD style — every dimension stops on its extension lines and none run through the drawing ----
   const dimSize = ctx.dimSize || 4.4;
   const Wd = (x, y) => T(x, y);
@@ -760,8 +738,8 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
       const gm = geo.gamma / 2 * D2R; P.text(jf[0] + Math.cos(gm) * (r2_ + 3.2), jf[1] - Math.sin(gm) * (r2_ + 3.2), Math.round(geo.gamma) + '°', { size: dimSize * 0.9, color: COL.green, vAlign: 'middle', layer: 'DIMTEXT', bg: '#ffffff' });
     }
   }
-  // tip height: vertical dimension right of the load and of anything standing under it
-  {
+  // tip height: vertical dimension right of the load and of anything standing under it (a tandem lift dimensions the hook heights instead)
+  if (!TDM) {
     let xd = Math.max(geo.tip.x + 1.6, res.R + num(load.l, 2) / 2 + 1.4);
     for (let it = 0; it < 6; it++) { const hit = objs.find(({ e }) => e.x0 - 0.6 < xd && e.x1 + 0.6 > xd && e.top > groundAt(site, xd) + 0.2); if (!hit) break; xd = hit.e.x1 + 1.6; }
     xd = Math.min(xd, ext.xmax - 0.5);
@@ -793,9 +771,10 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
     }
   }
   if (stepX != null && tg !== 0) { const a = Wd(stepX - 1.2, 0), b = Wd(stepX - 1.2, tg); dimA(P, a, b, 0, String(mm(Math.abs(tg))), { side: 'left', size: dimSize * 0.85, extA: false, extB: false }); }
+  if (TDM) { try { row = tandemElevDims(P, T, k, plan, TDM, { dimSize, hdim, row }); } catch (e) { console.error(e); } } // v10 tandem: second crane's radius, distance between slew centres, hook heights
   // load landing level (if above ground and not obviously dimensioned)
   if (ctx.title !== false) {
-    const tl = ctx.titleLines || [`${crane.cls}T MOBILE CRANE`, 'ELEVATION VIEW'];
+    const tl = ctx.titleLines || (TDM ? ['TANDEM LIFT — ELEVATION'] : [`${crane.cls}T MOBILE CRANE`, 'ELEVATION VIEW']);
     let ty = Math.min(box.y + box.h - 6, below(row) + 9);
     tl.forEach((s, i) => { const sz = i === 0 ? 6.5 : 6.5; P.text(box.x + box.w * 0.42, ty + i * 9, s, { size: sz, bold: true, anchor: 'middle', underline: true, layer: 'TITLE' }); });
   }
@@ -813,6 +792,7 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
       const avoid = []; // screen-space segments to keep clear of
       for (const [a, b] of geo.segments || []) { const p = T(a.x, a.y), q = T(b.x, b.y); avoid.push([p[0], p[1], q[0], q[1]]); }
       { const tp = T(geo.tip.x, geo.tip.y), lp = T(res.R, res.landY); avoid.push([tp[0], tp[1], lp[0], lp[1]]); const lw2 = Math.max(1, num(load.l, 2)) * k / 2; avoid.push([lp[0] - lw2, lp[1], lp[0] + lw2, lp[1] - num(load.h, 1.5) * k]); }
+      if (tdRig) avoid.push(...tdRig.avoid);
       for (const { e } of objs) { const a = T(e.x0, e.top), b = T(e.x1, e.b); avoid.push([a[0], a[1], b[0], a[1]], [a[0], b[1], b[0], b[1]], [a[0], a[1], a[0], b[1]], [b[0], a[1], b[0], b[1]]); }
       const hits = (rx, ry) => avoid.some(([x1, y1, x2, y2]) => { const n = Math.max(2, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 2)); for (let i = 0; i <= n; i++) { const px = x1 + (x2 - x1) * i / n, py = y1 + (y2 - y1) * i / n; if (px > rx - 2 && px < rx + gw + 2 && py > ry - 2 && py < ry + gh + 2) return true; } return false; });
       const cand = [[box.x + m, box.y + m], [box.x + box.w - gw - m, box.y + m], [box.x + m, box.y + m + gh + 3], [box.x + box.w - gw - m, box.y + m + gh + 3]];
@@ -837,6 +817,8 @@ function sitePlanExtents(plan, calc) {
   const sp = sitePlanState(plan); const R = (calc.loads[plan.activeLoad || 0] || calc.loads[0])?.R || 10;
   if (sp.view && sp.view.x1 > sp.view.x0) return { ...sp.view };
   let x0 = sp.cx - R - 6, x1 = sp.cx + R + 6, y0 = sp.cy - R - 6, y1 = sp.cy + R + 6;
+  const TD = (calc.loads[plan.activeLoad || 0] || calc.loads[0])?.tandem; // v10: the other cranes of a tandem lift and their lifting points must be in the picture too
+  if (TD) for (const pk of TD.picks) for (const q of [pk.base && [pk.base, num(pk.Rnow, pk.R)], pk.pos && [pk.pos, 3]]) if (q) { x0 = Math.min(x0, q[0].x - q[1] - 6); x1 = Math.max(x1, q[0].x + q[1] + 6); y0 = Math.min(y0, q[0].y - q[1] - 6); y1 = Math.max(y1, q[0].y + q[1] + 6); }
   for (const e of plan.env || []) { if (e.view !== 'plan' || e.hidden) continue; const b = envBBox(e); if (b) { x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1); y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1); } }
   return { x0, x1, y0, y1 };
 }
@@ -855,8 +837,9 @@ function drawCraneFootprint(P, T, k, crane, sp, R, lw, livery, ext) {
   // carrier: the cab (darker block) is at the +u end, so u points the way the carrier faces; the slew centre sits 36% from the rear
   poly(C, [[0.64 * Lc, -W / 2], [-0.36 * Lc, -W / 2], [-0.36 * Lc, W / 2], [0.64 * Lc, W / 2]], { stroke: '#222', w: 0.3, fill: col, layer: 'SITE-CRANE' });
   poly(C, [[0.64 * Lc, -W / 2], [0.64 * Lc - 2.2, -W / 2], [0.64 * Lc - 2.2, W / 2], [0.64 * Lc, W / 2]], { stroke: '#222', w: 0.2, fill: shade(col, -15), layer: 'SITE-CRANE' });
-  { const a = C(0.64 * Lc + 0.5, 0), b = C(0.64 * Lc + 0.5 + Math.max(2.4, 7 / k), 0); P.line(a[0], a[1], b[0], b[1], { stroke: '#333', w: 0.3, layer: 'SITE-CRANE' }); arrow(P, b[0], b[1], Math.atan2(b[1] - a[1], b[0] - a[0]), { stroke: '#333', al: 2.4, aw: 0.9, layer: 'SITE-CRANE' });
-    const t = C(0.64 * Lc + 0.5 + Math.max(2.4, 7 / k) + 2.2 / k, 0); P.text(t[0], t[1], 'FRONT', { size: 2.4, anchor: 'middle', vAlign: 'middle', color: '#333', layer: 'SITE-CRANE' }); }
+  { const vo = Math.abs(degDiff(br * R2D, cr * R2D)) < 20 ? -(num(crane.boomDepth, 1.2) / 2 + 1.5) : 0; // front lift: the boom lies over the cab, so the FRONT arrow stands beside it
+    const a = C(0.64 * Lc + 0.5, vo), b = C(0.64 * Lc + 0.5 + Math.max(2.4, 7 / k), vo); P.line(a[0], a[1], b[0], b[1], { stroke: '#333', w: 0.3, layer: 'SITE-CRANE' }); arrow(P, b[0], b[1], Math.atan2(b[1] - a[1], b[0] - a[0]), { stroke: '#333', al: 2.4, aw: 0.9, layer: 'SITE-CRANE' });
+    const t = C(0.64 * Lc + 0.5 + Math.max(2.4, 7 / k) + 2.2 / k, vo); P.text(t[0], t[1], 'FRONT', { size: 2.4, anchor: 'middle', vAlign: 'middle', color: '#333', layer: 'SITE-CRANE' }); }
   const tail = num(crane.tail, 4);
   poly(B, [[-tail, -1.5], [2.6, -1.5], [2.6, 1.5], [-tail, 1.5]], { stroke: '#222', w: 0.3, fill: shade(col, -22), layer: 'SITE-CRANE' });
   const bd = num(crane.boomDepth, 1.2) / 2;
@@ -1011,7 +994,14 @@ function drawCraneDims(P, box, crane) {
 
 // ---------- rigging detail ----------
 function drawRigging(P, box, plan, calc) {
-  const rg = plan.rigging || {}, rig = calc.rig; if (!rig) return;
+  const rg = plan.rigging || {}, rig = calc.rig;
+  const li0 = Math.min(plan.loads.length - 1, Math.max(0, Math.round(num(rg.enabled ? rg.loadIdx : plan.activeLoad, 0))));
+  if (calc.loads[li0]?.stack && typeof rgDrawRiggingPanel === 'function') { // v10: the lift has named tackles → the full rigging detail (rigging.js); the simple sling set stays below it when switched on
+    rgDrawRiggingPanel(P, { ...box, h: box.h - (rig ? 8 + 10 * 6.5 + 4 : 0) }, plan, calc, li0);
+    if (rig) drawRigTable(P, box, rig, num(rg.slingL, 6), num(rg.spread, 2));
+    return;
+  }
+  if (!rig) return;
   const li = num(rg.loadIdx, 0); const load = plan.loads[li] || plan.loads[0];
   const cx = box.x + box.w * 0.42, top = box.y + 30;
   const sl = num(rg.slingL, 6), spread = num(rg.spread, 2);
@@ -1039,6 +1029,9 @@ function drawRigging(P, box, plan, calc) {
     const sp = [px + 1, py + 1]; P.line(sp[0], sp[1], sp[0] + 16, sp[1] - 8, { stroke: '#222', w: 0.2 }); arrow(P, sp[0], sp[1], Math.atan2(8, -16), { stroke: '#222', al: 2, aw: 0.7 });
     wrapText(rg.shackleDesc || `${rig.shackleWLL}t BOW SHACKLE - ${rig.legs}No's`, 24).forEach((l, i) => P.text(sp[0] + 17, sp[1] - 8 + i * 5, l, { size: 4.2 }));
   }
+  drawRigTable(P, box, rig, sl, spread);
+}
+function drawRigTable(P, box, rig, sl, spread) { // the sling tension calculation table (bottom of the rigging panel)
   // table
   const rows = [
     ['LOAD WEIGHT (incl. contingency)', fmtT(rig.Wl)], ['NO. OF LEGS / EFFECTIVE', `${rig.legs} / ${rig.eff}`],
@@ -1083,7 +1076,7 @@ function sheetRowOn(plan, key) { const R = plan.sheetRows || {}; if (R.hide?.[ke
 function sheetOvOf(plan, id) { const v = id ? plan?.sheetRows?.ov?.[id] : null; return v != null && String(v).trim() !== '' ? String(v).toUpperCase() : null; }
 function sheetRow(plan, id, label, calcV) { const o = sheetOvOf(plan, id); return { id, label, calc: String(calcV ?? ''), v: o ?? String(calcV ?? ''), ov: o != null }; }
 // rows whose typed-over value matters for safety (they get a warning in the checks)
-const SHEET_OV_SAFETY = /^(l\d+\.(radius|weight|cont|hook|tackles|other|total|daf|design|cap|util|sf|sling)|c\d+\.(cwt|boom|outrigger)|g\.(P|press|allow|area|self|legs))/;
+const SHEET_OV_SAFETY = /^(d\d+\.|l\d+\.(radius|weight|cont|hook|tackles|other|total|daf|design|cap|util|sf|sling)|c\d+\.(cwt|boom|outrigger)|g\.(P|press|allow|area|self|legs))/;
 // every block of the data panel: [{ head, fill, small, rows: [{ id, label, calc, v, ov, custom? }] }]
 function sheetBlocks(plan, calc, settings) {
   const S = settings; const on = (k) => sheetRowOn(plan, k);
@@ -1137,8 +1130,18 @@ function sheetBlocks(plan, calc, settings) {
     if (r.sling) { add('sling', 'RIGGING', (RIG_TYPES[r.sling.type]?.short || '') + (r.sling.L ? ' ' + fmtM(r.sling.L) : '') + ' @' + Math.round(r.sling.ang) + '°'); add('sling', 'SLING TENSION / LEG', fmtT(r.sling.T)); }
     else if (r.stack) { const sl = r.stack.items.filter(t => t.type === 'sling' && t.T != null); sl.forEach(t => add('sling', `${String(t.name).toUpperCase()} / LEG`, fmtT(t.T))); }
     for (const c of (plan.sheetRows?.custom || []).filter(c => (c.sec === 'load' && (c.load == null || c.load === '' || +c.load === i)) && (c.label || c.value))) rows.push({ id: null, label: String(c.label || '').toUpperCase(), v: String(c.value || '').toUpperCase(), custom: true });
+    if (r.tandem) { // the lead result carries only the lead crane's share: the load weight is the whole load, the rest belongs to crane 1 (the TANDEM block has every crane)
+      const TD = r.tandem, c1 = `C${(TD.picks[0]?.crane ?? 0) + 1} `;
+      rows.forEach(rw => { const m = /^l\d+\.([a-z]+)#/.exec(rw.id || ''); if (!m) return; const key = m[1];
+        if (key === 'weight' && !r.empty) { rw.label = 'LOAD WEIGHT, ALL CRANES'; if (!rw.ov) { rw.calc = rw.v = fmtT(TD.W) + (num(l.cont) > 0 && l.contOn !== false ? ` (+${num(l.cont)}%)` : ''); } }
+        else if (['hook', 'tackles', 'total', 'daf', 'design', 'cap', 'util', 'sf', 'sling', 'cont', 'other'].includes(key)) rw.label = c1 + rw.label; });
+    }
     blocks.push({ head: S.headerStyle === 'classic' && plan.loads.length === 1 && !multi ? null : 'LOAD DATA ' + (i + 1), fill: '#9a9a9a', rows });
-    if (r.stack && on('extra.tacklesList')) blocks.push({ head: 'LIFTING TACKLES' + (plan.loads.length > 1 ? ' — LOAD ' + (i + 1) : ''), fill: '#d9d9d9', small: true, rows: r.stack.items.map((t, j) => sheetRow(plan, `t${i}.${j}`, String(t.name || '').toUpperCase(), `${t.L ? fmtM(t.L) : '—'} · ${(+t.w || 0).toFixed(2)}T${t.legs > 1 ? ' · ' + t.legs + 'L' : ''}`)) });
+    if (r.tandem && typeof tandemSheetRows === 'function' && on('extra.tandem')) blocks.push({ head: 'TANDEM LIFT' + (plan.loads.length > 1 ? ' — LOAD ' + (i + 1) : ''), fill: '#f0b34a', rows: tandemSheetRows(i, r, (id, label, v) => sheetRow(plan, id, label, v)) });
+    if (r.stack && on('extra.tacklesList')) { // v10: the rows stay (typed-over values, Values on the sheet); the printed schedule is the table made from them (rigging.js)
+      const trows = r.stack.items.map((t, j) => sheetRow(plan, `t${i}.${j}`, String(t.name || '').toUpperCase(), `${t.L ? fmtM(t.L) : '—'} · ${(+t.w || 0).toFixed(2)}T${t.legs > 1 ? ' · ' + t.legs + 'L' : ''}`));
+      blocks.push({ head: 'LIFTING TACKLES' + (plan.loads.length > 1 ? ' — LOAD ' + (i + 1) : ''), fill: '#d9d9d9', small: true, rows: trows, table: typeof rgSchedule === 'function' ? rgSchedule(plan, r, i, (_, j) => trows[j]) : null });
+    }
   });
   const extra = (plan.sheetRows?.custom || []).filter(c => c.sec === 'extra' && (c.label || c.value));
   if (extra.length) blocks.push({ head: 'ADDITIONAL DATA', fill: '#d9d9d9', rows: extra.map(c => ({ id: null, label: String(c.label || '').toUpperCase(), v: String(c.value || '').toUpperCase(), custom: true })) });
@@ -1196,7 +1199,7 @@ function drawTitleBlock(P, plan, calc, settings, scaleTxt) {
   const blocks = sheetBlocks(plan, calc, settings);
   // sign-off box takes what is left (min 26 mm); the tables share the rest evenly
   const signOn = on('extra.signoff'), histOn = on('extra.history');
-  const nRows = blocks.reduce((a, b2) => a + b2.rows.length, 0), nHead = blocks.length;
+  const nRows = blocks.reduce((a, b2) => a + (b2.table ? rgScheduleUnits(b2.table) : b2.rows.length), 0), nHead = blocks.length;
   const dataTop = 31; const histMin = histOn ? 8.6 + 5 * 4.1 + 2 : 0, signMin = signOn ? 28 : 0;
   // top → bottom: data tables, sign-off, notes, drawing history — no gaps: spare room grows rows, then notes, then sign-off, then history rows
   let rh = Math.max(4.2, Math.min(11, (yb - dataTop - histMin - signMin - notesH - 4) / (nRows + nHead * 1.3)));
@@ -1210,6 +1213,7 @@ function drawTitleBlock(P, plan, calc, settings, scaleTxt) {
     P.rect(x, y, w, hh, { fill: bl.fill, stroke: '#000', w: LW2, layer: 'TABLE' });
     cellText(P, x + w / 2, y + hh / 2, bl.head, w - 6, Math.min(7.2, hh * 0.72), { bold: true });
     y += hh;
+    if (bl.table) { y = rgDrawSchedule(P, x, y, w, rh, bl.table); continue; } // the tackle schedule is a table with columns
     for (const { label: a2, v } of bl.rows) {
       P.rect(x, y, w, rh, { fill: 'none', stroke: '#000', w: LW, layer: 'TABLE' });
       P.line(x + lw, y, x + lw, y + rh, { stroke: '#000', w: LW, layer: 'TABLE' });
@@ -1298,7 +1302,8 @@ function buildSheet(plan, calc, settings) {
   const layout = plan.layout || 'chart';
   let scaleInfo = null;
   const crane = calc.crane; const ch = crane.charts?.[plan.chartIdx ?? 0]; const parsed = ch ? getChart(ch) : null;
-  const titleLines = [plan.viewTitle1 || `${crane.cls}T MOBILE CRANE`, plan.viewTitle2 ?? 'ELEVATION VIEW'];
+  const tdA = calc.loads[plan.activeLoad || 0]?.tandem; // v10: a tandem lift is titled as one
+  const titleLines = tdA ? [plan.viewTitle1 || 'TANDEM LIFT — ELEVATION', ...(plan.viewTitle2 ? [plan.viewTitle2] : [])] : [plan.viewTitle1 || `${crane.cls}T MOBILE CRANE`, plan.viewTitle2 ?? 'ELEVATION VIEW'];
   const livery = settings.boomLivery === false ? '' : (settings.boomText || settings.company || '');
   const sel = calc.loads.filter(r => (r.rigI ?? 0) === num(plan.activeCrane, 0)).map(r => ({ ci: r.ci, row: r.capInfo?.row }));
   const ov = plan.outrigger?.enabled && calc.ground;

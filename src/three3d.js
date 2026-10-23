@@ -1,4 +1,4 @@
-// ===== 3D: procedural crane + site (three.js r147). Cinematic night site for the sign-in, live digital twin for the studio =====
+// ===== 3D: realistic cranes built from the same side-view CAD drawings as the 2D elevation (carrier, superstructure, telescoping boom), a calm sign-in scene, and the live 3D twin (three.js r147) =====
 const C3D = {};
 C3D.ok = () => { try { if (typeof THREE === 'undefined') return false; const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } };
 
@@ -39,122 +39,368 @@ C3D.lattice = (len, h, w, mat, opts = {}) => {
 C3D.lines = (color, opacity = 1) => { const l = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: C3D.lin(color), transparent: opacity < 1, opacity })); l.frustumCulled = false; return l; };
 C3D.setLines = (l, pts) => { l.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); l.geometry.computeBoundingSphere(); };
 
+// a "bag" merges many transformed primitives into ONE geometry per material (static crane parts cost a handful of draw calls, not hundreds)
+C3D.bag = () => {
+  const parts = new Map(), mm = new THREE.Matrix4(), nm = new THREE.Matrix3(), v = new THREE.Vector3(), q = new THREE.Quaternion(), eu = new THREE.Euler(), sc = new THREE.Vector3(), ps = new THREE.Vector3();
+  const UB = C3D._ub || (C3D._ub = new THREE.BoxGeometry(1, 1, 1)); const UC = C3D._uc || (C3D._uc = {});
+  const slot = (mat) => { let s = parts.get(mat); if (!s) parts.set(mat, s = { pos: [], nor: [], idx: [], n: 0 }); return s; };
+  const api = {
+    geo(mat, geo, m4) {
+      const s = slot(mat), P = geo.attributes.position, N = geo.attributes.normal, m = m4 || mm.identity(); nm.getNormalMatrix(m);
+      for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(m); s.pos.push(v.x, v.y, v.z); v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); s.nor.push(v.x, v.y, v.z); }
+      if (geo.index) for (let i = 0; i < geo.index.count; i++) s.idx.push(geo.index.getX(i) + s.n); else for (let i = 0; i < P.count; i++) s.idx.push(i + s.n);
+      s.n += P.count; return api;
+    },
+    xf(pos, rot, scl) { ps.set(pos[0], pos[1], pos[2]); eu.set(rot ? rot[0] : 0, rot ? rot[1] : 0, rot ? rot[2] : 0, 'XYZ'); q.setFromEuler(eu); sc.set(scl[0], scl[1], scl[2]); return new THREE.Matrix4().compose(ps, q, sc); },
+    box(mat, size, pos, rot) { return api.geo(mat, UB, api.xf(pos, rot, size)); },
+    // cylinder / cone along an axis ('x' | 'y' | 'z'); r2 = radius at the +axis end when different
+    cyl(mat, r, len, pos, axis = 'y', seg = 16, r2) {
+      const rot = axis === 'x' ? [0, 0, -Math.PI / 2] : axis === 'z' ? [Math.PI / 2, 0, 0] : [0, 0, 0];
+      if (r2 != null && Math.abs(r2 - r) > 1e-6) return api.geo(mat, new THREE.CylinderGeometry(r2, r, len, seg), api.xf(pos, rot, [1, 1, 1]));
+      const g = UC[seg] || (UC[seg] = new THREE.CylinderGeometry(1, 1, 1, seg)); return api.geo(mat, g, api.xf(pos, rot, [r, len, r]));
+    },
+    // extrude a 2-D outline [[x, y], …] (in the x-y plane) from z0 to z1
+    poly(mat, pts, z0, z1, bevel = 0) {
+      if (pts.length < 3 || z1 - z0 < 1e-4) return api; const sh = new THREE.Shape(pts.map(p => new THREE.Vector2(p[0], p[1])));
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: z1 - z0 - 2 * bevel, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1, curveSegments: 8 });
+      geo.translate(0, 0, z0 + bevel); api.geo(mat, geo); geo.dispose(); return api;
+    },
+    lathe(mat, prof, seg, pos, rot) { const geo = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), seg); api.geo(mat, geo, api.xf(pos, rot, [1, 1, 1])); geo.dispose(); return api; },
+    build(parent, o = {}) {
+      const out = []; for (const [mat, s] of parts) {
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(s.pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(s.nor, 3));
+        geo.setIndex(s.n > 65535 ? new THREE.Uint32BufferAttribute(s.idx, 1) : new THREE.Uint16BufferAttribute(s.idx, 1)); geo.computeBoundingSphere();
+        const m = new THREE.Mesh(geo, mat); m.castShadow = o.cast !== false && !mat.userData.noCast; m.receiveShadow = o.receive !== false; parent.add(m); out.push(m); if (o.disp) o.disp.push(geo);
+      } return out;
+    }
+  };
+  return api;
+};
+// soft studio-ish environment for the paint / glass / steel reflections (one small PMREM per renderer)
+C3D.envMap = (r, tone = 'dark') => {
+  const sc = new THREE.Scene(); const L = tone === 'light';
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(50, 24, 12), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false,
+    uniforms: { top: { value: new THREE.Color(...(L ? [0.62, 0.78, 1.0] : [0.16, 0.26, 0.46])) }, hor: { value: new THREE.Color(...(L ? [1.15, 1.05, 0.95] : [0.85, 0.66, 0.5])) }, gnd: { value: new THREE.Color(...(L ? [0.34, 0.32, 0.3] : [0.06, 0.06, 0.07])) } },
+    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
+    fragmentShader: 'uniform vec3 top; uniform vec3 hor; uniform vec3 gnd; varying vec3 vP; void main(){ float h = vP.y; vec3 c = h > 0. ? mix(hor, top, pow(h, 0.55)) : mix(hor, gnd, smoothstep(0., 0.35, -h)); gl_FragColor = vec4(c, 1.); }' }));
+  sc.add(sky);
+  const soft = (x, y, z, w, h, k) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(k, k * 0.97, k * 0.92), side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); sc.add(m); };
+  soft(-22, 26, 18, 26, 14, L ? 5 : 3.2); soft(26, 14, -20, 18, 9, L ? 2.4 : 1.4); soft(0, 40, 0, 20, 20, L ? 1.6 : 0.9);
+  const pm = new THREE.PMREMGenerator(r); const rt = pm.fromScene(sc, 0.035); pm.dispose(); sky.geometry.dispose(); sky.material.dispose(); sc.traverse(o => { if (o.isMesh && o !== sky) { o.geometry.dispose(); o.material.dispose(); } });
+  return rt;
+};
+// free what a crane owns (its geometries, its own materials / textures)
+C3D.disposeCrane = (g) => {
+  if (!g) return; const seen = new Set(); const d = (o) => o && o.traverse && o.traverse((m) => { if (m.geometry && !seen.has(m.geometry) && m.geometry !== C3D._ub) { seen.add(m.geometry); m.geometry.dispose(); } });
+  d(g.root); d(g.hook); d(g.rope); d(g.slings); d(g.load); for (const x of g.disp || []) { try { x.dispose && x.dispose(); } catch {} }
+};
+
+// ---------- profiles: polylines [[x, y], …] sorted by x (a vertical step is two points at the same x) ----------
+C3D.profAt = (pts, x) => { if (x <= pts[0][0]) return pts[0][1]; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i]; if (x <= b[0]) { const dx = b[0] - a[0]; return dx < 1e-9 ? Math.max(a[1], b[1]) : a[1] + (b[1] - a[1]) * (x - a[0]) / dx; } } return pts[pts.length - 1][1]; };
+C3D.profClip = (pts, a, b) => { const o = [[a, C3D.profAt(pts, a)]]; for (const p of pts) if (p[0] > a + 1e-6 && p[0] < b - 1e-6) o.push(p); o.push([b, C3D.profAt(pts, b)]); return o; };
+// Douglas–Peucker on [x, y] points
+C3D.simplify = (pts, tol) => {
+  if (pts.length < 3) return pts.slice(); const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1; const st = [[0, pts.length - 1]];
+  while (st.length) { const [a, b] = st.pop(); let md = 0, mi = -1; const [ax, ay] = pts[a], [bx, by] = pts[b], dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1;
+    for (let i = a + 1; i < b; i++) { const d = Math.abs((pts[i][0] - ax) * dy - (pts[i][1] - ay) * dx) / L; if (d > md) { md = d; mi = i; } }
+    if (md > tol && mi > 0) { keep[mi] = 1; st.push([a, mi], [mi, b]); } }
+  return pts.filter((_, i) => keep[i]);
+};
+
+// ---------- CAD → 3D: the side-view drawing is rasterised once (pure JS, no canvas), its solid silhouette is split into carrier and
+// superstructure, and the outlines the 3D extrudes (carrier top incl. the cab, superstructure top / bottom, tyres) are read off it ----------
+C3D.cadRaster = (dr, res) => {
+  let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
+  for (const it of dr.body) { const fl = it[2]; for (let i = 0; i < fl.length; i += 2) { const x = fl[i], y = fl[i + 1]; if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; } }
+  const x0 = bx0 / 100 - 0.3, y0 = -0.25, W = Math.ceil((bx1 / 100 + 0.3 - x0) / res), H = Math.ceil((by1 / 100 + 0.3 - y0) / res);
+  const E = new Uint8Array(W * H), S = new Uint8Array(W * H);
+  const stamp = (px, py) => { const ix = Math.round(px), iy = Math.round(py); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const X = ix + dx, Y = iy + dy; if (X >= 0 && X < W && Y >= 0 && Y < H) E[Y * W + X] = 1; } };
+  for (const [f, , fl] of dr.body) {
+    const n = fl.length / 2; const px = new Float32Array(n), py = new Float32Array(n);
+    for (let i = 0; i < n; i++) { px[i] = (fl[2 * i] / 100 - x0) / res; py[i] = (fl[2 * i + 1] / 100 - y0) / res; }
+    for (let i = 1; i < n; i++) { const ax = px[i - 1], ay = py[i - 1], bx = px[i], by = py[i]; const st = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) * 1.5)); for (let s = 0; s <= st; s++) stamp(ax + (bx - ax) * s / st, ay + (by - ay) * s / st); }
+    if (f && n > 2) { // even-odd scanline fill
+      let ymin = 1e9, ymax = -1e9; for (let i = 0; i < n; i++) { ymin = Math.min(ymin, py[i]); ymax = Math.max(ymax, py[i]); }
+      for (let iy = Math.max(0, Math.floor(ymin)); iy <= Math.min(H - 1, Math.ceil(ymax)); iy++) { const yy = iy + 0.5, xs = [];
+        for (let i = 0, j = n - 1; i < n; j = i++) { const ay = py[j], by = py[i]; if ((ay <= yy && by > yy) || (by <= yy && ay > yy)) xs.push(px[j] + (yy - ay) / (by - ay) * (px[i] - px[j])); }
+        xs.sort((a, b) => a - b); for (let k = 0; k + 1 < xs.length; k += 2) for (let ix = Math.max(0, Math.round(xs[k])); ix <= Math.min(W - 1, Math.round(xs[k + 1])); ix++) S[iy * W + ix] = 1; }
+    }
+  }
+  for (let i = 0; i < S.length; i++) S[i] |= E[i];
+  // exterior flood → solid = everything the outline encloses
+  const out = new Uint8Array(W * H), stack = new Int32Array(W * H); let sp = 0;
+  const push = (i) => { if (!S[i] && !out[i]) { out[i] = 1; stack[sp++] = i; } };
+  for (let x = 0; x < W; x++) { push(x); push((H - 1) * W + x); } for (let y = 0; y < H; y++) { push(y * W); push(y * W + W - 1); }
+  while (sp) { const i = stack[--sp], x = i % W; if (x > 0) push(i - 1); if (x < W - 1) push(i + 1); if (i >= W) push(i - W); if (i < W * (H - 1)) push(i + W); }
+  let solid = new Uint8Array(W * H); for (let i = 0; i < solid.length; i++) solid[i] = out[i] ? 0 : 1;
+  // opening (2 px): thin antennas, rails and stray lines disappear, bodies stay
+  const sep = (src, r, grow) => { const tmp = new Uint8Array(W * H), dst = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let v = grow ? 0 : 1; for (let k = -r; k <= r; k++) { const X = x + k; const s = X >= 0 && X < W ? src[y * W + X] : 0; if (grow) { if (s) { v = 1; break; } } else if (!s) { v = 0; break; } } tmp[y * W + x] = v; }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let v = grow ? 0 : 1; for (let k = -r; k <= r; k++) { const Y = y + k; const s = Y >= 0 && Y < H ? tmp[Y * W + x] : 0; if (grow) { if (s) { v = 1; break; } } else if (!s) { v = 0; break; } } dst[y * W + x] = v; }
+    return dst; };
+  solid = sep(sep(solid, 2, 0), 2, 1);
+  return { W, H, x0, y0, res, E, solid };
+};
+C3D.cadAnalyse = (dr) => {
+  const res = 0.05, R = C3D.cadRaster(dr, res), { W, H, x0, y0, E, solid } = R;
+  const X = (ix) => x0 + ix * res, Y = (iy) => y0 + iy * res, ix_ = (x) => Math.round((x - x0) / res), iy_ = (y) => Math.round((y - y0) / res);
+  // tyres from the vector data: closed, round-ish, standing on the ground
+  const wh = [];
+  for (const [, , fl] of dr.body) { if (fl.length < 24) continue; let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (let i = 0; i < fl.length; i += 2) { a = Math.min(a, fl[i]); c = Math.max(c, fl[i]); b = Math.min(b, fl[i + 1]); d = Math.max(d, fl[i + 1]); }
+    const w = (c - a) / 100, h = (d - b) / 100; if (b / 100 < 0.3 && w > 0.8 && w < 2.0 && h > 0.9 && h < 1.7) wh.push({ x: (a + c) / 200, r: h / 2 }); }
+  wh.sort((p, q) => p.x - q.x); const wc = []; for (const w of wh) { const l = wc[wc.length - 1]; if (l && Math.abs(l.x - w.x) < 0.4) { l.r = Math.max(l.r, w.r); } else wc.push({ ...w }); }
+  const wr = wc.length ? wc.map(w => w.r).sort((a, b) => a - b)[wc.length >> 1] : 0.7;
+  // the deck: the highest long horizontal edge between the boom-foot height minus 2.5 m and minus 1.45 m, within ±4.5 m of the slew centre (the ring's top)
+  const pvY = dr.pivot[1]; const cnt = (iy) => { let n = 0; for (let ix = ix_(-4.5); ix <= ix_(4.5); ix++) if (E[iy * W + ix]) n++; return n; };
+  let mx = 0; for (let iy = iy_(pvY - 2.5); iy <= iy_(pvY - 1.45); iy++) mx = Math.max(mx, cnt(iy));
+  let deckRow = iy_(pvY - 1.9); for (let iy = iy_(pvY - 1.45); iy >= iy_(pvY - 2.5); iy--) if (cnt(iy) >= mx * 0.9) { deckRow = iy; break; }
+  const deck = Y(deckRow) - 0.03;
+  // carrier extents: columns that are solid just under the deck; the cab is at the longer end
+  let lo = 1e9, hi = -1e9; const rowU = iy_(deck - 0.2); for (let ix = 0; ix < W; ix++) if (solid[rowU * W + ix]) { lo = Math.min(lo, ix); hi = Math.max(hi, ix); }
+  const xa = X(lo), xb = X(hi + 1), sgn = Math.abs(xb) >= Math.abs(xa) ? 1 : -1;
+  // superstructure = the columns around the boom foot that stand tall (>= boom foot - 0.6 m); a raised deck behind a rear cab is lower than that
+  const colTop = new Float32Array(W).fill(-9); for (let ix = 0; ix < W; ix++) for (let iy = H - 1; iy >= 0; iy--) if (solid[iy * W + ix]) { colTop[ix] = Y(iy + 1); break; }
+  let ux0 = ix_(dr.pivot[0]), ux1 = ux0; while (ux0 > 0 && colTop[ux0 - 1] >= pvY - 0.6) ux0--; for (let g = 0, j = ux1; j < W - 1 && g < 1.9 / res; j++) { if (colTop[j + 1] >= pvY - 0.6) { ux1 = j + 1; g = 0; } else g++; }
+  const uTop = new Float32Array(W).fill(-9), uBot = new Float32Array(W).fill(99), r0 = iy_(deck);
+  for (let ix = ux0; ix <= ux1; ix++) { uTop[ix] = colTop[ix]; let b = H; for (let iy = r0 - 2; iy < H; iy++) if (solid[iy * W + ix]) { b = iy; break; } uBot[ix] = Math.max(Y(b), deck - 0.02); }
+  // carrier top profile (carrier frame u, cab at +u): under the superstructure it is the deck; elsewhere the silhouette top
+  const ctop = []; for (let ix = lo; ix <= hi; ix++) { const inUp = ix >= ux0 && ix <= ux1; let t = colTop[ix]; t = inUp ? Math.min(t, deck) : Math.max(Math.min(t, 6), 0.9); ctop.push([sgn * (X(ix) + res / 2), t]); }
+  if (sgn < 0) ctop.reverse();
+  const sample = (a, step) => { const o = []; for (let i = 0; i < a.length; i += step) o.push(a[i]); if (o[o.length - 1] !== a[a.length - 1]) o.push(a[a.length - 1]); return o; };
+  const up = []; for (let ix = ux0; ix <= ux1; ix++) up.push([X(ix) + res / 2, uTop[ix], uBot[ix]]);
+  return { sgn, wheels: wc.map(w => ({ u: sgn * w.x, r: w.r })).sort((p, q) => p.u - q.u), wr, deck,
+    carrier: { u0: sgn > 0 ? X(lo) : -X(hi + 1), u1: sgn > 0 ? X(hi + 1) : -X(lo), top: C3D.simplify(sample(ctop, 2), 0.035) },
+    upper: { x0: X(ux0), x1: X(ux1 + 1), top: C3D.simplify(sample(up.map(p => [p[0], p[1]]), 2), 0.035), bot: C3D.simplify(sample(up.map(p => [p[0], p[2]]), 2), 0.035) } };
+};
+C3D.cadOf = (dr) => dr._c3d || (dr._c3d = C3D.cadAnalyse(dr));
+// axle positions for m axles between the rear end u0 and the cab end u1: a steering group behind the cab, a drive group at the rear
+C3D.axlesFor = (m, u0, u1, truck) => {
+  const f = Math.min(m - 1, Math.max(1, Math.round(m * (truck ? 0.4 : 0.5)))), xs = [];
+  for (let i = 0; i < f; i++) xs.push(u1 - 2.4 - i * 1.65); for (let i = 0; i < m - f; i++) xs.push(u0 + 1.4 + i * 1.65);
+  return xs.sort((a, b) => a - b);
+};
+// the crane's shape in metres, in two frames: the carrier (u runs to the cab, y up) and the superstructure (x runs along the boom, y up).
+// From the CAD side view when there is one — with the axle count set to the crane's (a stretch of plain chassis is added or taken out between the axle groups) — else a procedural body of the same kind.
+C3D.model = (p) => {
+  const W = p.W, m = Math.max(2, Math.round(p.axles || 4)), dr = p.dr && p.dr.v === 2 ? p.dr : null, truck = !!p.truck;
+  const A = dr ? C3D.cadOf(dr) : null; const M = { W, cad: !!A };
+  if (A) {
+    M.wr = A.wheels.length ? A.wr : (truck ? 0.56 : 0.66); M.deck = A.deck;
+    let ws = A.wheels.map(w => w.u), top = A.carrier.top.map(q => q.slice()), u1 = A.carrier.u1; const u0 = A.carrier.u0;
+    if (!ws.length) ws = C3D.axlesFor(m, u0, u1, truck);
+    else if (ws.length !== m) {
+      const gaps = ws.slice(1).map((u, i) => u - ws[i]), srt = gaps.slice().sort((a, b) => a - b), pitch = srt[Math.max(0, Math.floor(srt.length * 0.35))] || 1.65;
+      let gi = -1; gaps.forEach((gp, i) => { if (ws[i] > -1 && (gi < 0 || gp > gaps[gi])) gi = i; }); if (gi < 0) gi = gaps.length - 1;
+      const uc = (ws[gi] + ws[gi + 1]) / 2; let d = m - ws.length, s;
+      if (d > 0) { const nw = ws.slice(0, gi + 1); for (let k = 1; k <= d; k++) nw.push(ws[gi] + pitch * k); s = d * pitch; ws = nw.concat(ws.slice(gi + 1).map(u => u + s)); }
+      else { d = Math.min(-d, gi); s = -d * pitch; ws = ws.slice(0, gi + 1 - d).concat(ws.slice(gi + 1).map(u => u + s)); }
+      if (Math.abs(s) > 1e-6) { // the same shift in the outline: a flat strip is opened up (or cut out) at the cut
+        const y = (u) => C3D.profAt(top, u), nt = []; for (const q of top) if (q[0] < uc + Math.min(0, s) - 1e-6) nt.push(q);
+        if (s > 0) nt.push([uc, y(uc)], [uc + s, y(uc)]); else nt.push([uc + s, y(uc + s)], [uc + s, y(uc)]); for (const q of top) if (q[0] >= uc) nt.push([q[0] + s, q[1]]); top = nt; u1 += s; }
+    }
+    M.axles = ws; M.ctop = top; M.u0 = u0; M.u1 = u1;
+    M.up = { x0: A.upper.x0, x1: A.upper.x1, top: A.upper.top.map(q => q.slice()), bot: A.upper.bot.map(q => q.slice()) }; M.pivX = dr.pivot[0]; M.pivY = dr.pivot[1];
+  } else {
+    const Lc = p.Lc || 15, deck = truck ? 1.7 : 1.9, wr = truck ? 0.56 : 0.66, u0 = -Math.min(5.2, Lc * 0.33), u1 = u0 + Lc, cabL = truck ? 2.3 : 2.6, roof = truck ? 3.2 : 3.35;
+    M.wr = wr; M.deck = deck; M.u0 = u0; M.u1 = u1; M.axles = C3D.axlesFor(m, u0, u1, truck);
+    M.ctop = [[u0, deck + 0.25], [u0 + 0.5, deck + 0.25], [u0 + 0.5, deck], [u1 - cabL, deck], [u1 - cabL, roof - 0.1], [u1 - cabL + 0.1, roof], [u1 - 0.95, roof], [u1 - 0.3, roof - 0.75], [u1 - 0.06, 1.55], [u1, 1.0]];
+    const tail = Math.max(3, p.tail || 5), x0 = -tail + 0.3, cwt = Math.max(5, p.cwt || 30), cwW = Math.min(3.2, 1.2 + cwt / 55), cwH = Math.min(3.4, 0.9 + cwt / 32); M.pivX = p.pivX ?? -1.5; M.pivY = p.pivH || 3.2;
+    const xc = x0 + cwW, xCab = M.pivX + 1.6, x1 = M.pivX + 4.1, body = Math.min(M.pivY - 0.3, deck + 2.3), roofU = deck + 2.9;
+    M.up = { x0, x1, top: [[x0, deck + 0.6], [x0 + 0.12, deck + cwH], [xc, deck + cwH], [xc, body], [xCab, body], [xCab, roofU - 0.1], [xCab + 0.1, roofU], [x1 - 0.8, roofU], [x1 - 0.15, roofU - 0.8], [x1, deck + 1.5]], bot: [[x0, deck], [x1, deck]] };
+  }
+  return M;
+};
+
 // ---------- the crane ----------
+// telescopic section: an octagonal prism along +x, length 1 (scaled to the section's length), depth d (y), width w (z)
+C3D.prismX = (w, d, ch) => {
+  const hy = d / 2, hz = w / 2, c = Math.min(ch, hy * 0.9, hz * 0.9);
+  const ring = [[hy - c, hz], [hy, hz - c], [hy, -(hz - c)], [hy - c, -hz], [-(hy - c), -hz], [-hy, -(hz - c)], [-hy, hz - c], [-(hy - c), hz]];
+  const pos = [], nor = [], idx = []; let n = 0;
+  const tri = (a, b, c2, nn) => { const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ac = [c2[0] - a[0], c2[1] - a[1], c2[2] - a[2]]; const cx = ab[1] * ac[2] - ab[2] * ac[1], cy = ab[2] * ac[0] - ab[0] * ac[2], cz = ab[0] * ac[1] - ab[1] * ac[0];
+    const flip = cx * nn[0] + cy * nn[1] + cz * nn[2] < 0; const vs = flip ? [a, c2, b] : [a, b, c2]; for (const v of vs) { pos.push(...v); nor.push(...nn); idx.push(n++); } };
+  for (let i = 0; i < 8; i++) { const [y1, z1] = ring[i], [y2, z2] = ring[(i + 1) % 8]; let ny = z2 - z1, nz = -(y2 - y1); if (ny * (y1 + y2) + nz * (z1 + z2) < 0) { ny = -ny; nz = -nz; } const l = Math.hypot(ny, nz); ny /= l; nz /= l;
+    const A = [0, y1, z1], B = [1, y1, z1], C = [1, y2, z2], D = [0, y2, z2]; tri(A, B, C, [0, ny, nz]); tri(A, C, D, [0, ny, nz]); }
+  for (const x of [0, 1]) for (let i = 0; i < 8; i++) { const [y1, z1] = ring[i], [y2, z2] = ring[(i + 1) % 8]; tri([x, 0, 0], [x, y1, z1], [x, y2, z2], [x ? 1 : -1, 0, 0]); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setIndex(idx); g.computeBoundingSphere(); return g;
+};
+// hook block (origin: 0.95 m above the hook's bill, which is where the slings pick up; the sheaves are at the top)
+C3D.hookBlock = (g, mats, nS, wB, hTop) => {
+  const b = C3D.bag(), R1 = Math.max(0.26, Math.min(0.62, wB * 0.46)), zc = 0.07 + nS * 0.055, cy = hTop - R1;
+  const arc = []; for (let i = 0; i <= 14; i++) { const a = Math.PI * i / 14; arc.push([Math.cos(a) * R1, cy + Math.sin(a) * R1]); }
+  const cheek = arc.concat([[-0.2, -0.1], [0.2, -0.1]]);
+  for (const s of [-1, 1]) b.poly(mats.cheek, cheek, s * zc - 0.022, s * zc + 0.022, 0.006);
+  for (let i = 0; i < nS; i++) b.cyl(mats.steel, R1 * 0.84, 0.075, [0, cy, (i - (nS - 1) / 2) * 0.115], 'z', 22);
+  b.cyl(mats.steel, 0.07, 2 * zc + 0.2, [0, cy, 0], 'z', 10);
+  b.box(mats.stripe, [Math.max(0.55, wB * 0.78), 0.46, 2 * zc + 0.06], [0, -0.12, 0]);
+  b.cyl(mats.steel, 0.08, 0.34, [0, -0.46, 0], 'y', 10);
+  b.cyl(mats.steel, 0.13, 0.1, [0, -0.3, 0], 'y', 14);
+  const hk = new THREE.TorusGeometry(0.2, 0.062, 8, 22, Math.PI * 1.45); b.geo(mats.steel, hk, b.xf([0, -0.72, 0], [0, 0, Math.PI * 0.8], [1, 1, 1])); hk.dispose();
+  b.box(mats.steel, [0.035, 0.2, 0.05], [0.1, -0.52, 0], [0, 0, -0.5]);
+  const grp = new THREE.Group(); b.build(grp, { disp: g.disp }); return grp;
+};
 C3D.buildCrane = (p) => {
-  const g = {}; const root = new THREE.Group(); g.root = root;
-  const paint = C3D.mat({ color: p.paint || '#f5c400', metalness: 0.3, roughness: 0.42 });
-  const paintDk = C3D.mat({ color: '#' + new THREE.Color(p.paint || '#f5c400').multiplyScalar(0.74).getHexString(), metalness: 0.3, roughness: 0.5 });
-  const steel = C3D.mat({ color: '#2b2f34', metalness: 0.6, roughness: 0.5 });
-  const cw = C3D.mat({ color: '#3a3e43', metalness: 0.4, roughness: 0.65 });
-  const glass = C3D.mat({ color: '#0e1b28', metalness: 0.9, roughness: 0.08, emissive: '#10324a', emissiveIntensity: 0.5 });
-  const tyre = C3D.mat({ color: '#141414', metalness: 0.1, roughness: 0.92 });
-  const chrome = C3D.mat({ color: '#d4d8dc', metalness: 0.95, roughness: 0.18 });
-  const wood = C3D.mat({ color: '#6b5232', metalness: 0, roughness: 0.95 });
-  const lat = C3D.mat({ color: p.paint || '#f5c400', metalness: 0.4, roughness: 0.45 });
-  g.mats = { paint, paintDk, steel, cw, glass, tyre, chrome, lat };
-  const Lc = p.Lc || 15, W = p.W || 2.9, deck = p.truck ? 1.7 : 1.9, tr = p.truck ? 0.56 : 0.66, lift = 0.12;
-  const xr = -Lc * 0.55, xf = Lc * 0.45;
-  // carrier
-  C3D.box(Lc, 0.85, W - 0.5, steel, (xr + xf) / 2, 1.25, 0, root);
-  C3D.box(Lc - 0.4, 0.38, W, paint, (xr + xf) / 2, deck - 0.19, 0, root);
-  C3D.box(2.3, p.truck ? 1.7 : 1.35, W, paint, xf - 1.15, deck + (p.truck ? 0.85 : 0.67), 0, root);
-  C3D.box(0.08, p.truck ? 1.0 : 0.8, W - 0.3, glass, xf + 0.01, deck + (p.truck ? 1.05 : 0.8), 0, root);
-  C3D.box(1.6, 0.6, 0.04, glass, xf - 1.1, deck + (p.truck ? 1.15 : 0.9), W / 2 + 0.01, root);
-  C3D.box(1.6, 0.6, 0.04, glass, xf - 1.1, deck + (p.truck ? 1.15 : 0.9), -W / 2 - 0.01, root);
-  const ax = Math.max(2, p.axles || 4); const front = Math.min(ax - 1, Math.max(1, Math.round(ax * (p.truck ? 0.4 : 0.5))));
-  const xs = []; for (let i = 0; i < front; i++) xs.push(xf - 2.4 - i * 1.65); for (let i = 0; i < ax - front; i++) xs.push(xr + 1.4 + i * 1.65);
-  const wg = new THREE.CylinderGeometry(tr, tr, 0.6, 28); wg.rotateX(Math.PI / 2); const hg = new THREE.CylinderGeometry(tr * 0.5, tr * 0.5, 0.62, 18); hg.rotateX(Math.PI / 2);
-  for (const x of xs) for (const z of [-(W / 2 - 0.3), W / 2 - 0.3]) { const w = new THREE.Mesh(wg, tyre); w.position.set(x, tr + lift, z); w.castShadow = true; root.add(w); const hh = new THREE.Mesh(hg, steel); hh.position.copy(w.position); root.add(hh); }
-  const oT0 = (p.outT || 7) / 2, oL = (p.outL || 7) / 2;
-  for (const x of [oL, -oL]) for (const s of [-1, 1]) {
-    const oT = s < 0 ? (p.oTL ?? oT0) : (p.oTR ?? oT0); // this side's reach: left = −z (full or half out)
-    const beamL = oT - W / 2 + 0.3; C3D.box(0.5, 0.42, beamL, paintDk, x, 1.3, s * (W / 2 + beamL / 2 - 0.3), root);
-    const j = C3D.cyl(0.13, 0.13, 1.0, chrome); j.position.set(x, 0.85, s * (oT - 0.2)); root.add(j);
-    C3D.box(0.55, 0.75, 0.55, paintDk, x, 1.55, s * (oT - 0.2), root);
-    C3D.box(0.85, 0.18, 0.85, steel, x, 0.29, s * (oT - 0.2), root);
-    C3D.box(p.mat || 1.6, 0.2, p.mat || 1.6, wood, x, 0.1, s * (oT - 0.2), root);
+  const g = { disp: [] }; const own = (x) => (g.disp.push(x), x); const root = new THREE.Group(); g.root = root;
+  const M = C3D.model(p), W = M.W, wr = M.wr, deck = M.deck, lift = 0.12, dr = M.cad ? p.dr : null; g.M = M; g.cad = !!dr;
+  const col = p.paint || '#f5c400', mat = (o) => own(C3D.mat(o));
+  const paint = mat({ color: col, metalness: 0.1, roughness: 0.38, envMapIntensity: 0.55 });
+  const paintDk = mat({ color: '#' + new THREE.Color(col).multiplyScalar(0.66).getHexString(), metalness: 0.15, roughness: 0.5, envMapIntensity: 0.5 });
+  const steel = mat({ color: '#31353b', metalness: 0.6, roughness: 0.46 });
+  const frame = mat({ color: '#1b1e22', metalness: 0.3, roughness: 0.72 });
+  const cw = mat({ color: '#464b52', metalness: 0.32, roughness: 0.58 });
+  const glass = mat({ color: '#0a141d', metalness: 0.95, roughness: 0.05, envMapIntensity: 1.6 });
+  const tyre = mat({ color: '#0f1011', metalness: 0, roughness: 0.96 });
+  const rim = mat({ color: '#c6ccd2', metalness: 0.9, roughness: 0.3 });
+  const chrome = mat({ color: '#d4d8dc', metalness: 0.95, roughness: 0.16 });
+  const wood = mat({ color: '#6b5232', metalness: 0, roughness: 0.95 });
+  const lampW = own(C3D.basic({ color: '#fff3d2' })), lampR = own(C3D.basic({ color: '#b01818' })), lampA = own(C3D.basic({ color: '#ffa81c' }));
+  const stripe = own(new THREE.MeshStandardMaterial({ map: own(C3D.stripeTex()), metalness: 0.2, roughness: 0.5 }));
+  g.mats = { paint, paintDk, steel, cw, glass, tyre, chrome, lat: mat({ color: col, metalness: 0.3, roughness: 0.45 }), frame };
+  // ---------- carrier ----------
+  const car = C3D.bag(), top = M.ctop, u0 = M.u0, u1 = M.u1, Wb = W - 0.2, trk = W / 2 - 0.3, yc = wr + lift;
+  car.box(frame, [u1 - u0 - 1.6, Math.max(0.2, deck - 0.5 - 0.6), 0.95], [(u0 + u1) / 2 - 0.4, (0.6 + deck - 0.5) / 2, 0]);
+  const R = wr, rimR = R * 0.58;
+  const tyreG = new THREE.LatheGeometry([[rimR, -0.2], [R - 0.14, -0.225], [R - 0.045, -0.205], [R - 0.012, -0.15], [R, -0.1], [R, 0.1], [R - 0.012, 0.15], [R - 0.045, 0.205], [R - 0.14, 0.225], [rimR, 0.2]].map(q => new THREE.Vector2(q[0], q[1])), 26);
+  const rimG = new THREE.LatheGeometry([[rimR, 0.1], [rimR, 0.2], [rimR * 0.92, 0.2], [rimR * 0.86, 0.17], [rimR * 0.36, 0.17], [rimR * 0.36, 0.228], [0, 0.228]].map(q => new THREE.Vector2(q[0], q[1])), 22);
+  for (const u of M.axles) {
+    car.cyl(steel, 0.1, 2 * trk, [u, yc, 0], 'z', 10); car.cyl(steel, 0.27, 0.5, [u, yc, 0], 'z', 12);
+    for (const s of [-1, 1]) { const m4 = car.xf([u, yc, s * trk], [s * Math.PI / 2, 0, 0], [1, 1, 1]); car.geo(tyre, tyreG, m4); car.geo(rim, rimG, m4); }
   }
-  // superstructure (slews)
-  const up = new THREE.Group(); up.position.set(0, deck, 0); root.add(up); g.upper = up;
-  const ring = C3D.cyl(1.35, 1.35, 0.25, steel, 32); ring.position.y = 0.12; up.add(ring);
-  const tail = p.tail || 5, px = p.pivX ?? -1.5, ph = (p.pivH || 3.2) - deck; g.px = px; g.ph = ph; g.tail = tail;
-  C3D.box(tail + px + 2.2, 0.8, W - 0.2, paint, (-tail + px + 2.2) / 2 + 0.2, 0.62, 0, up);
-  const cwt = Math.max(5, p.cwt || 30), cwW = Math.min(3.2, 1.2 + cwt / 55), cwH = Math.min(3.4, 0.9 + cwt / 32);
-  for (let y = 0.4; y < 0.4 + cwH - 0.05; y += 0.42) C3D.box(cwW, Math.min(0.4, 0.4 + cwH - y), W + 0.25, cw, -tail + cwW / 2, y + 0.2, 0, up);
-  C3D.box(Math.max(1, -px - cwW + tail - 1.2), 1.15, W - 0.4, paint, (-tail + cwW + px - 0.3) / 2, 1.45, 0, up);
-  const drum = C3D.cyl(0.55, 0.55, W - 0.6, steel, 24); drum.rotation.x = Math.PI / 2; drum.position.set(-tail + cwW + 0.9, 1.5, 0); up.add(drum);
-  const ocab = new THREE.Group(); ocab.position.set(px + 1.25, 0.6, -(W / 2 - 0.55)); up.add(ocab);
-  C3D.box(1.9, 2.0, 1.0, paint, 0, 1.0, 0, ocab); C3D.box(0.06, 1.2, 0.85, glass, 0.96, 1.25, 0, ocab); C3D.box(1.5, 1.1, 0.04, glass, 0.05, 1.3, -0.51, ocab);
-  C3D.box(1.4, ph + 0.2, 0.25, paintDk, px, (ph + 0.2) / 2 + 0.3, 0.75, up); C3D.box(1.4, ph + 0.2, 0.25, paintDk, px, (ph + 0.2) / 2 + 0.3, -0.75, up);
-  // telescopic boom
-  const boom = new THREE.Group(); boom.position.set(px, ph, 0); up.add(boom); g.boom = boom;
-  const D = p.D || 1.4; const qc = p.qc != null ? p.qc : -0.3 * D; g.D = D; g.qc = qc;
-  g.secs = []; const n = p.n || 5;
-  for (let i = 0; i < n; i++) {
-    const d = D * Math.pow(0.88, i), w = d * 0.78; const m = i % 2 ? paintDk : paint;
-    const geo = new THREE.BoxGeometry(1, d, w); geo.translate(0.5, 0, 0);
-    const sec = new THREE.Mesh(geo, m); sec.castShadow = sec.receiveShadow = true; sec.position.y = qc; boom.add(sec);
-    const col = new THREE.Mesh(new THREE.BoxGeometry(0.5, d * 1.06, w * 1.06), steel); col.castShadow = true; col.position.y = qc; if (i < n - 1) boom.add(col);
-    g.secs.push({ sec, col, d, w });
+  tyreG.dispose(); rimG.dispose();
+  // body: the CAD outline from the cab to the tail, bottom cut away over the tyres
+  const flatBot = (t) => (t > 3.0 ? 0.85 : Math.max(0.95, Math.min(t - 0.5, deck - 0.5)));
+  const bot = []; for (let u = u1; u >= u0 - 1e-6; u -= 0.1) { const t = C3D.profAt(top, u); let b = flatBot(t); for (const a of M.axles) { const ra = wr + 0.1, du = u - a; if (Math.abs(du) < ra) b = Math.max(b, yc + Math.sqrt(ra * ra - du * du)); } bot.push([u, Math.min(b, t - 0.07)]); }
+  car.poly(paint, top.concat(bot), -Wb / 2, Wb / 2, 0.025);
+  // cab
+  const roof = Math.max(C3D.profAt(top, u1 - 0.8), C3D.profAt(top, u1 - 1.3), C3D.profAt(top, u1 - 2.0)), sill = Math.max(roof - 1.2, 1.35); let cabBack = u1 - 2.4;
+  for (let u = u1 - 1.2; u > u1 - 3.4; u -= 0.05) if (C3D.profAt(top, u) < roof - 0.3) { cabBack = u; break; }
+  { const wp = [], xa = cabBack + 0.14, xb = u1 - 0.1; wp.push([xa, sill]); for (let u = xa; u <= xb; u += 0.08) wp.push([u, Math.min(C3D.profAt(top, u) - 0.12, roof - 0.12)]); wp.push([xb, Math.min(C3D.profAt(top, xb) - 0.12, roof - 0.12)], [xb, sill]);
+    const win = wp.filter((q, i) => q[1] > sill + 0.1 || i === 0 || i === wp.length - 1); car.poly(glass, win, Wb / 2 - 0.01, Wb / 2 + 0.018); car.poly(glass, win, -Wb / 2 - 0.018, -Wb / 2 + 0.01);
+    let uA = u1; for (let u = u1 - 0.1; u > cabBack; u -= 0.05) if (C3D.profAt(top, u) >= roof - 0.2) { uA = u; break; } let uB = uA; for (let u = uA; u <= u1; u += 0.03) { uB = u; if (C3D.profAt(top, u) <= sill + 0.1) break; }
+    const ya = C3D.profAt(top, uA) - 0.12, yb = Math.max(sill, C3D.profAt(top, uB)), dx = uB - uA, dy = yb - ya, L = Math.hypot(dx, dy);
+    if (L > 0.3) { const nx = -dy / L, ny = dx / L; car.box(glass, [L, 0.03, Wb - 0.5], [(uA + uB) / 2 + nx * 0.018, (ya + yb) / 2 + ny * 0.018, 0], [0, 0, Math.atan2(dy, dx)]); } }
+  for (const s of [-1, 1]) car.box(lampW, [0.05, 0.16, 0.36], [u1 - 0.035, 1.12, s * (Wb / 2 - 0.4)]);
+  car.box(frame, [0.28, 0.26, Wb - 0.05], [u1 - 0.12, 0.8, 0]);
+  { const yr = Math.max(1.2, C3D.profAt(top, u0 + 0.05) - 0.4); for (const s of [-1, 1]) car.box(lampR, [0.05, 0.18, 0.3], [u0 + 0.025, yr, s * (Wb / 2 - 0.3)]); }
+  car.cyl(lampA, 0.1, 0.12, [cabBack + (u1 - cabBack) * 0.45, roof + 0.06, 0], 'y', 8);
+  // outriggers: transverse boxes, two-stage beams out to the real spread (full or half, each side), jacks, pads and the timber mats
+  const ouf = (p.outEx || 0) + (p.outL || 7) / 2, our = (p.outEx || 0) - (p.outL || 7) / 2, spanL = p.oTL ?? (p.outT || 7) / 2, spanR = p.oTR ?? (p.outT || 7) / 2, mw = p.mat || 1.6;
+  for (const u of [ouf, our]) {
+    car.box(paintDk, [0.8, 0.55, W - 0.35], [u, 0.98, 0]);
+    for (const s of [-1, 1]) { const span = s < 0 ? spanL : spanR, z0 = s * (W / 2 - 0.25), zp = s * span, len = Math.abs(zp - z0);
+      if (len > 0.2) { const l1 = len * 0.55, l2 = len - l1 + 0.3; car.box(paintDk, [0.52, 0.5, l1], [u, 0.98, z0 + s * l1 / 2]); car.box(steel, [0.4, 0.4, l2], [u, 0.98, z0 + s * (l1 + l2 / 2 - 0.3)]); }
+      car.box(paintDk, [0.56, 0.62, 0.56], [u, 1.18, zp]); car.cyl(chrome, 0.1, 0.64, [u, 0.58, zp], 'y', 10); car.box(steel, [0.9, 0.14, 0.9], [u, 0.22, zp]); car.box(wood, [mw, 0.16, mw], [u, 0.08, zp]); }
   }
+  car.build(root, { disp: g.disp });
+  // ---------- superstructure (slews) ----------
+  const up = new THREE.Group(); up.position.set(0, deck, 0); root.add(up); g.upper = up; g.px = M.pivX; g.ph = M.pivY - deck;
+  const U = C3D.bag(), Wu = W - 0.5, uT = M.up.top.map(q => [q[0], q[1] - deck]), uB = M.up.bot.map(q => [q[0], q[1] - deck]), x0 = M.up.x0, x1 = M.up.x1, tA = (x) => C3D.profAt(uT, x);
+  U.cyl(steel, 1.5, 0.3, [0, 0.15, 0], 'y', 32); U.cyl(frame, 1.2, 0.3, [0, -0.15, 0], 'y', 24);
+  const region = (a, b, capY, floorY) => { const t = C3D.profClip(uT, a, b).map(q => [q[0], Math.max(Math.min(q[1], capY), C3D.profAt(uB, q[0]) + 0.05)]), bt = C3D.profClip(uB, a, b).map(q => [q[0], Math.max(q[1], floorY)]); return t.concat(bt.reverse()); };
+  // counterweight: the tall plateau at the tail, as stacked slabs (fewer slabs with a lighter counterweight)
+  let xc = x0 + 0.4; const cwTop = tA(x0 + 0.3); while (xc < x0 + 4.6 && Math.abs(tA(xc + 0.1) - cwTop) < 0.3) xc += 0.1; xc = Math.min(Math.max(xc, x0 + 1.2), x1 - 3.0);
+  const cwR = Math.max(0.25, Math.min(1, p.cwtR ?? 1)), cwB = Math.max(...uB.filter(q => q[0] < xc).map(q => q[1])), cwCap = cwB + (cwTop - cwB) * (0.5 + 0.5 * cwR);
+  U.poly(cw, region(x0, xc, cwCap, 0), -(W - 0.3) / 2, (W - 0.3) / 2, 0.02);
+  for (let y = cwB + 0.55; y < cwCap - 0.2; y += 0.55) { let xl = x0; while (xl < xc && tA(xl) < y) xl += 0.05; U.box(frame, [xc - xl, 0.035, W - 0.3 + 0.03], [(xl + xc) / 2, y, 0]); }
+  // body, then the front: the lower deck at full width and the operator's cab beside the boom
+  const xCab = Math.max(M.pivX + 1.6, x1 - 2.2), sillU = 0.95;
+  U.poly(paint, region(xc, xCab, 99, 0), -Wu / 2, Wu / 2, 0.025);
+  U.poly(paint, region(xCab, x1, sillU, 0), -Wu / 2, Wu / 2, 0.025);
+  { const ct = C3D.profClip(uT, xCab, x1); if (Math.max(...ct.map(q => q[1])) > sillU + 0.4) { const cp = ct.map(q => [q[0], Math.max(q[1], sillU + 0.05)]).concat([[x1, sillU], [xCab, sillU]]); const cwid = 1.35, zc0 = -Wu / 2, zc1 = zc0 + cwid; U.poly(paint, cp, zc0, zc1, 0.025);
+      const cx = (xCab + x1) / 2, cyy = (Math.max(...ct.map(q => q[1])) + sillU) / 2, win = cp.map(q => [cx + (q[0] - cx) * 0.8, cyy + (q[1] - cyy) * 0.7]); U.poly(glass, win, zc0 - 0.015, zc0 + 0.012); U.poly(glass, win, zc1 - 0.012, zc1 + 0.015);
+      const fa = ct[ct.length - 1], ym = Math.max(...ct.map(q => q[1])), fb = ct.slice().reverse().find(q => q[1] >= ym - 0.12) || fa; if (fa && fb && x1 - fb[0] > 0.1 && fb[1] - fa[1] > 0.3) { const dx = x1 - fb[0], dy = fa[1] - fb[1], L = Math.hypot(dx, dy); if (L > 0.3) U.box(glass, [L, 0.03, cwid - 0.15], [(x1 + fb[0]) / 2 + (-dy / L) * 0.02, (fa[1] + fb[1]) / 2 + (dx / L) * 0.02, (zc0 + zc1) / 2], [0, 0, Math.atan2(dy, dx)]); } } }
+  // boom foot: cheek plates and pin
+  const bw = 0.9 * (p.D || 1.4), pvl = g.ph; for (const s of [-1, 1]) U.box(paintDk, [0.7, 1.1, 0.12], [M.pivX + 0.25, pvl - 0.15, s * (bw / 2 + 0.16)]);
+  U.cyl(steel, 0.11, bw + 0.6, [M.pivX, pvl, 0], 'z', 12);
+  U.build(up, { disp: g.disp });
+  // ---------- telescopic boom ----------
+  const boom = new THREE.Group(); boom.position.set(M.pivX, pvl, 0); up.add(boom); g.boom = boom;
+  const secs = [], n = p.n || 5; let tipN = 0, tipR = 0.35;
+  if (dr) {
+    const bs = baseSectionInfo(dr); let prev = null;
+    dr.secs.forEach((s, i) => { let d = i === 0 ? bs.qb - bs.qa : s.n1 - s.n0, q = i === 0 ? (bs.qa + bs.qb) / 2 : (s.n0 + s.n1) / 2; if (prev) { d = Math.min(d, prev.d * 0.97); } if (i === dr.secs.length - 1) { d = prev.d * 0.94; q = prev.q; } secs.push({ s0: s.s0, len: s.s1 - s.s0, d, q }); prev = secs[secs.length - 1]; });
+    tipN = dr.tip[1]; tipR = dr.tipR || 0.3; g.D = secs[0].d; g.qc = secs[0].q;
+  } else {
+    const D = p.D || 1.4, qc = p.qc != null ? p.qc : -0.3 * D; g.D = D; g.qc = qc;
+    for (let i = 0; i < n; i++) secs.push({ s0: 0, len: 1, d: D * Math.pow(0.88, i), q: qc }); tipN = qc; tipR = Math.max(0.28, D * 0.28);
+  }
+  g.secs = []; g.drSecs = secs; g.tipN = tipN; g.tipR = tipR;
+  secs.forEach((s, i) => {
+    const w = s.d * 0.88, geo = own(C3D.prismX(w, s.d, Math.min(w, s.d) * 0.2)); const sec = new THREE.Mesh(geo, paint); sec.castShadow = sec.receiveShadow = true; sec.position.y = s.q; boom.add(sec);
+    let colr = null; if (i < n - 1) { colr = new THREE.Mesh(C3D._ub, steel); colr.castShadow = true; colr.scale.set(0.42, s.d * 1.05, w * 1.05); colr.position.y = s.q; boom.add(colr); }
+    g.secs.push({ sec, col: colr, d: s.d, w });
+  });
   if (p.livery) { // company lettering on both faces of the base section
-    const tex = C3D.textTex(p.livery, { color: C3D.lum(p.paint || '#f5c400') > 0.55 ? '#111111' : '#ffffff' });
-    const lm = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+    const tex = own(C3D.textTex(p.livery, { color: C3D.lum(p.paint || '#f5c400') > 0.55 ? '#111111' : '#ffffff' }));
+    const lm = own(new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
     g.letters = [1, -1].map((s) => { const pl = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.125), lm); if (s < 0) pl.rotation.y = Math.PI; boom.add(pl); return { pl, s }; });
   }
-  const headM = new THREE.Group(); boom.add(headM); g.head = headM;
-  C3D.box(1.2, D * 0.7, D * 0.6, paintDk, 0.3, qc * 0.4, 0, headM);
-  for (const z of [-0.18, 0.18]) { const sh = C3D.cyl(0.42, 0.42, 0.14, steel, 24); sh.rotation.x = Math.PI / 2; sh.position.set(0.9, 0, z); headM.add(sh); }
-  g.cylA = new THREE.Vector3(px + 2.2, 0.85, 0); g.barrel = C3D.cyl(D * 0.17, D * 0.17, 1, paintDk); g.rod = C3D.cyl(D * 0.09, D * 0.09, 1, chrome); up.add(g.barrel); up.add(g.rod);
-  // hook, rope, slings and load hang in world space
-  const hook = new THREE.Group(); g.hook = hook;
-  const stripe = new THREE.MeshStandardMaterial({ map: C3D.stripeTex(), metalness: 0.3, roughness: 0.5 });
-  C3D.box(0.9, 1.05, 0.55, stripe, 0, 0, 0, hook);
-  for (const z of [-0.2, 0.2]) { const sh = C3D.cyl(0.32, 0.32, 0.1, steel, 18); sh.rotation.x = Math.PI / 2; sh.position.set(0, 0.25, z); hook.add(sh); }
-  const hk = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.07, 10, 24, Math.PI * 1.45), steel); hk.position.set(0, -0.85, 0); hk.rotation.z = Math.PI * 0.8; hook.add(hk);
-  const sh2 = C3D.cyl(0.07, 0.07, 0.35, steel); sh2.position.set(0, -0.6, 0); hook.add(sh2);
-  g.rope = C3D.lines('#151515'); g.slings = C3D.lines('#d13b2a');
-  g.load = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), C3D.mat({ color: '#9aa1a8', metalness: 0.1, roughness: 0.85 })); g.load.castShadow = g.load.receiveShadow = true;
-  // accessories (built lazily)
-  g.acc = { sl: null, yg: null, run: null, guy: C3D.lines('#1a1a1a') }; up.add(g.acc.guy);
-  g.jib = null;
-  g.p = p; g.state = { theta: 55, slew: 0, fr: Array(n - 1).fill(0.4), L: null, hookY: null, loadSize: [3, 1.5, 2], jib: null, acc: {} };
+  // boom head: housing, nose and the head sheaves
+  const headM = new THREE.Group(); boom.add(headM); g.head = headM; { const H = C3D.bag(), last = g.secs[g.secs.length - 1], hw = last.w + 0.16, nS = Math.min(3, Math.max(1, Math.round((p.falls || 4) / 2))); g.nSh = nS;
+    H.box(paintDk, [1.1, last.d * 0.96 + 0.1, hw], [-0.45, secs[secs.length - 1].q - tipN, 0]); H.cyl(paintDk, tipR + 0.2, hw, [0, 0, 0], 'z', 20);
+    for (let i = 0; i < nS; i++) H.cyl(steel, tipR, 0.1, [0, 0, (i - (nS - 1) / 2) * 0.17], 'z', 22);
+    H.cyl(chrome, 0.07, hw + 0.12, [0, 0, 0], 'z', 8); H.box(paintDk, [0.5, 0.2, hw * 0.7], [0.15, tipR + 0.25, 0]); H.build(headM, { disp: g.disp }); }
+  // luffing cylinder: barrel pinned to the superstructure, rod to the boom
+  g.cylA = dr ? new THREE.Vector3(dr.cyl.C[0], dr.cyl.C[1] - deck, 0) : new THREE.Vector3(M.pivX + 2.2, 0.85, 0); g.cylB = dr ? dr.cyl.B : null;
+  g.barrel = C3D.cyl(g.D * 0.15, g.D * 0.15, 1, paintDk); g.rod = C3D.cyl(g.D * 0.085, g.D * 0.085, 1, chrome); up.add(g.barrel); up.add(g.rod);
+  // hook block, rope, slings and the load hang in world space
+  const nF = Math.max(2, Math.min(16, Math.round(p.falls || 4))); g.nF = nF; const nS2 = Math.max(1, Math.min(5, Math.ceil(nF / 2)));
+  g.hookTop = dr && dr.hook ? Math.max(0.5, Math.min(1.5, dr.hook.h * 0.8 - 0.95)) : 0.5; const wB = dr && dr.hook ? dr.hook.w : 0.7;
+  const cheek = mat({ color: '#e0b000', metalness: 0.3, roughness: 0.5 });
+  const hook = new THREE.Group(); g.hook = hook; hook.add(C3D.hookBlock(g, { cheek, steel, stripe }, nS2, wB, g.hookTop));
+  g.rope = C3D.lines('#17181a'); g.slings = new THREE.Group(); g.slingMat = own(new THREE.MeshStandardMaterial({ color: C3D.lin('#d13b2a'), roughness: 0.7, metalness: 0.05 }));
+  g.legs = [0, 1, 2, 3].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 6), g.slingMat); m.castShadow = true; g.slings.add(m); g.disp.push(m.geometry); return m; });
+  g.load = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), own(C3D.mat({ color: '#9aa1a8', metalness: 0.1, roughness: 0.85 }))); g.load.castShadow = g.load.receiveShadow = true;
+  g.acc = { sl: null, yg: null, run: null, guy: C3D.lines('#1a1a1a') }; up.add(g.acc.guy); g.jib = null;
+  g.p = p; g.state = { theta: 55, slew: 0, fr: Array(Math.max(1, n - 1)).fill(0.4), L: null, hookY: null, loadSize: [3, 1.5, 2], jib: null, acc: {}, legs: 4 };
   return g;
 };
 // pose everything from the state (every frame in the hero, on change in the twin)
 C3D.pose = (g, st, world) => {
-  const p = g.p; const n = p.n; const spec = { n, lens: p.lens, lo: 0.3, E: p.E, foot: p.foot, head: p.head };
-  const lay = boomLayout(spec, st.L || (p.Lmin + st.fr.reduce((a, f) => a + f * p.E, 0)), st.fr);
-  const K = lay.k; const th = st.theta * Math.PI / 180;
-  g.upper.rotation.y = st.slew * Math.PI / 180; g.boom.rotation.z = th;
-  g.secs.forEach(({ sec, col }, i) => { const L = lay.lens[i] * K, x0 = lay.starts[i] * K; sec.scale.x = L; sec.position.x = x0; col.position.x = x0 + L - 0.25; });
-  const tipX = lay.tip * K; g.head.position.x = tipX - 0.9;
-  if (g.letters) { const s0 = (lay.starts[0] + lay.foot + 0.7) * K, s1 = (lay.starts[0] + lay.lens[0] - 0.8) * K; const len = Math.max(1, s1 - s0); const sec0 = g.secs[0]; let sc = len; if (sc * 0.125 > sec0.d * 0.8) sc = sec0.d * 0.8 / 0.125;
+  const p = g.p, dr = g.cad ? p.dr : null; let lay, K = 1;
+  const th = st.theta * Math.PI / 180; g.upper.rotation.y = st.slew * Math.PI / 180; g.boom.rotation.z = th;
+  if (dr) { // sections slide exactly as the 2D elevation draws them (cadSections)
+    const L = st.L || (p.Lmin + st.fr.reduce((a, f) => a + f * p.E, 0)), cs = cadSections(dr, L, st.fr); K = cs.k; const starts = [], lens = [];
+    g.secs.forEach(({ sec, col, d }, i) => { const s = g.drSecs[i], L0 = s.len * K, x0 = (s.s0 + cs.D[i]) * K; starts.push(x0); lens.push(L0); sec.scale.x = L0; sec.position.x = x0; if (col) col.position.x = x0 + L0 - 0.21; });
+    lay = { starts, lens, tip: (dr.tip[0] + cs.D[cs.D.length - 1]) * K, k: 1, foot: 0, head: 0, n: starts.length };
+  } else {
+    const spec = { n: p.n, lens: p.lens, lo: 0.3, E: p.E, foot: p.foot, head: p.head }; lay = boomLayout(spec, st.L || (p.Lmin + st.fr.reduce((a, f) => a + f * p.E, 0)), st.fr); K = lay.k;
+    g.secs.forEach(({ sec, col }, i) => { const L0 = lay.lens[i] * K, x0 = lay.starts[i] * K; sec.scale.x = L0; sec.position.x = x0; if (col) col.position.x = x0 + L0 - 0.21; });
+  }
+  const tipX = (dr ? lay.tip : lay.tip * K); g.head.position.set(tipX, g.tipN, 0);
+  if (g.letters) { const s0 = dr ? lay.starts[0] + 1.2 : (lay.starts[0] + lay.foot + 0.7) * K, s1 = dr ? lay.starts[0] + lay.lens[0] - 1.0 : (lay.starts[0] + lay.lens[0] - 0.8) * K; const len = Math.max(1, s1 - s0); const sec0 = g.secs[0]; let sc = len; if (sc * 0.125 > sec0.d * 0.8) sc = sec0.d * 0.8 / 0.125;
     for (const { pl, s } of g.letters) { pl.scale.set(sc, sc, 1); pl.position.set(s0 + len / 2, g.qc, s * (sec0.w / 2 + 0.012)); } }
-  const bAnchor = new THREE.Vector3((lay.starts[0] + lay.lens[0] * 0.42) * K, g.qc - g.D / 2, 0); g.boom.updateMatrix(); bAnchor.applyMatrix4(g.boom.matrix);
-  const mid = new THREE.Vector3().lerpVectors(g.cylA, bAnchor, 0.6); C3D.between(g.barrel, g.cylA, mid); C3D.between(g.rod, mid, bAnchor);
+  // luffing cylinder
+  g.boom.updateMatrix(); const bAnchor = dr ? new THREE.Vector3(g.cylB[0], g.cylB[1], 0) : new THREE.Vector3((lay.starts[0] + lay.lens[0] * 0.42) * K, g.qc - g.D / 2, 0); bAnchor.applyMatrix4(g.boom.matrix);
+  const mid = new THREE.Vector3().lerpVectors(g.cylA, bAnchor, 0.58); C3D.between(g.barrel, g.cylA, mid); C3D.between(g.rod, mid, bAnchor);
   // jib (fly / luffing)
-  let tipLocal = new THREE.Vector3(tipX, 0, 0);
+  let tipLocal = new THREE.Vector3(tipX, g.tipN, 0);
   if (st.jib && st.jib.len > 0) {
-    if (!g.jib || g.jib.userData.len !== st.jib.len) { if (g.jib) g.boom.remove(g.jib); g.jib = new THREE.Group(); g.jib.userData.len = st.jib.len; g.jib.add(C3D.lattice(st.jib.len, 1.25, 1.1, g.mats.lat, { taper: 0.55 })); g.boom.add(g.jib); }
-    const rel = (st.jib.angle - st.theta) * Math.PI / 180; g.jib.position.set(tipX - 0.4, 0, 0); g.jib.rotation.z = rel;
-    tipLocal = new THREE.Vector3(tipX - 0.4 + st.jib.len * Math.cos(rel), st.jib.len * Math.sin(rel), 0);
-  } else if (g.jib) { g.boom.remove(g.jib); g.jib = null; }
-  C3D.poseAcc(g, st, lay, K);
+    if (!g.jib || g.jib.userData.len !== st.jib.len) { if (g.jib) { g.boom.remove(g.jib); g.jib.traverse(o => o.geometry && o.geometry.dispose()); } g.jib = new THREE.Group(); g.jib.userData.len = st.jib.len; g.jib.add(C3D.lattice(st.jib.len, 1.25, 1.1, g.mats.lat, { taper: 0.55 })); g.boom.add(g.jib); }
+    const rel = (st.jib.angle - st.theta) * Math.PI / 180; g.jib.position.set(tipX - 0.4, g.tipN, 0); g.jib.rotation.z = rel;
+    tipLocal = new THREE.Vector3(tipX - 0.4 + st.jib.len * Math.cos(rel), g.tipN + st.jib.len * Math.sin(rel), 0); g.head.visible = false;
+  } else { if (g.jib) { g.boom.remove(g.jib); g.jib.traverse(o => o.geometry && o.geometry.dispose()); g.jib = null; } g.head.visible = true; }
+  C3D.poseAcc(g, st, lay, dr ? 1 : K);
   // world positions for the hanging parts
   g.root.updateMatrixWorld(true); const tipW = tipLocal.clone(); g.boom.localToWorld(tipW);
-  const hookY = st.hookY != null ? Math.min(st.hookY, tipW.y - 1.4) : Math.max(2.5, tipW.y * 0.45);
-  g.hook.position.set(tipW.x, hookY, tipW.z); g.hook.rotation.y = g.root.rotation.y + g.upper.rotation.y;
-  const rp = []; for (const dz of [-0.16, 0.16]) rp.push(tipW.x, tipW.y - 0.4, tipW.z + dz, tipW.x, hookY + 0.5, tipW.z + dz); C3D.setLines(g.rope, rp);
+  const hookY = st.hookY != null ? Math.min(st.hookY, tipW.y - 1.4 - g.hookTop) : Math.max(2.5, tipW.y * 0.45);
+  const yaw = g.root.rotation.y + g.upper.rotation.y, sy = Math.sin(yaw), cy = Math.cos(yaw);
+  g.hook.position.set(tipW.x, hookY, tipW.z); g.hook.rotation.y = yaw;
+  const rp = [], nF = g.nF, dz = Math.min(0.13, 0.5 / Math.max(1, nF - 1)), rt = g.hookTop - 0.1; // falls: one line per rope part, side by side across the sheaves
+  for (let i = 0; i < nF; i++) { const z = (i - (nF - 1) / 2) * dz, lx = sy * z, lz = cy * z; rp.push(tipW.x + lx, tipW.y - (g.tipR || 0.3), tipW.z + lz, tipW.x + lx, hookY + rt, tipW.z + lz); } C3D.setLines(g.rope, rp);
   const [lx, ly, lz] = st.loadSize; const loadTop = hookY - 0.95 - Math.max(1.2, st.rig || 3);
-  const yaw = g.root.rotation.y + g.upper.rotation.y; g.load.scale.set(lx, ly, lz); g.load.position.set(tipW.x, loadTop - ly / 2, tipW.z); g.load.rotation.y = yaw;
-  const sp = []; const c = Math.cos(yaw), s_ = Math.sin(yaw);
-  for (const [axx, azz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { const ox = axx * lx / 2 * 0.85, oz = azz * lz / 2 * 0.85; sp.push(tipW.x, hookY - 1.0, tipW.z, tipW.x + ox * c + oz * s_, loadTop, tipW.z - ox * s_ + oz * c); }
-  C3D.setLines(g.slings, sp); g.load.visible = g.slings.visible = !st.empty;
+  g.load.scale.set(lx, ly, lz); g.load.position.set(tipW.x, loadTop - ly / 2, tipW.z); g.load.rotation.y = yaw;
+  // slings: legs from the bill of the hook to the top corners of the load (their colour is the code colour of the sling)
+  const nl = Math.max(1, Math.min(4, st.legs || 4)), cs2 = nl === 1 ? [[0, 0]] : nl === 2 ? [[1, 0], [-1, 0]] : nl === 3 ? [[1, 0.9], [-1, 0.9], [0, -1]] : [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+  if (st.slingCol && g.slingCol !== st.slingCol) { g.slingCol = st.slingCol; g.slingMat.color.copy(C3D.lin(st.slingCol)); }
+  const a = new THREE.Vector3(tipW.x, hookY - 0.95, tipW.z), b = new THREE.Vector3();
+  g.legs.forEach((m, i) => { m.visible = i < nl && !st.empty; if (!m.visible) return; const [ax, az] = cs2[i], ox = ax * lx / 2 * 0.85, oz = az * lz / 2 * 0.85; b.set(tipW.x + ox * cy + oz * sy, loadTop, tipW.z - ox * sy + oz * cy); C3D.between(m, a, b); });
+  g.load.visible = g.slings.visible = !st.empty;
   if (world && !g._hung) { world.add(g.hook, g.rope, g.slings, g.load); g._hung = true; }
   g.tipW = tipW; g.lay = lay;
-  return { tipW, hookY, lay };
+  return { tipW, hookY, lay: { ...lay, k: dr ? 1 : lay.k } };
 };
+C3D._drop = (parent, o) => { parent.remove(o); o.traverse((m) => m.geometry && m.geometry !== C3D._ub && m.geometry.dispose()); };
 C3D.poseAcc = (g, st, lay, K) => {
   const A = st.acc || {}; const up = g.upper; const L = lay.tip * K; const th = st.theta * Math.PI / 180;
   const boomPt = (s, q = 0) => new THREE.Vector3(g.px + s * Math.cos(th) - q * Math.sin(th), g.ph + s * Math.sin(th) + q * Math.cos(th), 0); // boom axis → upper coords
@@ -164,7 +410,7 @@ C3D.poseAcc = (g, st, lay, K) => {
     const Lm = Math.max(14, Math.min(32, L * 0.42)), r = Math.max(8, num(A.slRadius, 15)), bt = Math.max(10, num(A.slBallast, 100)), bh = Math.max(0.8, Math.min(3.2, bt / 55));
     const key = [Lm.toFixed(1), r, bh].join('|');
     if (!g.acc.sl || g.acc.sl.userData.key !== key) {
-      if (g.acc.sl) up.remove(g.acc.sl); const sl = new THREE.Group(); sl.userData.key = key;
+      if (g.acc.sl) C3D._drop(up, g.acc.sl); const sl = new THREE.Group(); sl.userData.key = key;
       const mast = C3D.lattice(Lm, 1.4, 1.4, g.mats.lat, { bay: 1.8, r: 0.06 }); mast.position.set(g.px + 0.6, g.ph + 0.25, 0); mast.rotation.z = 102 * Math.PI / 180; sl.add(mast);
       C3D.box(4, bh, 3.2, g.mats.cw, -r, bh / 2 + 0.55 - 1.9, 0, sl); C3D.box(4.4, 0.35, 3.6, g.mats.steel, -r, 0.175 - 1.9, 0, sl);
       sl.userData.top = new THREE.Vector3(g.px + 0.6 + Lm * Math.cos(102 * Math.PI / 180), g.ph + 0.25 + Lm * Math.sin(102 * Math.PI / 180), 0); sl.userData.tray = new THREE.Vector3(-r, bh + 0.55 - 1.9, 0);
@@ -172,7 +418,7 @@ C3D.poseAcc = (g, st, lay, K) => {
     }
     const top = g.acc.sl.userData.top, tray = g.acc.sl.userData.tray, head = boomPt(L - 1);
     for (const dz of [-0.35, 0.35]) guy.push(top.x, top.y, dz, head.x, head.y, dz, top.x, top.y, dz, tray.x + 0.6, tray.y, dz);
-  } else if (g.acc.sl) { up.remove(g.acc.sl); g.acc.sl = null; }
+  } else if (g.acc.sl) { C3D._drop(up, g.acc.sl); g.acc.sl = null; }
   // Y-guying: two struts splayed sideways from the base section, guy ropes to the head and the foot
   if (A.yguy) {
     const Ly = Math.max(6, Math.min(12, L * 0.17)); const s0 = lay.starts[0] * K + lay.lens[0] * K * 0.3; const pin = boomPt(s0, g.qc + g.D / 2);
@@ -181,207 +427,112 @@ C3D.poseAcc = (g, st, lay, K) => {
     for (const { m, s } of g.acc.yg.userData.struts) C3D.between(m, new THREE.Vector3(pin.x, pin.y, s * 0.45), new THREE.Vector3(Y.x, Y.y, s * 1.6));
     const head = boomPt(L - 0.8, g.qc + g.D * 0.3), foot = boomPt(lay.starts[0] * K + 0.7, g.qc + g.D / 2);
     for (const s of [-1, 1]) guy.push(Y.x, Y.y, s * 1.6, head.x, head.y, s * 0.2, Y.x, Y.y, s * 1.6, foot.x, foot.y, s * 0.3);
-  } else if (g.acc.yg) { up.remove(g.acc.yg); g.acc.yg = null; }
+  } else if (g.acc.yg) { C3D._drop(up, g.acc.yg); g.acc.yg = null; }
   // runner: short single-sheave head beside the main head
   if (A.runner && !(st.jib && st.jib.len > 0)) {
     if (!g.acc.run) { const rn = new THREE.Group(); C3D.box(1.7, 0.4, 0.35, g.mats.steel, 0.85, 0, 0, rn); const sv = C3D.cyl(0.26, 0.26, 0.12, g.mats.chrome, 18); sv.rotation.x = Math.PI / 2; sv.position.set(1.7, 0, 0); rn.add(sv); g.boom.add(rn); g.acc.run = rn; }
     g.acc.run.position.set(lay.tip * K, 0, 0.45); g.acc.run.rotation.z = -25 * Math.PI / 180;
-  } else if (g.acc.run) { g.boom.remove(g.acc.run); g.acc.run = null; }
+  } else if (g.acc.run) { C3D._drop(g.boom, g.acc.run); g.acc.run = null; }
   C3D.setLines(g.acc.guy, guy);
 };
 // crane parameters from the library + plan (shared by the sign-in hero and the twin)
+// crane parameters from the library + plan (shared by the sign-in scene and the twin)
 C3D.paramsFor = (crane, plan, calc, livery) => {
-  const spec = boomSpec(crane, chartLengths(crane)); const dr = craneDrawing(crane);
-  const b = dr ? baseSectionInfo(dr) : null;
-  return { Lc: num(crane.carrierLen, 15), W: num(crane.width, 2.9), axles: num(crane.axles, 6), outT: num(crane.outTrans, 8), outL: num(crane.outLong, 8), tail: num(crane.tail, 5),
+  const spec = boomSpec(crane, chartLengths(crane)); const dr0 = craneDrawing(crane), dr = dr0 && dr0.v === 2 ? dr0 : null;
+  const b = dr ? baseSectionInfo(dr) : null; const cwt = num(plan?.cwt ?? crane.cwt, 40), cmax = Math.max(0, ...(crane.charts || []).map(c => num(c.cwt)));
+  const sp = typeof outSpans === 'function' ? outSpans(crane, plan ? outExtOf(plan) : { left: 'full', right: 'full' }) : null;
+  return { Lc: num(crane.carrierLen, 15), W: num(crane.width, 2.9), axles: Math.max(2, Math.round(num(crane.axles, 6))), outT: num(crane.outTrans, 8), outL: num(crane.outLong, 8), outEx: num(crane.outEx, 0), tail: num(crane.tail, 5),
     pivX: dr ? dr.pivot[0] : num(crane.pivotX, -1.5), pivH: dr ? dr.pivot[1] : num(crane.pivotH, 3.2), D: b ? Math.max(0.8, b.qb - b.qa) : spec.D, qc: b ? (b.qa + b.qb) / 2 : null,
-    paint: crane.tint || !dr ? (crane.color || '#f5c400') : (isLightFill(b?.fill) ? b.fill : '#f2f2f2'), n: spec.n, lens: spec.lens, E: spec.E, foot: spec.foot, head: spec.head, Lmin: spec.Lmin,
-    cwt: num(plan?.cwt ?? crane.cwt, 40), livery, truck: /truck/i.test(crane.type || ''), mat: matDims(plan?.matSize)[0],
-    ...(typeof outSpans === 'function' && plan ? (() => { const s = outSpans(crane, outExtOf(plan)); return { oTL: s.yL, oTR: s.yR }; })() : {}) };
+    paint: crane.tint || !dr ? (crane.color || '#f5c400') : (isLightFill(b?.fill) ? b.fill : '#f2f2f2'), n: spec.n, lens: spec.lens, E: spec.E, foot: spec.foot, head: spec.head, Lmin: spec.Lmin, Lmax: spec.Lmax,
+    cwt, cwtR: cmax > 0 ? Math.max(0.25, Math.min(1, cwt / cmax)) : 1, livery, truck: /truck/i.test(crane.type || ''), mat: matDims(plan?.matSize)[0], falls: Math.max(2, Math.round(num(plan?.falls, 4))),
+    dr, dkey: dr ? String(crane.drawing || '') : '', ...(sp ? { oTL: sp.yL, oTR: sp.yR } : {}) };
 };
+C3D.sigOf = (p) => JSON.stringify(p, (k, v) => (k === 'dr' ? (v ? v.label || 1 : 0) : v));
 
 // ---------- renderer shell ----------
 C3D.makeRenderer = (host, o = {}) => {
-  const r = new THREE.WebGLRenderer({ antialias: !!o.aa, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!o.keep });
+  const r = new THREE.WebGLRenderer({ antialias: !!o.aa, alpha: false, powerPreference: o.power || 'high-performance', preserveDrawingBuffer: !!o.keep });
   r.setPixelRatio(Math.min(window.devicePixelRatio || 1, o.maxDpr || 1.75));
   r.shadowMap.enabled = !!o.shadows; r.shadowMap.type = THREE.PCFSoftShadowMap;
   r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = o.exposure || 1.0; r.outputEncoding = THREE.sRGBEncoding;
   r.domElement.style.cssText = 'display:block;width:100%;height:100%'; host.appendChild(r.domElement);
   return r;
 };
-C3D.makeComposer = (r, scene, cam, bloom) => {
-  if (!THREE.EffectComposer || !THREE.UnrealBloomPass) return null;
-  const size = r.getSize(new THREE.Vector2());
-  const rt = new THREE.WebGLRenderTarget(size.x * r.getPixelRatio(), size.y * r.getPixelRatio(), { type: THREE.HalfFloatType }); if (r.capabilities.isWebGL2) rt.samples = 4;
-  const comp = new THREE.EffectComposer(r, rt); comp.addPass(new THREE.RenderPass(scene, cam));
-  const bp = new THREE.UnrealBloomPass(new THREE.Vector2(size.x, size.y), bloom.strength, bloom.radius, bloom.threshold); comp.addPass(bp); comp.bloom = bp;
-  return comp;
+// free a whole scene (geometry, materials, textures) — the sign-in scene is thrown away completely when the person signs in
+C3D.disposeScene = (scene) => { const seen = new Set(); scene.traverse((o) => { if (o.geometry && o.geometry !== C3D._ub && o.geometry !== C3D._uc) o.geometry.dispose(); const ms = [].concat(o.material || []); for (const m of ms) { if (seen.has(m)) continue; seen.add(m); for (const k of ['map', 'emissiveMap', 'alphaMap']) if (m[k]) m[k].dispose(); m.dispose(); } }); if (scene.background && scene.background.dispose) scene.background.dispose(); };
+
+// ---------- HERO: a calm, light scene behind the sign-in — one slim real crane, soft light, a slow drifting camera ----------
+// No post-processing, no particles, no per-frame allocation. The pixel ratio is capped (1.5 on a desktop, 1 on a phone), the loop stops while the tab is hidden and
+// draws one still frame when the person asks for reduced motion. o: { crane, livery, tone: 'dark' | 'light', reduce, onFirstFrame }
+C3D.hero = (host, hud, o = {}) => {
+  const light = o.tone === 'light', reduce = !!o.reduce;
+  const W0 = () => host.clientWidth || window.innerWidth, H0 = () => host.clientHeight || window.innerHeight;
+  const coarse = window.matchMedia('(pointer: coarse)').matches, small = Math.min(W0(), H0()) < 700 || coarse;
+  const r = C3D.makeRenderer(host, { aa: true, exposure: light ? 0.96 : 1.06, maxDpr: small ? 1 : 1.5, shadows: true, power: 'default' }); r.shadowMap.autoUpdate = false;
+  const P = light ? { top: '#7ea8e4', mid: '#bcd3ef', hor: '#f3e6d4', fog: '#dde4ec', gnd: '#aeb3ba', pad: '#bcc0c5', sun: '#fff0d6', sunI: 1.6, hs: '#cfe0ff', hg: '#8f877c', hI: 0.5, sky: '#7d99c0', bld: '#b4c0d0' }
+    : { top: '#0d1b38', mid: '#34528a', hor: '#efb68b', fog: '#566a96', gnd: '#343e51', pad: '#3d4757', sun: '#ffcfa4', sunI: 2.2, hs: '#8fb0ea', hg: '#34302c', hI: 0.78, sky: '#34528a', bld: '#4b5f89' };
+  const scene = new THREE.Scene(); scene.fog = new THREE.Fog(C3D.lin(P.fog), 140, 1050);
+  const env = C3D.envMap(r, light ? 'light' : 'dark'); scene.environment = env.texture;
+  const cam = new THREE.PerspectiveCamera(34, W0() / H0(), 1, 3600);
+  // sky dome: its horizon colour is the fog colour, so the haze and the sky meet without a seam
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 24, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { top: { value: C3D.lin(P.top) }, mid: { value: C3D.lin(P.mid) }, hor: { value: C3D.lin(P.hor) }, fogc: { value: C3D.lin(P.fog) } },
+    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+    fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 hor; uniform vec3 fogc; varying vec3 vP; void main(){ float h = vP.y; vec3 c = mix(hor, mid, smoothstep(0.0, 0.2, h)); c = mix(c, top, smoothstep(0.15, 0.85, h)); c = mix(c, fogc, 1.0 - smoothstep(0.0, 0.06, h)); gl_FragColor = vec4(c, 1.); \n#include <tonemapping_fragment>\n#include <encodings_fragment>\n }' }));
+  sky.renderOrder = -2; sky.frustumCulled = false; scene.add(sky);
+  // ground + a lighter pad under the crane
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(1400, 48), C3D.mat({ color: P.gnd, roughness: 0.96, metalness: 0 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(19, 56), C3D.mat({ color: P.pad, roughness: 0.92 })); pad.rotation.x = -Math.PI / 2; pad.position.y = 0.02; pad.receiveShadow = true; scene.add(pad);
+  // a quiet skyline in the haze (one instanced mesh) and two tower cranes
+  { const n = 56, im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), C3D.mat({ color: P.bld, roughness: 0.95, metalness: 0 }), n), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), ax = new THREE.Vector3(0, 1, 0); let s = 7;
+    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < n; i++) { const a = rnd() * Math.PI * 2, d = 520 + rnd() * 560, hh = 14 + Math.pow(rnd(), 2.4) * 95, w = 18 + rnd() * 30; m4.compose(new THREE.Vector3(Math.cos(a) * d, hh / 2, Math.sin(a) * d - 60), q.setFromAxisAngle(ax, rnd() * 3), new THREE.Vector3(w, hh, w * (0.6 + rnd() * 0.8))); im.setMatrixAt(i, m4); }
+    scene.add(im);
+    const tm = C3D.mat({ color: light ? '#b79a45' : '#7d6c47', metalness: 0.3, roughness: 0.6 });
+    for (const [x, z, h, jl, rot] of [[-150, -230, 60, 56, 0.5], [210, -300, 70, 62, 2.4]]) { const tg = new THREE.Group(); tg.position.set(x, 0, z); scene.add(tg); const mast = C3D.lattice(h, 1.8, 1.8, tm, { bay: 2.4, r: 0.08 }); mast.rotation.z = Math.PI / 2; tg.add(mast);
+      const topG = new THREE.Group(); topG.position.y = h + 1; topG.rotation.y = rot; tg.add(topG); topG.add(C3D.lattice(jl, 1.6, 1.3, tm, { bay: 2.2, r: 0.07, taper: 0.4 })); const cj = C3D.lattice(jl * 0.3, 1.4, 1.3, tm, { bay: 2.2, r: 0.07 }); cj.rotation.y = Math.PI; topG.add(cj); } }
+  // light: a low sun, a soft sky fill, the studio-ish reflections; the shadow follows the crane only
+  scene.add(new THREE.HemisphereLight(C3D.lin(P.hs), C3D.lin(P.hg), P.hI));
+  const sun = new THREE.DirectionalLight(C3D.lin(P.sun), P.sunI); sun.position.set(75, 58, -52); sun.target.position.set(-4, 6, 0); sun.castShadow = true; sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
+  Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 20, far: 220 }); scene.add(sun, sun.target);
+  // the crane
+  const params = C3D.paramsFor(o.crane, null, null, o.livery || 'FRIENDSHIP HALL EST'); params.falls = 6;
+  const g = C3D.buildCrane(params); scene.add(g.root); g.root.rotation.y = 0.1;
+  const st = g.state, Lmax = params.Lmin + params.E * (params.n - 1); st.loadSize = [5.4, 0.45, 2.6]; st.rig = 4.4; st.legs = 4; st.slingCol = '#e8731c'; g.load.material = C3D.mat({ color: light ? '#aeb2b6' : '#8e949b', roughness: 0.92 }); g.disp.push(g.load.material);
+  const L0 = params.Lmin + (Lmax - params.Lmin) * 0.5, fr0 = (L0 - params.Lmin) / Math.max(1e-6, Lmax - params.Lmin); st.L = L0; st.fr = Array(Math.max(1, params.n - 1)).fill(fr0);
+  let raf = 0, alive = true, exit = null, first = true; const t0 = performance.now(); const look = new THREE.Vector3(), camPos = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3(); let frame = 0;
+  let portrait = false; const fit = () => { const w = W0(), h = H0(); r.setSize(w, h, false); cam.aspect = w / h; cam.fov = w / h < 0.9 ? 46 : 33; portrait = w / h < 0.9;
+    if (w >= 900) cam.setViewOffset(w, h, -w * 0.17, 0, w, h); else if (h > w) cam.setViewOffset(w, h, 0, h * 0.33, w, h); else cam.clearViewOffset(); cam.updateProjectionMatrix(); };
+  fit(); const onResize = () => { fit(); if (reduce || !raf) draw(performance.now()); }; window.addEventListener('resize', onResize);
+  const ease = (x) => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  let out = null;
+  const draw = (now) => {
+    const t = reduce ? 14 : (now - t0) / 1000, k = ease(Math.min(1, t / 5));
+    { const lf = portrait ? 0.3 : 0.5; st.L = params.Lmin + (Lmax - params.Lmin) * lf; st.fr.fill(lf); } st.theta = (portrait ? 38 : 50) + 1.6 * Math.sin(t * 0.045); st.slew = 205 + 5 * Math.sin(t * 0.03); out = C3D.pose(g, st, scene);
+    st.hookY = Math.max(8, out.tipW.y - (portrait ? 10 : 15) - 2 * (0.5 + 0.5 * Math.sin(t * 0.08)));
+    // camera: a slow drift around a low three-quarter view from the cab side, easing in over the first seconds
+    const az = -1.12 + 0.13 * Math.sin(t * 0.07) - (1 - k) * 0.12, el = 0.15 + 0.012 * Math.sin(t * 0.05) + (1 - k) * 0.03, dist = (80 + 4 * Math.sin(t * 0.045) + (1 - k) * 14) * (portrait ? 1.25 : 1);
+    look.set(-4, portrait ? 9 : 13, 2); camPos.set(look.x + dist * Math.cos(el) * Math.cos(az), look.y + dist * Math.sin(el), look.z + dist * Math.cos(el) * Math.sin(az));
+    if (exit) { const e = ease(Math.min(1, (now - exit.t) / 1100)); camPos.lerp(e1.set(out.tipW.x + 14, out.tipW.y - 10, out.tipW.z - 18), e * 0.7); look.lerp(e2.copy(out.tipW), e * 0.8); r.toneMappingExposure = (light ? 0.96 : 1.06) + e * 0.25; if (e >= 1 && exit.done) { const d = exit.done; exit.done = null; d(); } }
+    cam.position.copy(camPos); cam.lookAt(look); if (frame++ % 3 === 0) r.shadowMap.needsUpdate = true; r.render(scene, cam);
+    if (first) { first = false; o.onFirstFrame && o.onFirstFrame(); }
+  };
+  // quality governor: if the frames take too long the pixel ratio steps down (it never goes up again — the scene is meant to be calm)
+  let ema = 16, prev = 0, nf = 0, dprNow = r.getPixelRatio();
+  const loop = (now) => { if (!alive) return; raf = requestAnimationFrame(loop); const dt = prev ? Math.min(250, now - prev) : 16; prev = now; draw(now);
+    ema = ema * 0.9 + dt * 0.1; if (++nf % 24 === 0 && !exit) { if (ema > 21 && dprNow > 0.55) { dprNow = Math.max(0.55, dprNow * 0.8); r.setPixelRatio(dprNow); fit(); } else if (ema > 45 && dprNow <= 0.56 && sun.castShadow) { sun.castShadow = false; r.shadowMap.enabled = false; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); } } };
+  const start = () => { if (!raf && alive && !reduce) { prev = 0; raf = requestAnimationFrame(loop); } };
+  if (reduce) { r.shadowMap.needsUpdate = true; draw(performance.now()); } else { r.shadowMap.needsUpdate = true; raf = requestAnimationFrame(loop); }
+  const vis = () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else start(); }; document.addEventListener('visibilitychange', vis);
+  let io = null; if (typeof IntersectionObserver !== 'undefined') { io = new IntersectionObserver((es) => { if (es[0] && !es[0].isIntersecting) { cancelAnimationFrame(raf); raf = 0; } else if (!document.hidden) start(); }); io.observe(host); }
+  return {
+    exit(done) { if (reduce) { done && done(); return; } exit = { t: performance.now(), done }; },
+    stats: () => ({ calls: r.info.render.calls, tris: r.info.render.triangles, dpr: r.getPixelRatio(), frame: r.info.render.frame }),
+    dispose() { alive = false; cancelAnimationFrame(raf); raf = 0; window.removeEventListener('resize', onResize); document.removeEventListener('visibilitychange', vis); io && io.disconnect();
+      try { C3D.disposeCrane(g); C3D.disposeScene(scene); env.dispose(); r.dispose(); r.forceContextLoss(); } catch {} host.innerHTML = ''; }
+  };
 };
 
-// ---------- HERO: night construction site behind the sign-in ----------
-C3D.hero = (host, hud, o = {}) => {
-  const W0 = () => host.clientWidth || window.innerWidth, H0 = () => host.clientHeight || window.innerHeight;
-  const small = Math.min(W0(), H0()) < 700;
-  const r = C3D.makeRenderer(host, { exposure: 1.1, maxDpr: small ? 1.25 : 1.5 });
-  const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(C3D.lin('#0a1220'), 0.0042);
-  const cam = new THREE.PerspectiveCamera(40, W0() / H0(), 0.5, 5000);
-  // sky
-  const skyM = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: C3D.lin('#02050a') }, mid: { value: C3D.lin('#0b1424') }, glow: { value: C3D.lin('#ff7a1a') }, haze: { value: C3D.lin('#1b2c44') } },
-    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
-    fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 glow; uniform vec3 haze; varying vec3 vP; void main(){ float h = vP.y; vec3 c = mix(mid, top, smoothstep(0.0, 0.6, h)); c = mix(haze, c, smoothstep(-0.02, 0.12, h)); float g = exp(-max(h + 0.02, 0.) * 14.0); float ang = 0.35 + 0.65 * pow(max(0., dot(normalize(vP.xz), normalize(vec2(-0.6, -0.8)))), 3.0); c += glow * g * 0.42 * ang; gl_FragColor = vec4(c, 1.); }' });
-  scene.add(new THREE.Mesh(new THREE.SphereGeometry(2400, 32, 16), skyM));
-  { const n = 1600, pos = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, e = 0.12 + Math.random() * 1.35; pos.set([Math.cos(a) * Math.cos(e) * 2000, Math.sin(e) * 2000, Math.sin(a) * Math.cos(e) * 2000], i * 3); }
-    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: '#a9bedc', size: 1.5, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.75 }))); }
-  // ground, glowing site grid, rings
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), C3D.mat({ color: '#0c1016', metalness: 0.25, roughness: 0.85 })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
-  const grid = new THREE.GridHelper(400, 80, C3D.lin('#1d6f88'), C3D.lin('#112536')); grid.position.y = 0.02; grid.material.transparent = true; grid.material.opacity = 0.5; scene.add(grid);
-  const ringM = (col, op) => new THREE.MeshBasicMaterial({ color: C3D.lin(col), transparent: true, opacity: op, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
-  const site = new THREE.Mesh(new THREE.RingGeometry(57.6, 58, 160), ringM('#ffb81c', 0.45)); site.rotation.x = -Math.PI / 2; site.position.y = 0.05; scene.add(site);
-  const scan = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 160), ringM('#4fe0ff', 0.9)); scan.rotation.x = -Math.PI / 2; scan.position.y = 0.06; scene.add(scan);
-  const radR = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 160), ringM('#4fe0ff', 0.55)); radR.rotation.x = -Math.PI / 2; radR.position.y = 0.07; scene.add(radR);
-  // city skyline with lit windows
-  { const wc = document.createElement('canvas'); wc.width = 64; wc.height = 256; const g = wc.getContext('2d'); g.fillStyle = '#04070c'; g.fillRect(0, 0, 64, 256);
-    for (let y = 4; y < 256; y += 8) for (let x = 3; x < 64; x += 7) if (Math.random() < 0.3) { g.fillStyle = Math.random() < 0.82 ? `rgba(255,${185 + Math.random() * 50 | 0},${120 + Math.random() * 50 | 0},${0.45 + Math.random() * 0.55})` : 'rgba(150,205,255,.85)'; g.fillRect(x, y, 4, 4); }
-    const wt = new THREE.CanvasTexture(wc); wt.encoding = THREE.sRGBEncoding;
-    const bm = new THREE.MeshStandardMaterial({ color: C3D.lin('#06090e'), emissive: new THREE.Color('#ffffff'), emissiveMap: wt, emissiveIntensity: 1.25, roughness: 0.8, metalness: 0.2 });
-    const n = 420, im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), bm, n); const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
-    for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, d = 290 + Math.random() * 640, hh = 20 + Math.pow(Math.random(), 2.4) * 230, w = 16 + Math.random() * 28;
-      m4.compose(new THREE.Vector3(Math.cos(a) * d, hh / 2, Math.sin(a) * d), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * 3), new THREE.Vector3(w, hh, w * (0.6 + Math.random() * 0.8))); im.setMatrixAt(i, m4); }
-    scene.add(im);
-    // aircraft warning lights on the tallest towers
-    const tl = []; for (let i = 0; i < 24; i++) { const a = Math.random() * Math.PI * 2, d = 420 + Math.random() * 420; tl.push(Math.cos(a) * d, 120 + Math.random() * 130, Math.sin(a) * d); }
-    const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(tl, 3)); scene.userData.warn = new THREE.Points(tg, new THREE.PointsMaterial({ color: C3D.lin('#ff3030'), size: 9, map: C3D.glowTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })); scene.add(scene.userData.warn); }
-  // highway with moving headlights / tail lights
-  const road = (() => { const n = 70, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), sp = []; const glow = C3D.glowTex();
-    for (let i = 0; i < n; i++) { const dir = i % 2 ? 1 : -1; pos.set([(Math.random() - 0.5) * 900, 0.8, -150 + dir * 3], i * 3); const c = dir > 0 ? C3D.lin('#fff1d6') : C3D.lin('#ff3a2a'); col.set([c.r, c.g, c.b], i * 3); sp.push(dir * (12 + Math.random() * 10)); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 2.2, map: glow, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); scene.add(pts);
-    const lamp = []; for (let x = -450; x < 450; x += 30) lamp.push(x, 9, -158); const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lamp, 3));
-    scene.add(new THREE.Points(lg, new THREE.PointsMaterial({ color: C3D.lin('#ffb24a'), size: 4, map: glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
-    return { pts, sp }; })();
-  // building under construction where the load is going
-  const bld = new THREE.Group(); bld.position.set(-31, 0, -9); bld.rotation.y = 0.12; scene.add(bld);
-  const conc = C3D.mat({ color: '#5b6067', roughness: 0.92, metalness: 0.05 }); const floors = 9, fh = 3.6;
-  const colG = new THREE.BoxGeometry(0.55, fh, 0.55); const colIM = new THREE.InstancedMesh(colG, conc, floors * 24); let ci = 0; const m4 = new THREE.Matrix4();
-  for (let f = 0; f <= floors; f++) { C3D.box(30, 0.32, 22, conc, 0, f * fh, 0, bld);
-    if (f < floors) for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) { m4.makeTranslation(-12.5 + i * 5, f * fh + fh / 2, -9 + j * 6); colIM.setMatrixAt(ci++, m4); }
-    if (f < floors - 1 && f % 2 === 0) { const lw = new THREE.Mesh(new THREE.PlaneGeometry(29, fh - 0.4), C3D.basic({ color: '#ffb35c', transparent: true, opacity: 0.16 })); lw.position.set(0, f * fh + fh / 2, 11.05); bld.add(lw); } }
-  colIM.count = ci; bld.add(colIM);
-  const net = new THREE.Mesh(new THREE.PlaneGeometry(30, fh * 2), C3D.basic({ color: '#ff6a00', transparent: true, opacity: 0.2, side: THREE.DoubleSide })); net.position.set(0, floors * fh - fh, 11.2); bld.add(net);
-  const rebar = C3D.mat({ color: '#7a4f33', roughness: 0.8 }); for (let i = 0; i < 24; i++) { const rb = C3D.cyl(0.04, 0.04, 2.4, rebar, 5); rb.position.set(-12.5 + (i % 6) * 5, floors * fh + 1.3, -9 + Math.floor(i / 6) * 6); bld.add(rb); }
-  const landing = new THREE.Vector3(); bld.localToWorld(landing.set(4, floors * fh + 0.16, 2));
-  // tower cranes behind, slowly slewing, with blinking obstacle lights
-  const lights = []; const tcs = [];
-  const towerCrane = (x, z, h, jl, rot, spd) => { const tg = new THREE.Group(); tg.position.set(x, 0, z); scene.add(tg);
-    const tm = C3D.mat({ color: '#c99a1b', metalness: 0.5, roughness: 0.5 }); const mast = C3D.lattice(h, 1.8, 1.8, tm, { bay: 2.2, r: 0.07 }); mast.rotation.z = Math.PI / 2; tg.add(mast);
-    const top = new THREE.Group(); top.position.y = h + 1; top.rotation.y = rot; tg.add(top);
-    const jib = C3D.lattice(jl, 1.6, 1.3, tm, { bay: 2.0, r: 0.06, taper: 0.4 }); top.add(jib);
-    const cj = C3D.lattice(jl * 0.32, 1.4, 1.3, tm, { bay: 2.0, r: 0.06 }); cj.rotation.y = Math.PI; top.add(cj); C3D.box(3, 2.2, 2, C3D.mat({ color: '#3a3f45' }), -jl * 0.3, -0.8, 0, top);
-    const apex = C3D.lattice(6, 1.4, 1.4, tm, { bay: 2, r: 0.06 }); apex.rotation.z = Math.PI / 2; top.add(apex);
-    for (const [lx, ly] of [[jl, 0.6], [0, 6], [-jl * 0.32, 0.6]]) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 8), new THREE.MeshBasicMaterial({ color: C3D.lin('#ff2a2a') })); s.position.set(lx, ly, 0); top.add(s); lights.push(s); }
-    tcs.push({ top, spd, base: rot }); };
-  towerCrane(-120, -175, 58, 52, 0.4, 0.018); towerCrane(70, -240, 66, 60, 2.6, -0.012); towerCrane(-250, -110, 50, 46, -0.8, 0.01); towerCrane(190, 120, 62, 56, 1.4, 0.014); towerCrane(-170, 210, 54, 50, -2.2, -0.016);
-  // lights: hemisphere, moon, floodlights with visible beams, warm bounce
-  scene.add(new THREE.HemisphereLight(C3D.lin('#5b7fb3'), C3D.lin('#1a120a'), 0.75));
-  const moon = new THREE.DirectionalLight(C3D.lin('#a9c8ff'), 0.9); moon.position.set(140, 200, 120); scene.add(moon);
-  const beamTex = C3D.gradTex([[0, 'rgba(255,255,255,0)'], [0.06, 'rgba(255,240,210,0.65)'], [1, 'rgba(255,255,255,0)']]);
-  const flood = (x, z, tx, tz, col) => { const mast = C3D.cyl(0.25, 0.3, 18, C3D.mat({ color: '#30353b' })); mast.position.set(x, 9, z); scene.add(mast);
-    const sp = new THREE.SpotLight(C3D.lin(col), 1.9, 170, 0.42, 0.65, 1.2); sp.position.set(x, 18, z); sp.target.position.set(tx, 0, tz); scene.add(sp, sp.target);
-    const hgt = Math.hypot(tx - x, tz - z, 18) * 1.05; const cone = new THREE.Mesh(new THREE.ConeGeometry(Math.tan(0.45) * hgt, hgt, 40, 1, true), new THREE.MeshBasicMaterial({ color: C3D.lin(col), map: beamTex, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-    const a = new THREE.Vector3(x, 18, z), b = new THREE.Vector3(tx, 0, tz); cone.position.copy(a).lerp(b, 0.5); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), b.clone().sub(a).normalize()); scene.add(cone);
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 10), new THREE.MeshBasicMaterial({ color: C3D.lin('#fff3d6') })); bulb.position.copy(a); scene.add(bulb); };
-  flood(24, -16, 2, 0, '#ffdcaa'); flood(-56, -30, -32, -8, '#ffe2b8'); flood(-74, 4, -40, -6, '#c5e2ff');
-  // dust in the light
-  const dust = (() => { const n = 1400, pos = new Float32Array(n * 3), sp = new Float32Array(n); for (let i = 0; i < n; i++) { pos.set([(Math.random() - 0.6) * 110, Math.random() * 38, (Math.random() - 0.5) * 80], i * 3); sp[i] = 0.2 + Math.random(); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: C3D.lin('#ffe7c2'), size: 0.2, map: C3D.glowTex(), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })); scene.add(pts); return { pts, sp }; })();
-  // welding sparks on the top floor (arc flash light + falling sparks — they bloom)
-  const weld = (() => { const n = 520, pos = new Float32Array(n * 3), vel = new Float32Array(n * 3), life = new Float32Array(n); for (let i = 0; i < n; i++) { life[i] = -1; pos[i * 3 + 1] = -100; }
-    const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const pts = new THREE.Points(g2, new THREE.PointsMaterial({ color: C3D.lin('#ffc46b'), size: 0.34, map: C3D.glowTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); pts.frustumCulled = false; scene.add(pts);
-    const spots = [[-11, 0.6, 9], [8, 0.6, -7], [-2, 0.6, 10.6], [12.5, 0.6, 4]].map(([x, y, z]) => bld.localToWorld(new THREE.Vector3(x, floors * fh + y, z)));
-    const flash = new THREE.PointLight(C3D.lin('#9fd8ff'), 0, 26, 2); scene.add(flash);
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: C3D.lin('#e6f6ff') })); scene.add(core);
-    return { pts, pos, vel, life, spots, flash, core, cur: 0, start: 0.5, until: 3, next: 4 }; })();
-  // holographic survey pulse rolling out from the crane
-  const pulse = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 7, 128, 1, true), new THREE.MeshBasicMaterial({ color: C3D.lin('#4fe0ff'), map: C3D.gradTex([[0, 'rgba(255,255,255,0)'], [0.82, 'rgba(255,255,255,.35)'], [1, 'rgba(255,255,255,.95)']]), transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-  pulse.position.y = 3.5; scene.add(pulse);
-  // sky searchlights from the city
-  const beams = [[-420, -520, 0.1], [520, -380, 2.2], [-260, 520, 4.1]].map(([x, z, ph]) => { const L = 900; const c = new THREE.Mesh(new THREE.ConeGeometry(28, L, 32, 1, true), new THREE.MeshBasicMaterial({ color: C3D.lin('#9cc7ff'), map: C3D.gradTex([[0, 'rgba(255,255,255,0)'], [0.75, 'rgba(255,255,255,.35)'], [1, 'rgba(255,255,255,.9)']]), transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-    c.geometry.translate(0, -L / 2, 0); const pivot = new THREE.Group(); pivot.position.set(x, 0, z); pivot.add(c); c.rotation.x = Math.PI; scene.add(pivot); return { pivot, c, ph }; });
-  // an aircraft on approach (nav lights)
-  const plane = (() => { const g2 = new THREE.Group(); const mk = (col, sz) => { const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: C3D.glowTex(), color: C3D.lin(col), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })); m.scale.set(sz, sz, 1); g2.add(m); return m; };
-    const wl = mk('#ff3a3a', 9), wr = mk('#36ff8a', 9), str = mk('#ffffff', 16); wl.position.x = -6; wr.position.x = 6; scene.add(g2); return { g: g2, str }; })();
-  // drifting cloud deck lit by the city
-  const clouds = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const x = c.getContext('2d'); x.fillStyle = 'rgba(0,0,0,0)'; x.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 90; i++) { const cx = Math.random() * 512, cy = Math.random() * 512, r = 30 + Math.random() * 90; const gr = x.createRadialGradient(cx, cy, 0, cx, cy, r); gr.addColorStop(0, 'rgba(255,255,255,.22)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; for (const [ox, oy] of [[0, 0], [512, 0], [-512, 0], [0, 512], [0, -512]]) { x.save(); x.translate(ox, oy); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); x.restore(); } }
-    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(4200, 4200), new THREE.MeshBasicMaterial({ map: t, color: C3D.lin('#3a4a66'), transparent: true, opacity: 0.55, depthWrite: false, fog: false })); m.rotation.x = Math.PI / 2; m.position.y = 420; scene.add(m); return t; })();
-  // the hero crane, boom slewed towards the building
-  const params = C3D.paramsFor(o.crane, null, null, o.livery || 'FRIENDSHIP HALL EST'); params.cwt = 135; params.n = Math.max(6, params.n);
-  const spec2 = boomSpec({ ...o.crane, sections: params.n }, chartLengths(o.crane)); Object.assign(params, { lens: spec2.lens, E: spec2.E, foot: spec2.foot, head: spec2.head, Lmin: spec2.Lmin });
-  const g = C3D.buildCrane(params); scene.add(g.root); g.root.rotation.y = 0.35;
-  const st = g.state; st.loadSize = [6.2, 0.35, 3.0]; st.rig = 5.5; g.load.material = C3D.mat({ color: '#8b9198', roughness: 0.95 });
-  const trl = new THREE.Group(); trl.position.set(9, 0, 15); trl.rotation.y = -0.25; scene.add(trl); C3D.box(14, 0.4, 2.6, C3D.mat({ color: '#25292e', metalness: 0.4 }), 0, 1.25, 0, trl); for (let i = 0; i < 3; i++) C3D.box(6.2, 0.35, 3.0, C3D.mat({ color: '#8b9198', roughness: 0.95 }), -3 + i * 0.2, 1.65 + i * 0.36, 0, trl);
-  const beacon = new THREE.PointLight(C3D.lin('#ff9a1f'), 2.4, 20, 2); beacon.position.set(4, 4.2, 0); g.upper.add(beacon); const bmesh = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), new THREE.MeshBasicMaterial({ color: C3D.lin('#ffb84a') })); bmesh.position.copy(beacon.position); g.upper.add(bmesh);
-  const tipLamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), new THREE.MeshBasicMaterial({ color: C3D.lin('#ff2020') })); g.head.add(tipLamp); tipLamp.position.set(1.2, 0.6, 0);
-  const comp = C3D.makeComposer(r, scene, cam, { strength: 0.85, radius: 0.55, threshold: 0.28 });
-  // animation
-  let t0 = performance.now(), raf = 0, alive = true, exit = null; const reduce = !!o.reduce;
-  const v3 = new THREE.Vector3(), camPos = new THREE.Vector3(), look = new THREE.Vector3();
-  const resize = () => { const w = W0(), h = H0(); r.setSize(w, h, false); cam.aspect = w / h; cam.fov = w / h < 0.9 ? 52 : 40; cam.updateProjectionMatrix(); if (comp) comp.setSize(w, h); };
-  resize(); window.addEventListener('resize', resize);
-  const ease = (x) => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-  const lerp = (a, b, k) => a + (b - a) * k;
-  let last = performance.now();
-  const frame = (now) => {
-    if (!alive) return; raf = requestAnimationFrame(frame);
-    const t = reduce ? 16 : (now - t0) / 1000; const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    // the lift: telescope out, luff, slew over the building, lower, then reset — a 30 s loop
-    const cyc = (t % 30) / 30; const ext = 0.22 + 0.34 * (0.5 - 0.5 * Math.cos(Math.min(1, cyc * 2.6) * Math.PI));
-    st.fr = st.fr.map((_, i) => Math.max(0, Math.min(1, ext * 1.25 - i * 0.05)));
-    st.theta = 56 + 4 * Math.sin(t * 0.17); st.slew = 128 + 30 * (0.5 - 0.5 * Math.cos(cyc * Math.PI * 2));
-    const out = C3D.pose(g, st, scene); const R = Math.hypot(out.tipW.x, out.tipW.z);
-    st.hookY = Math.max(landing.y + 8, out.tipW.y - 8 - 9 * (0.5 + 0.5 * Math.sin(t * 0.29)));
-    radR.scale.set(R, R, 1);
-    const sr = (t * 20) % 150; scan.scale.set(sr, sr, 1); scan.material.opacity = Math.max(0, 0.8 - sr / 160);
-    lights.forEach((l, i) => l.visible = ((t * 1.1 + i * 0.37) % 1.6) < 0.8); tipLamp.visible = (t % 1.4) < 0.7;
-    if (scene.userData.warn) scene.userData.warn.material.opacity = 0.35 + 0.65 * (Math.sin(t * 2.2) > 0 ? 1 : 0.25);
-    tcs.forEach(c => { c.top.rotation.y = c.base + Math.sin(t * c.spd * 3) * 0.6; });
-    bmesh.material.color.setHSL(0.09, 1, 0.42 + 0.35 * Math.max(0, Math.sin(t * 9))); beacon.intensity = 1.4 + 1.8 * Math.max(0, Math.sin(t * 9));
-    { // welding: bursts from one spot at a time, arc-flash flicker
-      if (t > weld.next) { weld.cur = (Math.random() * weld.spots.length) | 0; weld.start = t; weld.until = t + 1.4 + Math.random() * 2.6; weld.next = weld.until + 0.5 + Math.random() * 1.8; }
-      const active = t >= (weld.start || 0) && t < weld.until; const sp0 = weld.spots[weld.cur]; const pa2 = weld.pos;
-      weld.flash.position.copy(sp0); weld.core.position.copy(sp0); const fl = active ? 0.4 + Math.random() * 1.6 : 0; weld.flash.intensity = fl * 2.2; weld.core.visible = active && Math.random() > 0.15;
-      let spawn = active ? 9 : 0;
-      for (let i = 0; i < weld.life.length; i++) { if (weld.life[i] <= 0 && spawn > 0) { spawn--; weld.life[i] = 0.6 + Math.random() * 0.9; pa2[i * 3] = sp0.x; pa2[i * 3 + 1] = sp0.y; pa2[i * 3 + 2] = sp0.z; const a2 = Math.random() * Math.PI * 2, v = 2 + Math.random() * 5; weld.vel[i * 3] = Math.cos(a2) * v; weld.vel[i * 3 + 1] = 1 + Math.random() * 4; weld.vel[i * 3 + 2] = Math.sin(a2) * v; }
-        if (weld.life[i] > 0) { weld.life[i] -= dt; weld.vel[i * 3 + 1] -= 9.8 * dt; pa2[i * 3] += weld.vel[i * 3] * dt; pa2[i * 3 + 1] += weld.vel[i * 3 + 1] * dt; pa2[i * 3 + 2] += weld.vel[i * 3 + 2] * dt; if (weld.life[i] <= 0) pa2[i * 3 + 1] = -100; } }
-      weld.pts.geometry.attributes.position.needsUpdate = true;
-      const pt = (t % 7) / 7; const pr = 2 + pt * 170; pulse.scale.set(pr, 1 + pt * 0.6, pr); pulse.material.opacity = Math.max(0, 0.75 * (1 - pt)) * Math.min(1, pt * 8);
-      beams.forEach(b2 => { b2.pivot.rotation.y = t * 0.11 + b2.ph; b2.c.rotation.z = 0.32 + 0.16 * Math.sin(t * 0.21 + b2.ph); });
-      const pa3 = (t * 0.018) % 1, ang = -2.6 + pa3 * 2.2; plane.g.position.set(Math.cos(ang) * 900, 260 - pa3 * 60, Math.sin(ang) * 900 - 200); plane.str.visible = (t % 1.2) < 0.08;
-      clouds.offset.x = t * 0.0016; clouds.offset.y = t * 0.0007; }
-    const pa = dust.pts.geometry.attributes.position; for (let i = 0; i < pa.count; i++) { let y = pa.getY(i) + 0.012 * dust.sp[i]; if (y > 38) y = 0; pa.setY(i, y); } pa.needsUpdate = true;
-    const ra = road.pts.geometry.attributes.position; for (let i = 0; i < ra.count; i++) { let x = ra.getX(i) + road.sp[i] * dt; if (x > 450) x = -450; if (x < -450) x = 450; ra.setX(i, x); } ra.needsUpdate = true;
-    // camera: a slow crane-up reveal, then a gentle orbit around a low, wide hero angle
-    const k = ease(Math.min(1, t / 8));
-    const az = lerp(1.0, 0.5, k) + Math.max(0, t - 2) * 0.042, el = lerp(0.5, 0.075, k) + 0.035 * Math.sin(t * 0.07), dist = lerp(160, 98, k) + 8 * Math.sin(t * 0.05);
-    look.set(-5, 22 + 2 * Math.sin(t * 0.05), -8);
-    camPos.set(look.x + dist * Math.sin(az) * Math.cos(el), Math.max(1.6, look.y + dist * Math.sin(el)) - 14 * k, look.z + dist * Math.cos(az) * Math.cos(el));
-    camPos.x += Math.sin(t * 0.9) * 0.06; camPos.y += Math.sin(t * 1.3) * 0.05;
-    if (exit) { const e = ease(Math.min(1, (now - exit.t) / 1500)); camPos.lerp(v3.set(out.tipW.x + 10, out.tipW.y - 4, out.tipW.z + 14), e); look.lerp(out.tipW, e); if (comp) comp.bloom.strength = 0.85 + e * 2.4; r.toneMappingExposure = 1.1 + e * 0.9; if (e >= 1 && exit.done) { const d = exit.done; exit.done = null; d(); } }
-    cam.position.copy(camPos); cam.lookAt(look);
-    if (comp) comp.render(); else r.render(scene, cam);
-    if (hud) { const pv = g.hook.position.clone().project(cam); hud({ x: (pv.x * 0.5 + 0.5) * W0(), y: (-pv.y * 0.5 + 0.5) * H0(), vis: pv.z < 1 && Math.abs(pv.x) < 1, theta: st.theta, R, L: out.lay.tip * out.lay.k, slew: st.slew, hook: Math.max(0, out.hookY), t }); }
-  };
-  raf = requestAnimationFrame(frame);
-  const vis = () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else if (!raf && alive) { last = performance.now(); raf = requestAnimationFrame(frame); } };
-  document.addEventListener('visibilitychange', vis);
-  return {
-    exit(done) { exit = { t: performance.now(), done }; },
-    dispose() { alive = false; cancelAnimationFrame(raf); window.removeEventListener('resize', resize); document.removeEventListener('visibilitychange', vis); try { r.dispose(); r.forceContextLoss(); } catch {} host.innerHTML = ''; }
-  };
-};
 
 // ---------- TWIN: the plan in 3D ----------
 // v9: one live scene serves the full 3D view and the small 3D window over the drawing (mount() moves the canvas; the WebGL context stays).
@@ -397,7 +548,7 @@ C3D.twin = (host0, opts = {}) => {
   r.domElement.classList.add('twin-cv');
   const scene = new THREE.Scene(); scene.background = C3D.gradTex([[0, '#0b0f15'], [0.55, '#18212b'], [1, '#2a3440']]); scene.fog = new THREE.Fog(C3D.lin('#1f2833'), 220, 700);
   const cam = new THREE.PerspectiveCamera(38, W0() / H0(), 0.3, 3000);
-  scene.add(new THREE.HemisphereLight(C3D.lin('#c4d6ee'), C3D.lin('#3a3128'), 0.85));
+  scene.add(new THREE.HemisphereLight(C3D.lin('#c4d6ee'), C3D.lin('#3a3128'), 0.7)); const envRT = C3D.envMap(r, 'dark'); scene.environment = envRT.texture;
   const sun = new THREE.DirectionalLight(C3D.lin('#fff0d8'), 1.45); sun.position.set(-70, 120, 80); sun.castShadow = true; sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048); sun.shadow.bias = -0.0004;
   Object.assign(sun.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, near: 10, far: 420 }); scene.add(sun);
   const fill = new THREE.DirectionalLight(C3D.lin('#8fb6ff'), 0.35); fill.position.set(80, 40, -60); scene.add(fill);
@@ -509,19 +660,20 @@ C3D.twin = (host0, opts = {}) => {
     }
   };
   // ---- one crane of the scene (the lead, or a tandem crane): rebuilt only when its make-up changes ----
-  const craneSig = (crane, pv, livery) => JSON.stringify([crane.id, crane.color, livery, pv.cwt, pv.matSize, crane.sections, crane.boomMin, crane.boomMax, pv.outExt, crane.outTrans, crane.outTransHalf]);
   const poseCrane = (gg, res, load, boomHd, carHd) => {
     const geo = res.geo; gg.state.theta = geo.theta || 45; gg.state.slew = boomHd - carHd; gg.state.L = geo.kind === 'main' ? geo.L : geo.Lb; gg.state.fr = res.tele?.fr || gg.state.fr; gg.state.acc = res.acc || {};
     gg.state.jib = geo.kind !== 'main' && geo.Lj ? { len: geo.Lj, angle: geo.gamma } : null;
     gg.state.loadSize = [Math.max(0.6, num(load.l, 2)), Math.max(0.3, num(load.h, 1.5)), Math.max(0.6, num(load.l, 2) * 0.6)]; gg.state.rig = res.rigH || 3;
+    { const tk = (load.tackles || []).find(t => t && t.type === 'sling') || (load.tackles || []).find(t => t) || null; let si = null; try { si = typeof SLING_INFO === 'function' && tk ? SLING_INFO(tk) : null; } catch {}
+      gg.state.slingCol = (si && (si.colour || si.color)) || '#d13b2a'; let lg = Math.round(num(tk?.legs, 0)); if (!(lg > 0)) { try { lg = typeof slingInfo === 'function' ? num(slingInfo(load)?.legs, 0) : 0; } catch { lg = 0; } } gg.state.legs = Math.max(1, Math.min(4, lg || 4)); }
     gg.state.empty = !!res.empty; gg.state.hookY = res.empty && res.hookY != null ? res.hookY + 0.95 : res.landY + num(load.h, 1.5) + (res.rigH || 3) + 0.95 + 0.5;
     gg.root.rotation.y = carHd * D2R; C3D.pose(gg, gg.state, scene);
   };
   const api = {
     update(plan, calc, crane, livery) {
       const li = Math.min(calc.loads.length - 1, plan.activeLoad || 0), res = calc.loads[li], load = plan.loads[li], geo = res.geo; if (!geo?.tip) return;
-      const s2 = craneSig(crane, plan, livery);
-      if (s2 !== sig) { if (g) { scene.remove(g.root, g.hook, g.rope, g.slings, g.load); disposeTree(g.root); } g = C3D.buildCrane(C3D.paramsFor(crane, plan, calc, livery)); g._hung = false; scene.add(g.root); sig = s2; }
+      const pp = C3D.paramsFor(crane, plan, calc, livery), s2 = C3D.sigOf(pp);
+      if (s2 !== sig) { if (g) { scene.remove(g.root, g.hook, g.rope, g.slings, g.load); C3D.disposeCrane(g); } g = C3D.buildCrane(pp); g._hung = false; scene.add(g.root); sig = s2; }
       const sp = sitePlanState(plan, load); orbBase.cx = num(sp.cx); orbBase.cy = num(sp.cy);
       phS = sp.boom; poseCrane(g, res, load, sp.boom, sp.carrier);
       // site objects
@@ -541,10 +693,10 @@ C3D.twin = (host0, opts = {}) => {
       if (T) {
         g.load.visible = g.slings.visible = false;
         T.picks.slice(1).forEach((pk) => {
-          const pv = rigOf(plan, pk.crane), cr = pk.res.crane || crane; const ks = craneSig(cr, pv, livery) + '|' + pk.k; seen.add(pk.k);
-          let ex = extra.get(pk.k); if (!ex || ex.sig !== ks) { if (ex) { scene.remove(ex.g.root, ex.g.hook, ex.g.rope, ex.g.slings, ex.g.load); disposeTree(ex.g.root); } ex = { sig: ks, g: C3D.buildCrane(C3D.paramsFor(cr, pv, calc, livery)) }; ex.g._hung = false; scene.add(ex.g.root); extra.set(pk.k, ex); }
+          const pv = rigOf(plan, pk.crane), cr = pk.res.crane || crane; const ppx = C3D.paramsFor(cr, pv, calc, livery), ks = C3D.sigOf(ppx) + '|' + pk.k; seen.add(pk.k);
+          let ex = extra.get(pk.k); if (!ex || ex.sig !== ks) { if (ex) { scene.remove(ex.g.root, ex.g.hook, ex.g.rope, ex.g.slings, ex.g.load); C3D.disposeCrane(ex.g); } ex = { sig: ks, g: C3D.buildCrane(ppx) }; ex.g._hung = false; scene.add(ex.g.root); extra.set(pk.k, ex); }
           const bh = normDeg(pk.boomHd + num(pk.mv?.swing)); ex.g.root.position.copy(P2W(pk.base.x, pk.base.y));
-          poseCrane(ex.g, pk.res, load, bh, normDeg(bh - SIDE_OFFSET[sideOf(pk.side)])); ex.g.load.visible = ex.g.slings.visible = false; ex.g.root.visible = ex.g.hook.visible = ex.g.rope.visible = true;
+          poseCrane(ex.g, pk.res, load, bh, normDeg(bh - (SIDE_OFFSET[sideOf(pk.side)] ?? 0))); ex.g.load.visible = ex.g.slings.visible = false; ex.g.root.visible = ex.g.hook.visible = ex.g.rope.visible = true;
         });
         const hooks = [g, ...T.picks.slice(1).map(p => extra.get(p.k)?.g)].filter(Boolean);
         const pickY = g.hook.position.y - 0.95 - Math.max(1.2, res.rigH || 3); const tilt = num(T.live?.tilt) * D2R; const ax = num(T.axis) * D2R; const a = new THREE.Vector3(Math.cos(ax), 0, -Math.sin(ax));
@@ -560,11 +712,12 @@ C3D.twin = (host0, opts = {}) => {
       } else { tand.visible = false; g.load.visible = g.slings.visible = !res.empty; for (let i = 0; i < 4; i++) dropLabel('tc' + i); }
       for (const [k, ex] of extra) if (!seen.has(k)) { ex.g.root.visible = ex.g.hook.visible = ex.g.rope.visible = ex.g.slings.visible = ex.g.load.visible = false; }
       { const reach = Math.max(20, res.R, (geo.tip?.y || 20), ...(T ? T.picks.map(p => Math.hypot(p.base.x - sp.cx, p.base.y - sp.cy) * 0.6) : []));
-        api._auto = { dist: reach * 2.3, az: Math.PI / 2 - phS * D2R - 0.75, el: 0.36, tx: res.R * 0.45 * dir.x, tz: res.R * 0.45 * dir.z, ty: Math.max(6, (geo.tip?.y || 20) * 0.38) }; }
+        api._auto = { dist: reach * 2.0, az: Math.PI / 2 - phS * D2R - 0.75, el: 0.36, tx: res.R * 0.45 * dir.x, tz: res.R * 0.45 * dir.z, ty: Math.max(6, (geo.tip?.y || 20) * 0.38) }; }
       if (!framed) { Object.assign(to, api._auto); go(!api._shown); framed = true; api._shown = true; }
       dirty = true;
     },
     reframe() { framed = false; dirty = true; },
+    look(c) { Object.assign(to, c); go(true); },                                          // put the camera somewhere exact ({ az, el, dist, tx, ty, tz })
     zoom(f) { to.dist = Math.max(12, Math.min(600, to.dist / f)); go(); },
     view(kind) { const a0 = Math.PI / 2 - num(phS) * D2R; if (kind === 'side') { to.az = a0; to.el = 0.04; } else if (kind === 'top') { to.az = a0; to.el = 1.5; } else { to.az = a0 - 0.75; to.el = 0.36; } go(); },
     // move the canvas into another box (full view ↔ the small window); the scene and the WebGL context stay
@@ -573,7 +726,7 @@ C3D.twin = (host0, opts = {}) => {
     // a still for the PDF: rendered once at the size asked, then the screen size is put back
     snapshot(w = 1600, h = 1000, auto) { const ow = W0(), oh = H0(), od = dpr, keep = { ...orb }; Object.assign(orb, auto && api._auto ? api._auto : to); applyCam(); r.setPixelRatio(1); r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); r.render(scene, cam); const url = r.domElement.toDataURL('image/jpeg', 0.9); if (auto) { Object.assign(orb, keep); applyCam(); } r.setPixelRatio(od); r.setSize(ow, oh, false); cam.aspect = ow / Math.max(1, oh); cam.updateProjectionMatrix(); dirty = true; return url; },
     stats: () => ({ dpr, ema: Math.round(ema * 10) / 10, calls: r.info.render.calls, tris: r.info.render.triangles, geos: r.info.memory.geometries, tex: r.info.memory.textures }),
-    dispose() { alive = false; cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener('visibilitychange', vis); try { r.dispose(); r.forceContextLoss(); } catch {} r.domElement.remove(); }
+    dispose() { alive = false; cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener('visibilitychange', vis); try { C3D.disposeCrane(g); for (const ex of extra.values()) C3D.disposeCrane(ex.g); for (const k of Object.keys(labels)) dropLabel(k); disposeTree(site); C3D.disposeScene(scene); envRT.dispose(); r.dispose(); r.forceContextLoss(); } catch {} r.domElement.remove(); }
   };
   return api;
 };

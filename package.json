@@ -17,11 +17,13 @@
   },
   "devDependencies": {
     "dxf-parser": "^1.1.2",
+    "javascript-obfuscator": "^4.1.1",
     "jspdf": "2.5.2",
     "jszip": "3.10.1",
     "pdfjs-dist": "3.11.174",
     "playwright": "1.56.1",
     "svg2pdf.js": "2.2.4",
+    "terser": "^5.36.0",
     "three": "0.147.0"
   }
 }
