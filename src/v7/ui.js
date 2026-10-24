@@ -18,8 +18,8 @@ function startStudio() {
   ensureEnvLoaded(state.plan).then(ch => { if (ch) refresh(); });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if ((state.settings.theme || 'auto') === 'auto') applyTheme(); });
   window.matchMedia('(min-width: 900px)').addEventListener?.('change', () => { $('#panel').dataset.sig = ''; refresh(true); renderFloats(); });
-  if (!LS.get('lp.coach7', false)) { LS.set('lp.new10', true); setTimeout(coachStart, 900); } // first run: the tips are enough
-  else if (!LS.get('lp.new10', false)) setTimeout(() => { if (V7.sheet || state.page || V7.coach != null || document.body.classList.contains('locked')) return; LS.set('lp.new10', true); openSheet('new10'); }, 1500); // once, for people who had version 9
+  if (!LS.get('lp.coach7', false)) { LS.set('lp.new11', true); setTimeout(coachStart, 900); } // first run: the tips are enough
+  else if (!LS.get('lp.new11', false)) setTimeout(() => { if (V7.sheet || state.page || V7.coach != null || document.body.classList.contains('locked')) return; LS.set('lp.new11', true); openSheet('new10'); }, 1500); // once, for people who had version 9
 }
 
 // ---------- top bar ----------
@@ -121,8 +121,8 @@ const VIEWS = [['elev', 'Drawing', 'elev'], ['plan', 'Top', 'plan'], ['3d', '3D'
 function renderFloats() {
   const tl = $('#fTL'), tr = $('#fTR'); if (!tl || !tr) return;
   tl.innerHTML = `<div class="pill-bar" role="tablist" aria-label="View">${VIEWS.map(([k, t, icn]) => `<button type="button" role="tab" class="vs tap" data-act="view" data-v="${k}" aria-selected="${state.view === k}">${ic(icn, 20)}<span>${t}</span></button>`).join('')}</div>`;
-  if (state.view === '3d') tr.innerHTML = `<div class="pill-bar">${[['iso', 'Angle'], ['side', 'Side'], ['top', 'Top']].map(([v, t]) => `<button type="button" class="fbtn tap" data-act="tw" data-v="${v}" aria-label="${t} view" style="width:auto;padding:0 10px;font-size:13px;font-weight:600">${t}</button>`).join('')}<button type="button" class="fbtn tap" data-act="twFit" aria-label="Fit">${ic('fit', 20)}</button></div>`;
-  else tr.innerHTML = `<div class="pill-bar">${isDesk() ? `<button type="button" class="fbtn tap" data-act="zout" aria-label="Zoom out">${ic('zout', 20)}</button><button type="button" class="fbtn tap" data-act="zin" aria-label="Zoom in">${ic('zin', 20)}</button>` : ''}${state.view !== 'sheet' ? `<button type="button" class="fbtn tap" data-act="measure" aria-pressed="${Scene.tool?.kind === 'measure'}" aria-label="Measure">${ic('measure', 20)}</button><button type="button" class="fbtn tap" data-act="pip" aria-pressed="${!!V7.pip}" aria-label="Live 3D window">${ic('cube', 20)}</button>` : ''}<button type="button" class="fbtn tap" data-act="fit" aria-label="Fit to screen">${ic('fit', 20)}</button></div>`;
+  if (state.view === '3d') { const md = state.twin?.mode?.() || 'orbit'; tr.innerHTML = `<div class="pill-bar">${[['iso', 'Angle'], ['side', 'Side'], ['top', 'Top'], ['cab', 'Cab']].map(([v, t]) => `<button type="button" class="fbtn tap" data-act="tw" data-v="${v}" aria-label="${v === 'cab' ? 'View from the operator\'s cab' : t + ' view'}" aria-pressed="${v === 'cab' ? md === 'cab' : false}" style="width:auto;padding:0 10px;font-size:13px;font-weight:600">${t}</button>`).join('')}<button type="button" class="fbtn tap" data-act="twFit" aria-label="Fit">${ic('fit', 20)}</button><button type="button" class="fbtn tap" data-act="cab" aria-pressed="${!!(typeof CAB !== 'undefined' && CAB.on)}" aria-label="Drive the crane (cab controls)" title="Drive the crane — J">${ic('joy', 20)}</button></div>`; }
+  else tr.innerHTML = `<div class="pill-bar">${isDesk() ? `<button type="button" class="fbtn tap" data-act="zout" aria-label="Zoom out">${ic('zout', 20)}</button><button type="button" class="fbtn tap" data-act="zin" aria-label="Zoom in">${ic('zin', 20)}</button>` : ''}${state.view !== 'sheet' ? `<button type="button" class="fbtn tap" data-act="measure" aria-pressed="${Scene.tool?.kind === 'measure'}" aria-label="Measure">${ic('measure', 20)}</button><button type="button" class="fbtn tap" data-act="pip" aria-pressed="${!!V7.pip}" aria-label="Live 3D window">${ic('cube', 20)}</button>` : ''}${state.view !== 'sheet' ? `<button type="button" class="fbtn tap" data-act="cab" aria-pressed="${!!(typeof CAB !== 'undefined' && CAB.on)}" aria-label="Drive the crane (cab controls)" title="Drive the crane — J">${ic('joy', 20)}</button>` : ''}<button type="button" class="fbtn tap" data-act="fit" aria-label="Fit to screen">${ic('fit', 20)}</button></div>`;
 }
 function renderSel() {
   const el = $('#fSel'); if (!el) return;
@@ -144,8 +144,9 @@ function bindUI() {
     else if (a === 'measure') { sceneSetTool(Scene.tool?.kind === 'measure' ? null : { kind: 'measure' }); renderFloats(); }
     else if (a === 'toolOff') { sceneSetTool(null); renderFloats(); }
     else if (a === 'calibOk') applyCalib();
-    else if (a === 'tw') state.twin?.view(d.v); else if (a === 'twFit') { state.twin?.reframe(); twinUpdate(); }
+    else if (a === 'tw') { state.twin?.view(d.v); renderFloats(); } else if (a === 'twFit') { state.twin?.reframe(); twinUpdate(); }
     else if (a === 'pip') pipToggle();
+    else if (a === 'cab') cabToggle();
     else if (a === 'undo') histGo(-1); else if (a === 'redo') histGo(1);
     else if (a === 'save') savePlan(false).then(() => renderTop());
     else if (a === 'share' || a === 'pdf') openSheet('print');

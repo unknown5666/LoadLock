@@ -102,6 +102,13 @@ function dutyOptions(plan, crane, L) {
   out.cols = [...vals].sort((a, b) => a - b);
   return out;
 }
+// v11: charts of one counterweight that differ only by where the ballast sits (Liebherr VarioBallast radius): the radius, the chart, and
+// what each would read at this reach and boom (so the set-up card can say which ballast position the point needs)
+function dutyBallasts(plan, crane, L, R) {
+  const cur = crane?.charts?.[+plan?.chartIdx]; if (!cur || cur.ballastR == null) return [];
+  const want = dutyWant(plan, crane); const fam = dutyFamily(crane, want).filter(x => chartCwt(x.ch) === chartCwt(cur) && x.ch.ballastR != null);
+  return fam.map(x => { const pr = getChart(x.ch); let cap = null; if (pr) { const ci = pr.cols.findIndex(c => Math.abs(c.L - num(L)) < 0.45); if (ci >= 0) cap = lookupCap(pr, ci, num(R)).cap; } return { i: x.i, r: x.ch.ballastR, cap, on: x.i === +plan.chartIdx }; }).sort((a, b) => a.r - b.r);
+}
 // does the chart in use match the set-up? (cheap: one chart, no search) → a check or null
 function dutyCheck(plan, crane, chartDef, G) {
   const want = dutyWant(plan, crane);

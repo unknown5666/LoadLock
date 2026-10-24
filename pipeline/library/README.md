@@ -53,3 +53,11 @@ For a future run of `pipeline/cad` (libredwg `dwg2dxf` -> `extract2.py` -> `norm
 - Exact DWGs that need a free CADforum login (links in `src/library.js`, `login:true`): LTM 1200-5.1 (replaces the LTM1220 body now borrowed by the LTM1200), LTM 1250-6.1, LTM 1300-6.2, LTM 1500-8.1.
 - Variants: LTM 1250-5.1, LTM 1300-6.1 (3D), LTM 1300-6.3.
 - Still borrowed, nearest only: STC500, STC750, STC1000, AC100, SAC2600, LTM1080, ZAT4000V (no public DWG for SANY or Zoomlion: use the dimension drawings in their spec PDFs).
+
+## v11: jib charts and the LTM1650
+
+- `extract/gen_jibs.py` writes `LIB_JIBS` into `src/data.js` (fly-jib tables, all `verify:true`): STC500 and STC750 (jib on the fully extended boom, rows = main-boom angle, kg → t, over rear and side), ZTC1000V (ZTC1000 tables 10, 11 + 12 merged at the lower value, 13; outriggers fully extended; rows = main-boom angle), AC100 HAV (pp.14-17, 32 / 25 / 13.3 / 12 t, 38.0 / 42.2 / 46.4 / 50.2 m, 9.2 / 17 m; starred cells blank), AC700 HAV (p.17, 60 m boom, 100 / 60 t).
+- `extract/gen_ltm1650.py` writes `LIB_1650`: Nordic Crane LTM 1650-8.1.pdf p.29 (T3) and p.31 (T3Y). Liebherr's max tables colour every cell by the VarioBallast set-up; each cell's colour is read from the rendered page (pixels round the number, majority vote against the five legend colours, the legend itself checked) and the cell goes only into the chart of that set-up. `LL_OVERLAY=1` writes a picture with the reading over each number.
+- Both run like `gen_all.py`: `LL_LIB=… LL_CHART_OUT=… python3 pipeline/library/extract/gen_jibs.py` (PyMuPDF), from a folder that is not the library.
+- Not taken: AC500-2 jib tables (colour-coded by counterweight, same treatment as the LTM1650 would be needed), AC700 HAVSSL (superlift), Zoomlion intermediate-outrigger jib tables, all luffing-jib tables of the non-Liebherr cranes.
+- CAD: LibreDWG 0.13.3 (built from the GNU release) converts the library DWGs, but its DXF writer stops part-way for most of them and `dwg2SVG` misses blocks; `dwgread -O JSON` output is complete and is the route for a future body import.

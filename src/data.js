@@ -973,6 +973,1537 @@ const LIB_CHARTS = {
   ]
 };
 for (const c of DEFAULT_CRANES) if (LIB_CHARTS[c.id]) c.charts = (c.charts || []).concat(LIB_CHARTS[c.id]);
+// ---------- v11: jib charts from the crane library (UNVERIFIED) ----------
+// Fly-jib tables read from the library PDFs by pipeline/library/extract/gen_jibs.py (text layer, never typed). All verify:true. rowsBy:'angle' = the rows are
+// the main-boom angle (SANY, Zoomlion), otherwise the radius. The app picks them from the set-up (duty.js) when a fly jib is put on.
+const LIB_JIBS = {
+  stc500: [
+    { id:"j9.2", name:"Fly jib 9.2 m on 43 m boom · 0/15/30° · over rear and side · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:null, mainLen:43, mainLabel:43, jibLen:9.2, sectors:["rear", "side"], rowsBy:'angle', verify:true,
+      source:"SANY STC500 - 50t Truck/Load Charts/Cranepedia - Sany STC500 - STC500 - Load Chart - Metric - English (2).pdf p.8 (brochure p.14, jib table: outriggers fully extended, over rear and side; the jib table states no counterweight). UNVERIFIED. kg converted to t. Rows are the main-boom angle (lowest 55°). The ratings include the hook; with the jib unfolded the main-boom hook rating drops by 2.3 t (maker's note 6).",
+      src:`H: 0 | 15 | 30
+56: 0.7 0.65 0.55
+58: 1.1 0.95 0.75
+61: 1.5 1.2 0.95
+63: 1.8 1.4 1.1
+66: 2 1.5 1.3
+68: 2.2 1.7 1.4
+71: 2.5 1.8 1.6
+73: 2.7 2 1.7
+75: 3 2.2 1.8
+77: 3.2 2.3 1.9
+78: 3.5 2.4 2` },
+    { id:"j16", name:"Fly jib 16 m on 43 m boom · 0/15/30° · over rear and side · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:null, mainLen:43, mainLabel:43, jibLen:16.0, sectors:["rear", "side"], rowsBy:'angle', verify:true,
+      source:"SANY STC500 - 50t Truck/Load Charts/Cranepedia - Sany STC500 - STC500 - Load Chart - Metric - English (2).pdf p.8 (brochure p.14, jib table: outriggers fully extended, over rear and side; the jib table states no counterweight). UNVERIFIED. kg converted to t. Rows are the main-boom angle (lowest 55°). The ratings include the hook; with the jib unfolded the main-boom hook rating drops by 2.3 t (maker's note 6).",
+      src:`H: 0 | 15 | 30
+56: 0.5 - -
+58: 0.65 0.6 0.55
+61: 0.95 0.75 0.65
+63: 1.1 0.85 0.72
+66: 1.3 0.95 0.76
+68: 1.5 1 0.8
+71: 1.8 1.1 0.85
+73: 2 1.2 0.85
+75: 2.3 1.3 0.95
+77: 2.4 1.4 1
+78: 2.4 1.45 1` }
+  ],
+  stc750: [
+    { id:"j9.2", name:"Fly jib 9.2 m on 45 m boom · 0/15/30° · over rear and side · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:null, mainLen:45, mainLabel:45, jibLen:9.2, sectors:["rear", "side"], rowsBy:'angle', verify:true,
+      source:"SANY STC750 - 75t Truck/Load Charts/Cranepedia - Sany STC750 - STC750 - Load Chart - Metric - English.pdf p.5 (brochure p.8, LOAD CHART FOR JIB: fully extended outriggers, over rear and side). UNVERIFIED. kg converted to t. Rows are the main-boom angle (lowest 55°). The ratings include the hook; with the jib unfolded the main hook rating drops by 2 t (maker's note 4).",
+      src:`H: 0 | 15 | 30
+56: 0.7 0.65 0.55
+58: 1.1 0.95 0.75
+61: 1.5 1.2 0.95
+63: 1.8 1.4 1.1
+66: 2 1.5 1.3
+68: 2.2 1.7 1.4
+71: 2.5 1.8 1.6
+73: 2.7 2 1.7
+75: 3 2.2 1.8
+77: 3.2 2.3 1.9
+78: 3.5 2.4 2
+80: 3.5 2.4 2` },
+    { id:"j16", name:"Fly jib 16 m on 45 m boom · 0/15/30° · over rear and side · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:null, mainLen:45, mainLabel:45, jibLen:16, sectors:["rear", "side"], rowsBy:'angle', verify:true,
+      source:"SANY STC750 - 75t Truck/Load Charts/Cranepedia - Sany STC750 - STC750 - Load Chart - Metric - English.pdf p.5 (brochure p.8, LOAD CHART FOR JIB: fully extended outriggers, over rear and side). UNVERIFIED. kg converted to t. Rows are the main-boom angle (lowest 55°). The ratings include the hook; with the jib unfolded the main hook rating drops by 2 t (maker's note 4).",
+      src:`H: 0 | 15 | 30
+56: 0.5 - -
+58: 0.65 0.6 0.55
+61: 0.95 0.75 0.65
+63: 1.1 0.85 0.72
+66: 1.3 0.95 0.76
+68: 1.5 1 0.8
+71: 1.8 1.1 0.85
+73: 2 1.2 0.85
+75: 2.3 1.3 0.95
+77: 2.4 1.4 1
+78: 2.4 1.45 1
+80: 2.8 1.5 1.1` }
+  ],
+  ztc1000v: [
+    { id:"j11-58.5-32", name:"ZTC1000 (not the V) · Fly jib 11 m on 58.5 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:58.5, mainLabel:58.5, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+35: 1.2 1.1
+40: 1.6 1.5
+42: 1.8 1.6
+44: 2 1.8
+46: 2.2 2
+48: 2.4 2.2
+50: 2.5 2.3
+52: 2.7 2.5
+54: 2.8 2.6
+56: 3 2.7
+58: 3.2 2.8
+60: 3.4 3
+62: 3.6 3.2
+64: 3.9 3.4
+66: 4.2 3.5
+68: 4.5 3.6
+70: 4.8 3.7
+72: 5.2 3.8
+74: 5.6 3.9
+76: 5.8 4
+78: 6 4.1
+80: 6 4.2
+82: 6 4.5` },
+    { id:"j11-63-32", name:"ZTC1000 (not the V) · Fly jib 11 m on 63 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:63.0, mainLabel:63.0, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+35: 0.9 0.8
+40: 1.1 1
+42: 1.3 1.2
+44: 1.5 1.4
+46: 1.6 1.6
+48: 1.8 1.7
+50: 2 1.8
+52: 2.2 2
+54: 2.4 2.2
+56: 2.6 2.4
+58: 2.8 2.5
+60: 3 2.7
+62: 3.2 2.8
+64: 3.4 3
+66: 3.7 3.1
+68: 4 3.3
+70: 4.2 3.4
+72: 4.4 3.5
+74: 4.8 3.6
+76: 5.2 3.8
+78: 5.5 4
+80: 5.5 4
+82: 5.5 4` },
+    { id:"j18.6-58.5-32", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 58.5 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:58.5, mainLabel:58.5, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+40: 1 0.9
+42: 1.1 1
+44: 1.4 1.2
+46: 1.5 1.3
+48: 1.6 1.4
+50: 1.7 1.4
+52: 1.8 1.4
+54: 1.9 1.5
+56: 2 1.5
+58: 2.1 1.6
+60: 2.2 1.6
+62: 2.3 1.7
+64: 2.5 1.7
+66: 2.6 1.8
+68: 2.8 1.8
+70: 3 1.9
+72: 3.2 2
+74: 3.5 2.1
+76: 3.7 2.2
+78: 4 2.3
+80: 4.2 2.4
+82: 4.5 2.5` },
+    { id:"j18.6-63-32", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 63 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:63.0, mainLabel:63.0, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+42: 0.8 -
+44: 0.9 0.8
+46: 1 0.9
+48: 1.1 1
+50: 1.2 1.1
+52: 1.3 1.2
+54: 1.5 1.3
+56: 1.6 1.4
+58: 1.7 1.4
+60: 1.8 1.4
+62: 2 1.5
+64: 2.2 1.6
+66: 2.3 1.6
+68: 2.4 1.7
+70: 2.6 1.8
+72: 2.8 1.8
+74: 3 1.9
+76: 3.3 1.9
+78: 3.6 2
+80: 3.8 2
+82: 4 2` },
+    { id:"j26.6-58.5-32", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 58.5 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:58.5, mainLabel:58.5, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+52: 1
+54: 1
+56: 1.1
+58: 1.1
+60: 1.2
+62: 1.3
+64: 1.4
+66: 1.5
+68: 1.7
+70: 1.8
+72: 2
+74: 2.1
+76: 2.2
+78: 2.3
+80: 2.4
+82: 2.5` },
+    { id:"j26.6-63-32", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 63 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:63.0, mainLabel:63.0, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+56: 0.9
+58: 1
+60: 1
+62: 1.1
+64: 1.2
+66: 1.3
+68: 1.4
+70: 1.6
+72: 1.7
+74: 1.8
+76: 1.9
+78: 2
+80: 2.1
+82: 2.2` },
+    { id:"j11-58.5-28", name:"ZTC1000 (not the V) · Fly jib 11 m on 58.5 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:58.5, mainLabel:58.5, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+44: 0.9 0.8
+46: 1.1 1
+48: 1.3 1.2
+50: 1.5 1.4
+52: 1.8 1.7
+54: 2.1 1.9
+56: 2.4 2.2
+58: 2.7 2.5
+60: 3.1 2.9
+62: 3.6 3.2
+64: 3.9 3.4
+66: 4.2 3.5
+68: 4.5 3.6
+70: 4.8 3.7
+72: 5.2 3.8
+74: 5.6 3.9
+76: 5.8 4
+78: 6 4.1
+80: 6 4.2
+82: 6 4.5` },
+    { id:"j11-63-28", name:"ZTC1000 (not the V) · Fly jib 11 m on 63 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:63.0, mainLabel:63.0, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+48: 0.8 0.7
+50: 1 0.9
+52: 1.3 1.2
+54: 1.5 1.4
+56: 1.8 1.7
+58: 2.1 2
+60: 2.5 2.3
+62: 2.9 2.6
+64: 3.3 3
+66: 3.7 3.1
+68: 4 3.3
+70: 4.2 3.4
+72: 4.4 3.5
+74: 4.8 3.6
+76: 5.2 3.8
+78: 5.5 4
+80: 5.5 4
+82: 5.5 4` },
+    { id:"j18.6-58.5-28", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 58.5 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:58.5, mainLabel:58.5, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+48: 0.7 -
+50: 0.9 0.8
+52: 1.1 1
+54: 1.3 1.2
+56: 1.6 1.4
+58: 1.9 1.6
+60: 2.2 1.6
+62: 2.3 1.7
+64: 2.5 1.7
+66: 2.6 1.8
+68: 2.8 1.8
+70: 3 1.9
+72: 3.2 2
+74: 3.5 2.1
+76: 3.7 2.2
+78: 4 2.3
+80: 4.2 2.4
+82: 4.5 2.5` },
+    { id:"j18.6-63-28", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 63 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:63.0, mainLabel:63.0, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+54: 0.9 0.8
+56: 1.1 1
+58: 1.4 1.2
+60: 1.7 1.4
+62: 2 1.5
+64: 2.2 1.6
+66: 2.3 1.6
+68: 2.4 1.7
+70: 2.6 1.8
+72: 2.8 1.8
+74: 3 1.9
+76: 3.3 1.9
+78: 3.6 2
+80: 3.8 2
+82: 4 2` },
+    { id:"j26.6-58.5-28", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 58.5 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:58.5, mainLabel:58.5, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+56: 1
+58: 1.1
+60: 1.2
+62: 1.3
+64: 1.4
+66: 1.5
+68: 1.7
+70: 1.8
+72: 2
+74: 2.1
+76: 2.2
+78: 2.3
+80: 2.4
+82: 2.5` },
+    { id:"j26.6-63-28", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 63 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:63.0, mainLabel:63.0, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+60: 1
+62: 1.1
+64: 1.2
+66: 1.3
+68: 1.4
+70: 1.6
+72: 1.7
+74: 1.8
+76: 1.9
+78: 2
+80: 2.1
+82: 2.2` },
+    { id:"j11-58.5-6", name:"ZTC1000 (not the V) · Fly jib 11 m on 58.5 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:58.5, mainLabel:58.5, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+58: 0.8 0.7
+60: 1.2 1
+62: 1.5 1.3
+64: 2 1.7
+66: 2.5 2.1
+68: 3.1 2.6
+70: 3.7 3.1
+72: 4.5 3.7
+74: 5.3 3.9
+76: 5.8 4
+78: 6 4.1
+80: 6 4.2
+82: 6 4.5` },
+    { id:"j11-63-6", name:"ZTC1000 (not the V) · Fly jib 11 m on 63 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:63.0, mainLabel:63.0, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+60: 0.7 -
+62: 1 0.9
+64: 1.4 1.2
+66: 1.9 1.6
+68: 2.4 2
+70: 3 2.5
+72: 3.7 3
+74: 4.4 3.6
+76: 5.2 3.8
+78: 5.5 4
+80: 5.5 4
+82: 5.5 4` },
+    { id:"j18.6-58.5-6", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 58.5 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:58.5, mainLabel:58.5, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+64: 1.3 1
+66: 1.7 1.3
+68: 2.2 1.6
+70: 2.6 1.8
+72: 3.2 2
+74: 3.5 2.1
+76: 3.7 2.2
+78: 4 2.3
+80: 4.2 2.4
+82: 4.5 2.5` },
+    { id:"j18.6-63-6", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 63 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:63.0, mainLabel:63.0, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+64: 0.8 -
+66: 1.1 0.8
+68: 1.6 1.2
+70: 2 1.5
+72: 2.6 1.7
+74: 3 1.8
+76: 3.3 1.9
+78: 3.6 2
+80: 3.8 2
+82: 4 2` },
+    { id:"j26.6-58.5-6", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 58.5 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:58.5, mainLabel:58.5, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+66: 1
+68: 1.4
+70: 1.8
+72: 2
+74: 2.1
+76: 2.2
+78: 2.3
+80: 2.4
+82: 2.5` },
+    { id:"j26.6-63-6", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 63 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:63.0, mainLabel:63.0, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+68: 0.9
+70: 1.3
+72: 1.6
+74: 1.8
+76: 1.9
+78: 2
+80: 2.1
+82: 2.2` }
+  ],
+  ac100: [
+    { id:"hav9.2-38-32", name:"Fly jib (HAV) 9.2 m on 38 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:38.0, mainLabel:38.0, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+7: 14.4 - -
+8: 14.2 - -
+9: 13.7 - -
+10: 13.1 9.3 -
+12: 12.2 8.9 -
+14: 11.3 8.6 7.1
+16: 10.4 8.3 7
+18: 9.7 8 6.8
+20: 9 7.7 6.6
+22: 8.3 7.5 6.5
+24: 7.7 7.1 6.4
+26: 7.1 6.8 6.3
+28: 6.5 6.4 6.2
+30: 5.9 6 6.1
+32: 5.3 5.5 5.8
+34: 4.6 4.9 5
+36: 4.1 4.3 -
+38: 3.7 3.7 -
+40: 3.6 3.5 -
+42: 3.4 3.4 -` },
+    { id:"hav17-38-32", name:"Fly jib (HAV) 17 m on 38 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:38.0, mainLabel:38.0, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+8: 8.1 - -
+9: 7.8 - -
+10: 7.5 - -
+12: 7 - -
+14: 6.5 4.8 -
+16: 6 4.6 -
+18: 5.6 4.3 3.6
+20: 5.3 4.1 3.5
+22: 5 3.9 3.4
+24: 4.7 3.7 3.3
+26: 4.4 3.6 3.2
+28: 4.2 3.4 3.1
+30: 4 3.3 3
+32: 3.8 3.2 3
+34: 3.6 3.1 2.9
+36: 3.5 3.1 2.9
+38: 3.3 3 2.9
+40: 3.2 3 2.9
+42: 3 2.9 2.9
+44: 2.7 2.8 -
+46: 2.4 2.6 -
+48: 2.1 2.2 -
+50: 2 2 -` },
+    { id:"hav9.2-42.2-32", name:"Fly jib (HAV) 9.2 m on 42.2 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:42.2, mainLabel:42.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 11.7 - -
+10: 11.3 - -
+12: 10.7 8.8 -
+14: 10 8.4 7.1
+16: 9.3 8.1 6.9
+18: 8.7 7.8 6.7
+20: 8.1 7.5 6.5
+22: 7.5 7.2 6.4
+24: 7 6.9 6.2
+26: 6.5 6.6 6
+28: 6 6.2 5.9
+30: 5.6 5.9 5.7
+32: 5.2 5.5 5.5
+34: 4.8 5.1 5.3
+36: 4.3 4.5 4.6
+38: 3.9 4 4.1
+40: 3.7 3.7 -
+42: 3.4 3.5 -
+44: - 3.1 -
+46: 2.7 2.8 -` },
+    { id:"hav17-42.2-32", name:"Fly jib (HAV) 17 m on 42.2 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:42.2, mainLabel:42.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 7.2 - -
+10: 7 - -
+12: 6.5 - -
+14: 6.1 - -
+16: 5.7 4.5 -
+18: 5.3 4.3 -
+20: 5 4.1 3.4
+22: 4.7 3.9 3.3
+24: 4.5 3.7 3.2
+26: 4.2 3.6 3.1
+28: 4 3.4 3.1
+30: 3.8 3.3 3
+32: 3.7 3.2 2.9
+34: 3.5 3.1 2.9
+36: 3.4 3.1 2.8
+38: 3.2 3.1 2.8
+40: 3.1 3.1 2.8
+42: 3 3.1 2.8
+44: 2.8 3.1 2.8
+46: 2.5 2.7 2.8
+48: 2.3 2.4 -
+50: 2.2 2.2 -
+52: 2.1 2.2 -
+54: 1.9 - -` },
+    { id:"hav9.2-46.4-32", name:"Fly jib (HAV) 9.2 m on 46.4 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:46.4, mainLabel:46.4, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+10: 10.3 - -
+12: 9.4 - -
+16: 8.1 6.8 6.1
+18: 7.5 6.5 5.8
+20: 7 6.2 5.5
+22: 6.5 5.8 5.2
+24: 6.1 5.5 5
+26: 5.7 5.2 4.8
+28: 5.4 5 4.6
+30: 5.1 4.7 4.4
+32: 4.8 4.5 4.2
+34: 4.5 4.2 4.1
+36: 4.2 4 3.9
+38: 3.9 3.8 3.8
+40: - 3.6 3.6
+42: - - 3.3
+50: 1.8 1.9 -` },
+    { id:"hav17-46.4-32", name:"Fly jib (HAV) 17 m on 46.4 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:46.4, mainLabel:46.4, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 6.2 - -
+16: 5.5 - -
+18: 5.2 4.1 -
+20: 4.9 4 -
+22: 4.7 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.5 3.1
+28: 4 3.3 3
+30: 3.8 3.2 3
+32: 3.6 3 2.9
+34: 3.5 2.9 2.9
+36: 3.3 2.8 2.8
+38: 3.2 2.7 2.7
+40: 3.1 2.6 2.6
+42: 2.9 2.6 2.5
+44: 2.8 2.5 2.5
+46: 2.6 2.5 2.4
+48: 2.3 2.4 2.4
+50: - 2.2 -
+52: - 1.9 -
+58: 1.1 - -` },
+    { id:"hav9.2-50.2-32", name:"Fly jib (HAV) 9.2 m on 50.2 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:50.2, mainLabel:50.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 8.4 - -
+14: 7.9 6.9 -
+16: 7.5 6.4 -
+18: 7.1 6.1 5.5
+20: 6.7 5.7 5.2
+22: 6.3 5.4 5
+24: 6 5.2 4.8
+26: 5.7 4.9 4.6
+28: 5.4 4.7 4.4
+30: 5 4.5 4.2
+32: 4.7 4.3 4.1
+34: 4.4 4.1 4
+36: 4.1 3.9 3.8
+38: 3.8 3.7 3.7
+40: 3.4 3.5 3.5
+42: 3 3.2 3.3
+44: 2.6 2.8 2.9
+46: 2.3 2.4 -
+48: 2 2.1 -
+50: 1.7 1.8 -
+52: 1.5 1.6 -
+54: 1.3 - -` },
+    { id:"hav17-50.2-32", name:"Fly jib (HAV) 17 m on 50.2 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:50.2, mainLabel:50.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 5.6 - -
+14: 5.4 - -
+16: 5.2 - -
+18: 5 4.1 -
+20: 4.8 3.9 -
+22: 4.6 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.4 3
+28: 4 3.3 2.9
+30: 3.8 3.1 2.9
+32: 3.6 3 2.8
+34: 3.4 2.9 2.7
+36: 3.2 2.8 2.7
+38: 3 2.7 2.6
+40: 2.8 2.6 2.5
+42: 2.7 2.5 2.5
+44: 2.5 2.4 2.4
+46: 2.4 2.3 2.3
+48: 2.2 2.3 2.2
+50: 1.9 2.2 2.2
+52: 1.6 1.9 2
+54: 1.4 1.6 -
+56: 1.2 1.4 -
+58: 1 - -
+60: 0.8 - -
+62: 0.7 - -` },
+    { id:"hav9.2-38-25", name:"Fly jib (HAV) 9.2 m on 38 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:38.0, mainLabel:38.0, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+7: 14.4 - -
+8: 14.2 - -
+9: 13.7 - -
+10: 13.1 9.3 -
+12: 12.2 8.9 -
+14: 11.3 8.6 7.1
+16: 10.4 8.3 7
+18: 9.7 8 6.8
+20: 9 7.7 6.6
+22: 8.3 7.5 6.5
+24: 7.7 7.1 6.4
+26: 6.6 6.8 6.3
+28: 5.7 6.1 6.2
+30: 4.9 5.2 5.5
+32: 4.4 4.5 4.7
+34: 4.2 3.9 4
+36: 3.9 3.7 -
+38: 3.7 3.6 -
+40: 3.3 3.4 -
+42: 3 3 -` },
+    { id:"hav17-38-25", name:"Fly jib (HAV) 17 m on 38 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:38.0, mainLabel:38.0, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+8: 8.1 - -
+9: 7.8 - -
+10: 7.5 - -
+12: 7 - -
+14: 6.5 4.8 -
+16: 6 4.6 -
+18: 5.6 4.3 3.6
+20: 5.3 4.1 3.5
+22: 5 3.9 3.4
+24: 4.7 3.7 3.3
+26: 4.4 3.6 3.2
+28: 4.2 3.4 3.1
+30: 4 3.3 3
+32: 3.8 3.2 3
+34: 3.6 3.1 2.9
+36: 3.5 3.1 2.9
+38: 3 3 2.9
+40: 2.6 3 2.9
+42: 2.4 2.5 2.7
+44: 2.3 2.2 -
+46: 2.2 2.1 -
+48: 2.1 2.1 -
+50: 2 2 -` },
+    { id:"hav9.2-42.2-25", name:"Fly jib (HAV) 9.2 m on 42.2 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:42.2, mainLabel:42.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 11.7 - -
+10: 11.3 - -
+12: 10.7 8.8 -
+14: 10 8.4 7.1
+16: 9.3 8.1 6.9
+18: 8.7 7.8 6.7
+20: 8.1 7.5 6.5
+22: 7.5 7.2 6.4
+24: 7 6.9 6.2
+26: 6.5 6.6 6
+28: 5.9 6.2 5.9
+30: 5.1 5.5 5.7
+32: 4.6 4.7 4.9
+34: 4.3 4.1 4.3
+36: - 3.9 3.9
+38: - 3.5 3.6
+46: 1.9 2 -` },
+    { id:"hav17-42.2-25", name:"Fly jib (HAV) 17 m on 42.2 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:42.2, mainLabel:42.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 7.2 - -
+10: 7 - -
+12: 6.5 - -
+14: 6.1 - -
+16: 5.7 4.5 -
+18: 5.3 4.3 -
+20: 5 4.1 3.4
+22: 4.7 3.9 3.3
+24: 4.5 3.7 3.2
+26: 4.2 3.6 3.1
+28: 4 3.4 3.1
+30: 3.8 3.3 3
+32: 3.7 3.2 2.9
+34: 3.5 3.1 2.9
+36: 3.4 3.1 2.8
+38: 3.1 3.1 2.8
+40: 2.8 3.1 2.8
+42: 2.7 2.7 2.8
+44: 2.4 2.5 2.5
+46: - 2.4 2.4
+54: 1.2 - -` },
+    { id:"hav9.2-46.4-25", name:"Fly jib (HAV) 9.2 m on 46.4 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:46.4, mainLabel:46.4, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+10: 10.3 - -
+12: 9.4 - -
+14: 8.7 7.1 -
+16: 8.1 6.8 6.1
+18: 7.5 6.5 5.8
+20: 7 6.2 5.5
+22: 6.5 5.8 5.2
+24: 6.1 5.5 5
+26: 5.7 5.2 4.8
+28: 5.4 5 4.6
+30: 5.1 4.7 4.4
+32: - 4.5 4.2
+34: - 4.2 4.1
+36: - - 3.9
+42: - - 2.5
+50: 1.1 1.1 -` },
+    { id:"hav17-46.4-25", name:"Fly jib (HAV) 17 m on 46.4 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:46.4, mainLabel:46.4, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 6.2 - -
+14: 5.8 - -
+16: 5.5 - -
+18: 5.2 4.1 -
+20: 4.9 4 -
+22: 4.7 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.5 3.1
+28: 4 3.3 3
+30: 3.8 3.2 3
+32: 3.6 3 2.9
+34: 3.5 2.9 2.9
+36: 3.3 2.8 2.8
+38: 3.2 2.7 2.7
+40: - 2.6 2.6
+42: - 2.6 2.5
+44: - 2.4 2.5
+46: - - 2.3` },
+    { id:"hav9.2-50.2-25", name:"Fly jib (HAV) 9.2 m on 50.2 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:50.2, mainLabel:50.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 8.4 - -
+14: 7.9 6.9 -
+16: 7.5 6.4 -
+18: 7.1 6.1 5.5
+20: 6.7 5.7 5.2
+22: 6.3 5.4 5
+24: 6 5.2 4.8
+26: 5.7 4.9 4.6
+28: 5.4 4.7 4.4
+30: 5 4.5 4.2
+32: 4.5 4.3 4.1
+34: 3.9 4.1 4
+36: 3.4 3.7 3.8
+38: 2.9 3.2 3.3
+40: 2.5 2.7 2.9
+42: 2.1 2.3 2.5
+44: 1.8 2 2.1
+46: 1.5 1.7 -
+48: 1.2 1.4 -
+50: 1 1.1 -
+52: 0.8 0.9 -` },
+    { id:"hav17-50.2-25", name:"Fly jib (HAV) 17 m on 50.2 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:50.2, mainLabel:50.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 5.6 - -
+14: 5.4 - -
+16: 5.2 - -
+18: 5 4.1 -
+20: 4.8 3.9 -
+22: 4.6 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.4 3
+28: 4 3.3 2.9
+30: 3.8 3.1 2.9
+32: 3.6 3 2.8
+34: 3.4 2.9 2.7
+36: 3.2 2.8 2.7
+38: 3 2.7 2.6
+40: 2.7 2.6 2.5
+42: 2.3 2.5 2.5
+44: 2 2.4 2.4
+46: 1.7 2 2.3
+48: 1.4 1.7 1.9
+50: 1.2 1.4 1.6
+52: 0.9 1.2 1.3
+54: 0.7 0.9 -
+56: - 0.7 -` },
+    { id:"hav9.2-38-13.3", name:"Fly jib (HAV) 9.2 m on 38 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:38.0, mainLabel:38.0, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+7: 14.4 - -
+8: 14.2 - -
+9: 13.7 - -
+10: 13.1 9.3 -
+12: 12.2 8.9 -
+14: 11.3 8.6 7.1
+16: 10 8.3 7
+18: 8.3 8 6.8
+20: 6.8 7.5 6.6
+22: 5.9 6.2 6.5
+24: 5.6 5.1 5.5
+26: 4.9 4.7 4.6
+28: 4.1 4.4 4.4
+30: 3.5 3.8 4
+32: 3 3.2 3.4
+34: 2.5 2.7 2.8
+36: 2.1 2.3 -
+38: 1.8 1.9 -
+40: 1.4 1.6 -
+42: 1.2 1.2 -` },
+    { id:"hav17-38-13.3", name:"Fly jib (HAV) 17 m on 38 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:38.0, mainLabel:38.0, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+8: 8.1 - -
+9: 7.8 - -
+10: 7.5 - -
+12: 7 - -
+14: 6.5 4.8 -
+16: 6 4.6 -
+18: 5.6 4.3 3.6
+20: 5.3 4.1 3.5
+22: 5 3.9 3.4
+24: 4.7 3.7 3.3
+26: 4.1 3.6 3.2
+28: 3.7 3.4 3.1
+30: 3.4 3.3 3
+32: 3.2 2.9 3
+34: 2.8 2.8 2.8
+36: 2.4 2.7 2.7
+38: 2 2.4 2.6
+40: 1.7 2 2.2
+42: 1.4 1.7 1.8
+44: 1.1 1.4 -
+46: 0.9 1.1 -
+48: 0.7 0.9 -
+50: - 0.6 -` },
+    { id:"hav9.2-42.2-13.3", name:"Fly jib (HAV) 9.2 m on 42.2 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:42.2, mainLabel:42.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 11.7 - -
+10: 11.3 - -
+12: 10.7 8.8 -
+14: 10 8.4 7.1
+16: 9.3 8.1 6.9
+18: 8.3 7.8 6.7
+20: 7 7.5 6.5
+22: 6.2 6.4 6.4
+24: 5.3 5.3 5.7
+26: - 4.9 4.7
+28: - - 4.4` },
+    { id:"hav17-42.2-13.3", name:"Fly jib (HAV) 17 m on 42.2 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:42.2, mainLabel:42.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 7.2 - -
+10: 7 - -
+12: 6.5 - -
+14: 6.1 - -
+16: 5.7 4.5 -
+18: 5.3 4.3 -
+20: 5 4.1 3.4
+22: 4.7 3.9 3.3
+24: 4.5 3.7 3.2
+26: 4.2 3.6 3.1
+28: 3.9 3.4 3.1
+30: 3.4 3.3 3
+32: - 3.1 2.9
+34: - 2.9 2.9
+36: - - 2.8
+46: - - 0.9` },
+    { id:"hav9.2-46.4-13.3", name:"Fly jib (HAV) 9.2 m on 46.4 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:46.4, mainLabel:46.4, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+0: 10.3 - -
+2: 9.4 - -
+4: 8.7 7.1 -
+6: 8.1 6.8 6.1
+8: 7.5 6.5 5.8
+20: 7 6.2 5.5
+22: 5.9 5.8 5.2
+24: - 5.4 5
+26: - 4.5 4.8` },
+    { id:"hav17-46.4-13.3", name:"Fly jib (HAV) 17 m on 46.4 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:46.4, mainLabel:46.4, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+2: 6.2 - -
+4: 5.8 - -
+6: 5.5 - -
+8: 5.2 4.1 -
+20: 4.9 4 -
+22: 4.7 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.5 3.1
+28: - 3.3 3
+30: - 3.2 3
+32: - 3 2.9
+34: - - 2.9` },
+    { id:"hav9.2-50.2-13.3", name:"Fly jib (HAV) 9.2 m on 50.2 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:50.2, mainLabel:50.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 8.4 - -
+14: 7.9 6.9 -
+16: 7.5 6.4 -
+18: 7.1 6.1 5.5
+20: 6.7 5.7 5.2
+22: 5.6 5.4 5
+24: 4.7 5.2 4.8
+26: 3.8 4.3 4.6
+28: 3.2 3.6 3.9
+30: 2.6 3 3.3
+32: 2.1 2.5 2.7
+34: 1.7 2 2.2
+36: 1.3 1.6 1.8
+38: 0.9 1.2 1.3
+40: 0.6 0.8 1
+42: - - 0.7` },
+    { id:"hav17-50.2-13.3", name:"Fly jib (HAV) 17 m on 50.2 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:50.2, mainLabel:50.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 5.6 - -
+14: 5.4 - -
+16: 5.2 - -
+18: 5 4.1 -
+20: 4.8 3.9 -
+22: 4.6 3.8 3.2
+24: 4.4 3.6 3.1
+26: 3.9 3.4 3
+28: 3.3 3.3 2.9
+30: 2.7 3.1 2.9
+32: 2.2 2.9 2.8
+34: 1.8 2.4 2.7
+36: 1.4 2 2.4
+38: 1.1 1.6 2
+40: 0.8 1.3 1.6
+42: - 1 1.3
+44: - 0.7 0.9
+46: - - 0.6` },
+    { id:"hav9.2-38-12", name:"Fly jib (HAV) 9.2 m on 38 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:38.0, mainLabel:38.0, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+7: 14.4 - -
+8: 14.2 - -
+9: 13.7 - -
+10: 13.1 9.3 -
+12: 12.2 8.9 -
+14: 11.3 8.6 7.1
+16: 9.5 8.3 7
+18: 7.8 8 6.8
+20: 6.4 7 6.6
+22: 5.9 5.7 6.2
+24: 5.4 4.9 5.1
+26: 4.5 4.7 4.6
+28: 3.8 4.1 4.3
+30: 3.2 3.5 3.7
+32: 2.7 2.9 3.1
+34: 2.2 2.4 2.6
+36: 1.8 2 -
+38: 1.5 1.7 -
+40: 1.2 1.3 -
+42: 1 1 -` },
+    { id:"hav17-38-12", name:"Fly jib (HAV) 17 m on 38 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:38.0, mainLabel:38.0, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+8: 8.1 - -
+9: 7.8 - -
+10: 7.5 - -
+12: 7 - -
+14: 6.5 4.8 -
+16: 6 4.6 -
+18: 5.6 4.3 3.6
+20: 5.3 4.1 3.5
+22: 5 3.9 3.4
+24: 4.6 3.7 3.3
+26: 3.9 3.6 3.2
+28: 3.7 3.4 3.1
+30: 3.4 3.1 3
+32: 2.9 2.9 3
+34: 2.5 2.8 2.7
+36: 2.1 2.5 2.7
+38: 1.8 2.1 2.4
+40: 1.4 1.8 2
+42: 1.2 1.4 1.6
+44: 0.9 1.2 -
+46: 0.7 0.9 -
+48: - 0.7 -` },
+    { id:"hav9.2-42.2-12", name:"Fly jib (HAV) 9.2 m on 42.2 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:42.2, mainLabel:42.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 11.7 - -
+10: 11.3 - -
+12: 10.7 8.8 -
+14: 10 8.4 7.1
+16: 9.3 8.1 6.9
+18: 7.8 7.8 6.7
+20: 6.7 7.2 6.5
+22: 6 6 6.4
+24: 5.3 5.3 5.3
+26: - - 4.7` },
+    { id:"hav17-42.2-12", name:"Fly jib (HAV) 17 m on 42.2 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:42.2, mainLabel:42.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 7.2 - -
+10: 7 - -
+12: 6.5 - -
+14: 6.1 - -
+16: 5.7 4.5 -
+18: 5.3 4.3 -
+20: 5 4.1 3.4
+22: 4.7 3.9 3.3
+24: 4.5 3.7 3.2
+26: 4.1 3.6 3.1
+28: 3.7 3.4 3.1
+30: - 3.3 3
+32: - 3.1 2.9
+34: - - 2.9
+36: - - 2.5
+46: - - 0.7` },
+    { id:"hav9.2-46.4-12", name:"Fly jib (HAV) 9.2 m on 46.4 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:46.4, mainLabel:46.4, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+10: 10.3 - -
+12: 9.4 - -
+14: 8.7 7.1 -
+16: 8.1 6.8 6.1
+18: 7.5 6.5 5.8
+20: 6.6 6.2 5.5
+22: - 5.8 5.2
+24: - 5 5
+26: - - 4.5` },
+    { id:"hav17-46.4-12", name:"Fly jib (HAV) 17 m on 46.4 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:46.4, mainLabel:46.4, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 6.2 - -
+14: 5.8 - -
+16: 5.5 - -
+18: 5.2 4.1 -
+20: 4.9 4 -
+22: 4.7 3.8 3.2
+24: 4.4 3.6 3.1
+26: - 3.5 3.1
+28: - 3.3 3
+30: - 3.2 3
+32: - - 2.9
+34: - - 2.7` },
+    { id:"hav9.2-50.2-12", name:"Fly jib (HAV) 9.2 m on 50.2 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:50.2, mainLabel:50.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 8.4 - -
+14: 7.9 6.9 -
+16: 7.5 6.4 -
+18: 7.1 6.1 5.5
+20: 6.3 5.7 5.2
+22: 5.1 5.4 5
+24: 4.2 4.7 4.8
+26: 3.4 3.9 4.3
+28: 2.8 3.2 3.6
+30: 2.3 2.6 2.9
+32: 1.8 2.1 2.4
+34: 1.4 1.7 1.9
+36: 1 1.3 1.5
+38: 0.7 0.9 1.1
+40: - 0.6 0.7` },
+    { id:"hav17-50.2-12", name:"Fly jib (HAV) 17 m on 50.2 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:50.2, mainLabel:50.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 5.6 - -
+14: 5.4 - -
+16: 5.2 - -
+18: 5 4.1 -
+20: 4.8 3.9 -
+22: 4.6 3.8 3.2
+24: 4.3 3.6 3.1
+26: 3.5 3.4 3
+28: 2.9 3.3 2.9
+30: 2.3 3.1 2.9
+32: 1.9 2.5 2.8
+34: 1.5 2.1 2.6
+36: 1.1 1.7 2.1
+38: 0.8 1.3 1.7
+40: - 1 1.4
+42: - 0.7 1
+44: - - 0.7` }
+  ],
+  ac700: [
+    { id:"hav6-60-100", name:"Fly jib (HAV) 6 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:6.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0
+14: 46.4
+16: 43
+18: 39.9
+20: 37.1
+22: 34.5
+24: 32.2
+26: 30.1
+28: 28.1
+30: 26.4
+32: 24.8
+34: 23.3
+36: 22
+38: 20.6
+40: 19.5
+42: 18.3
+44: 17.3
+46: 16.4
+48: 15.5
+50: 14.7
+54: 13.2
+58: 11.9` },
+    { id:"hav12-60-100", name:"Fly jib (HAV) 12 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:12.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+16: 37.1 -
+18: 34.3 -
+20: 31.9 28.1
+22: 29.7 26.7
+24: 27.8 25.4
+26: 26.1 24.2
+28: 24.6 23.1
+30: 23.3 22
+32: 22.1 21
+34: 20.9 20
+36: 19.9 19.1
+38: 18.8 18.2
+40: 17.9 17.4
+42: 16.9 16.6
+44: 16 15.8
+46: 15.2 15
+48: 14.4 14.3
+50: 13.6 13.6
+54: 12.2 12.3
+58: 11 11.1
+62: 9.9 10` },
+    { id:"hav18-60-100", name:"Fly jib (HAV) 18 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:18.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+16: 31.4 -
+18: 29.3 -
+20: 27.5 -
+22: 25.8 21.8
+24: 24.3 20.8
+26: 22.9 19.9
+28: 21.6 19
+30: 20.5 18.2
+32: 19.5 17.5
+34: 18.5 16.8
+36: 17.6 16.1
+38: 16.7 15.5
+40: 15.9 14.9
+42: 15.1 14.3
+44: 14.4 13.8
+46: 13.7 13.2
+48: 13 12.6
+50: 12.3 12
+54: 11.1 10.9
+58: 10 9.9
+62: 8.9 8.9
+66: 8 8
+70: - 7.3` },
+    { id:"hav24-60-100", name:"Fly jib (HAV) 24 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:24.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+18: 24 -
+20: 22.6 -
+22: 21.4 -
+24: 20.3 -
+26: 19.3 15.2
+28: 18.3 14.7
+30: 17.4 14.3
+32: 16.6 13.9
+34: 15.8 13.5
+36: 15.1 13.1
+38: 14.3 12.7
+40: 13.7 12.4
+42: 13 12
+44: 12.4 11.6
+46: 11.8 11.2
+48: 11.3 10.8
+50: 10.7 10.4
+54: 9.6 9.5
+58: 8.6 8.6
+62: 7.7 7.8
+66: 6.8 6.9
+70: 6 6.1
+74: 5.2 5.4` },
+    { id:"hav30-60-100", name:"Fly jib (HAV) 30 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:30.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+20: 18.8 -
+22: 18.1 -
+24: 17.4 -
+26: 16.7 -
+28: 16 -
+30: 15.3 12.4
+32: 14.6 12
+34: 14 11.5
+36: 13.3 11.1
+38: 12.7 10.6
+40: 12 10.2
+42: 11.4 9.7
+44: 10.8 9.2
+46: 10.2 8.8
+48: 9.7 8.3
+50: 9.1 7.9
+54: 8.1 7.1
+58: 7.2 6.4
+62: 6.3 5.7
+66: 5.5 5
+70: 4.7 4.4
+74: 4 3.9
+78: 3.3 3.4
+82: - 3` },
+    { id:"hav36-60-100", name:"Fly jib (HAV) 36 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:36.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+20: 15.8 -
+22: 15.1 -
+24: 14.5 -
+26: 13.8 -
+28: 13.2 -
+30: 12.6 -
+32: 12 9.7
+34: 11.4 9.3
+36: 10.9 9
+38: 10.3 8.6
+40: 9.8 7.9
+42: 9.3 7.6
+44: 8.8 7.3
+46: 8.3 6.9
+48: 7.8 6.6
+50: 7.4 5.9
+54: 6.4 5.3
+58: 5.6 4.7
+62: 4.8 4.1
+66: 4 3.5
+70: 3.4 2.9
+74: 2.7 2.4
+78: 2.2 -` },
+    { id:"hav6-60-60", name:"Fly jib (HAV) 6 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:6.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0
+14: 46.4
+16: 43
+18: 39.9
+20: 37.1
+22: 34.5
+24: 32.2
+26: 30.1
+28: 28.1
+30: 26.4
+32: 24.1
+34: 21.4
+36: 19
+38: 16.9
+40: 15
+42: 13.2
+44: 11.7
+46: 10.3
+48: 9
+50: 7.8
+54: 5.7
+58: 3.9` },
+    { id:"hav12-60-60", name:"Fly jib (HAV) 12 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:12.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+16: 37.1 - -
+18: 34.3 - -
+20: 31.9 28.1 24.4
+22: 29.7 26.7 23.5
+24: 27.8 25.4 22.7
+26: 26.1 24.2 21.8
+28: 24.6 23.1 21
+30: 23.3 22 20.2
+32: 22.1 21 19.5
+34: 20.9 20 18.7
+36: 19 19.1 18
+38: 16.9 18.2 17.2
+40: 15 16.3 15.3
+42: 13.3 14.5 13.6
+44: 11.8 12.9 12
+46: 10.4 11.4 10.5
+48: 9.1 10 9.2
+50: 7.9 8.7 -
+54: 5.8 6.5 -
+58: 4.1 4.5 -
+62: 2.5 2.8 -` },
+    { id:"hav18-60-60", name:"Fly jib (HAV) 18 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:18.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+16: 31.4 - -
+18: 29.3 - -
+20: 27.5 - -
+22: 25.8 21.8 -
+24: 24.3 20.8 -
+26: 22.9 19.9 17.7
+28: 21.6 19 17.1
+30: 20.5 18.2 16.5
+32: 19.5 17.5 16
+34: 18.5 16.8 15.5
+36: 17.6 16.1 15
+38: 16.7 15.5 14.5
+40: 15.6 14.9 14
+42: 13.9 14.3 13.5
+44: 12.4 13.8 13.1
+46: 11 12.6 12.6
+48: 9.8 11.3 12.2
+50: 8.6 10 10.9
+54: 6.5 7.7 8.4
+58: 4.8 5.7 6.2
+62: 3.2 4 -
+66: - 2.4 -` },
+    { id:"hav24-60-60", name:"Fly jib (HAV) 24 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:24.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+18: 24 - -
+20: 22.6 - -
+22: 21.4 - -
+24: 20.3 - -
+26: 19.3 15.2 -
+28: 18.3 14.7 -
+30: 17.4 14.3 -
+32: 16.6 13.9 11.7
+34: 15.8 13.5 11.6
+36: 15.1 13.1 11.5
+38: 14.3 12.7 11.3
+40: 13.7 12.4 11.2
+42: 13 12 11
+44: 12.4 11.6 10.8
+46: 11.6 11.2 10.6
+48: 10.4 10.8 10.4
+50: 9.2 10.4 10.2
+54: 7.2 8.8 9.6
+58: 5.4 6.8 7.8
+62: 3.9 5.1 5.8
+66: 2.5 3.5 -
+70: - 2.1 -` },
+    { id:"hav30-60-60", name:"Fly jib (HAV) 30 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:30.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+20: 18.8 - -
+22: 18.1 - -
+24: 17.4 - -
+26: 16.7 - -
+28: 16 - -
+30: 15.3 12.4 -
+32: 14.6 12 -
+34: 14 11.5 -
+36: 13.3 11.1 9.4
+38: 12.7 10.6 9.1
+40: 12 10.2 8.8
+42: 11.4 9.7 8.5
+44: 10.8 9.2 8.2
+46: 10.2 8.8 7.9
+48: 9.7 8.3 7.6
+50: 9.1 7.9 7.3
+54: 7.6 7.1 6.8
+58: 5.9 6.4 6.3
+62: 4.4 5.7 5.7
+66: 3 4.4 5.2
+70: - 3.1 -` },
+    { id:"hav36-60-60", name:"Fly jib (HAV) 36 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:36.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+20: 15.8 - -
+22: 15.1 - -
+24: 14.5 - -
+26: 13.8 - -
+28: 13.2 - -
+30: 12.6 - -
+32: 12 9.7 -
+34: 11.4 9.3 -
+36: 10.9 9 -
+38: 10.3 8.6 -
+40: 9.8 8.3 -
+42: 9.3 7.9 6.9
+44: 8.8 7.6 6.6
+46: 8.3 7.3 6.4
+48: 7.8 6.9 6.2
+50: 7.4 6.6 6
+54: 6.4 5.9 5.6
+58: 5.6 5.3 5.1
+62: 4.6 4.7 4.7
+66: 3.3 4.1 4.2
+70: 2.1 3.5 3.7
+74: - 2.4 3.2` }
+  ]
+};
+for (const c of DEFAULT_CRANES) if (LIB_JIBS[c.id]) c.charts = (c.charts || []).concat(LIB_JIBS[c.id]);
+// ---------- v11: LTM 1650-8.1 charts from the crane library (UNVERIFIED) ----------
+// Read by pipeline/library/extract/gen_ltm1650.py: one chart per VarioBallast set-up, only the cells Liebherr colours for it (see the script).
+const LIB_1650 = [
+  { id:"t3-155-6.4", name:"T3 · 155 t CWT · VarioBallast at 6,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:155, ballastR:6.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 6.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+3: 239.3 239.3 - - - - - - - -
+3.5: 239.3 239.3 217.6 - - - - - - -
+4: 239.3 239.3 239.3 - - - - - - -
+4.5: 239.3 239.3 239.3 222 - - - - - -
+5: 239.3 239.3 239.3 225.6 - - - - - -
+6: - - - - 176.2 - - - - -
+7: - - - - 163.1 139.1 - - - -
+8: - - - - 151.5 130.9 107.5 - - -
+9: - - - - 140.9 123.2 102.5 99.3 93 90.9
+10: - - - - 131.4 116.1 97.6 94.7 89.2 87.1
+11: - - - - 123 109.5 93.2 90.5 85.7 83.4
+12: - - - - 115.5 103.6 88.9 86.4 82.3 79.8
+14: - - - - 102.8 93 81.2 79.2 76.3 73.2
+16: - - - - 93.9 84 74.5 72.8 70.8 67.3
+18: - - - - 86.6 76.4 68.7 67.2 65.4 62.3
+20: - - - - - 69.8 63.5 62.3 60.7 57.8
+22: - - - - - 64.1 58.6 57.8 56.5 53.8
+24: - - - - - 59 54.4 53.8 52.7 50.1
+26: - - - - - - 50.4 50 49.2 47.1
+28: - - - - - - 47 46.6 45.8 44.1
+30: - - - - - - - 43.5 42.9 41.5
+32: - - - - - - - - - 39.1` },
+  { id:"t3-155-7.4", name:"T3 · 155 t CWT · VarioBallast at 7,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:155, ballastR:7.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 7.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+6: 239.3 239.3 239.3 - - - - - - -
+7: 231.2 231.6 226.7 211.8 - - - - - -
+8: - - 207.6 194.5 - - - - - -
+9: - - - 179.1 - - - - - -
+10: - - - 165.9 - - - - - -
+11: - - - 154.1 - - - - - -
+12: - - - 144 - - - - - -
+14: - - - 126.7 - - - - - -
+20: - - - - 79.9 - - - - -
+22: - - - - 74.1 - - - - -
+24: - - - - 69.1 - - - - -
+26: - - - - - 54.5 - - - -
+28: - - - - - 50.5 - - - -
+30: - - - - - 46.9 43.8 - - -
+32: - - - - - 43.6 41.1 40.8 40.2 -
+34: - - - - - 41.1 38.5 38.3 37.8 37
+36: - - - - - - 36.1 35.9 35.5 34.9
+38: - - - - 33.9 - 33.8 33.7 33.4 32.9
+40: - - - - - - - 31.8 31.4 30.9
+42: - - - - - - - - - 29.2` },
+  { id:"t3-155-8.4", name:"T3 · 155 t CWT · VarioBallast at 8,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:155, ballastR:8.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 8.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+14: 141.4 141.3 - - - - - - - -
+16: - 124 - 113.1 - - - - - -
+18: - 108.2 108.3 101.3 - - - - - -
+20: - 95.6 95.6 91.2 - - - - - -
+22: - - 85 82.8 - - - - - -
+24: - - 76 74.8 - - - - - -
+26: - - - - 64.6 - - - - -
+28: - - - - 60.8 - - - - -
+32: - - - 48.8 - - - - - -
+36: - - - - - 38.9 - - - -
+38: - - - - - 36.9 - - - -
+40: - - - - - 35.2 31.9 - - -
+42: - - - - - 33.8 30 29.9 29.6 -
+44: - - - - - - 28.4 28.3 28 27.6
+46: - - - - - - 26.9 26.8 26.5 26.1
+48: - - - - - - 25.6 25.5 25.1 24.7
+50: - - - - - - - 23.3 24 23.5
+52: - - - - - - - - - 21.4` },
+  { id:"t3-175-6.4", name:"T3 · 175 t CWT · VarioBallast at 6,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:175, ballastR:6.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 175 t ballast at 6.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+6: - - - 225.8 - - - - - -` },
+  { id:"t3-175-7.4", name:"T3 · 175 t CWT · VarioBallast at 7,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:175, ballastR:7.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 175 t ballast at 7.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+8: 212.6 211.5 - - - - - - - -
+9: 194.7 194.6 191.7 - - - - - - -
+10: 179.3 180.2 179.4 - - - - - - -
+11: 166 167 166.9 - - - - - - -
+12: 154.5 155.4 155.6 - - - - - - -
+14: - - 136.3 - - - - - - -
+16: - - 121.1 - - - - - - -
+26: - - 67.4 67.1 - - - - - -
+28: - - - 60.9 - - - - - -
+30: - - - 55.3 56.6 - - - - -
+32: - - - - 51.6 - - - - -
+34: - - - - 47.3 - - - - -
+36: - - - - 43.7 - - - - -` },
+  { id:"t3y-155-6.4", name:"T3Y · 155 t CWT · VarioBallast at 6,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:155, ballastR:6.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 6.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+5: 231.9 - - - - - -
+6: - 201.5 - - - - -
+8: - - - 165.1 161.7 158.6 -
+9: - - - - - - 150.9` },
+  { id:"t3y-155-7.4", name:"T3Y · 155 t CWT · VarioBallast at 7,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:155, ballastR:7.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 7.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+8: 198.8 - - - - - -
+9: 182.7 - - - - - -
+10: - 166.2 160.5 153.7 150.7 147.6 -
+11: 159.4 154.7 149.7 144.5 142.9 140.2 139.7
+12: - - - 135.5 134.8 132.8 132.2
+38: - 27.4 - - - - -
+50: - - - - 17.7 - -
+52: - - - - - - 16` },
+  { id:"t3y-155-8.4", name:"T3Y · 155 t CWT · VarioBallast at 8,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:155, ballastR:8.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 8.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+14: 132.6 - - - - - -
+16: 122.8 - - - - - -
+18: 107.3 104.9 102 98.7 98.2 97.9 96.2
+20: 94.7 92.9 90.5 87.8 87.5 87.2 86.6
+22: 83.8 82.8 81 78.6 78.5 78.3 77.7
+24: 74.4 74.4 72.9 70.8 70.8 70.7 70.2
+26: 66.3 66.8 66.1 64.3 64.2 64.2 63.8
+28: 59.2 59.9 59.9 58.3 58.3 58.2 57.9
+30: - - 53.9 53 53.1 53.1 52.7
+32: 41.7 - - 48.3 48.4 48.5 48.2` },
+  { id:"t3y-175-6.4", name:"T3Y · 175 t CWT · VarioBallast at 6,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:175, ballastR:6.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 175 t ballast at 6.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+6: 225.2 - - - - - -
+7: 204.7 198.8 187.1 - - - -
+8: - 182.8 175.5 - - - -
+9: - 168.5 162.4 155.9 155 153.4 -
+10: - - - - - - 142.6` },
+  { id:"t3y-175-7.4", name:"T3Y · 175 t CWT · VarioBallast at 7,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:175, ballastR:7.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 175 t ballast at 7.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+10: 170.8 - - - - - -
+12: 150.6 146.3 141.9 - - - -
+14: - 129.1 125.5 121.6 121.1 120.1 118.1
+16: - 115 112.2 108.8 108.4 108.1 106.2
+30: 53.2 53.9 - - - - -
+32: - 48.8 49.2 - - - -
+34: - 44.4 44.8 44.3 44.4 44.4 44.1
+36: - 40.3 40.7 40.5 40.7 40.8 40.6
+38: - - 37.1 36.8 37.1 37.3 37.2
+40: - - 33.9 33.6 33.9 34.1 34
+42: - - 31.1 30.8 31 31.2 31.1
+44: - - - 28.2 28.5 28.6 28.6
+46: - - - 25.9 26.1 26.3 26.2
+48: - - - 23.8 24.1 24.2 24.2
+50: - - - - - 22.3 22.3` }
+];
+for (const c of DEFAULT_CRANES) if (c.id === 'ltm1650') c.charts = (c.charts || []).concat(LIB_1650);
 
 // ---------- lifting sectors: which sides of the carrier a load chart is valid for ----------
 // chart.sectors = ['360'] (full circle — also the default when a chart says nothing), or any of 'rear' (over the rear) and 'side' (over the left / right

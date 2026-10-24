@@ -21,6 +21,15 @@ C3D.textTex = (text, o = {}) => {
   g.fillText(text, c.width / 2, c.height / 2 + 2); const t = new THREE.CanvasTexture(c); t.anisotropy = 8; t.encoding = THREE.sRGBEncoding; return t;
 };
 C3D.stripeTex = (a = '#f5c400', b = '#141414') => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); g.fillStyle = a; g.fillRect(0, 0, 128, 128); g.fillStyle = b; for (let i = -128; i < 256; i += 48) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 24, 0); g.lineTo(i + 24 - 128, 128); g.lineTo(i - 128, 128); g.fill(); } const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; return t; };
+// v11: procedural surface textures (no downloads): ground grit, a concrete hardstand, a building façade with floors and windows
+C3D.noiseTex = (base, var_, n = 256, o = {}) => { const c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'); g.fillStyle = base; g.fillRect(0, 0, n, n); const im = g.getImageData(0, 0, n, n), d = im.data; let s = o.seed || 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < d.length; i += 4) { const k = (rnd() - 0.5) * var_; d[i] = Math.max(0, Math.min(255, d[i] + k)); d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + k)); d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + k * 0.9)); } g.putImageData(im, 0, 0);
+  if (o.cracks) { g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 1; for (let k = 0; k < o.cracks; k++) { g.beginPath(); let x = rnd() * n, y = rnd() * n; g.moveTo(x, y); for (let j = 0; j < 6; j++) { x += (rnd() - 0.5) * 40; y += (rnd() - 0.5) * 40; g.lineTo(x, y); } g.stroke(); } }
+  if (o.joints) { g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2; g.strokeRect(1, 1, n - 2, n - 2); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
+C3D.facadeTex = () => { const c = document.createElement('canvas'); c.width = 256; c.height = 256; const g = c.getContext('2d'); g.fillStyle = '#b9b2a6'; g.fillRect(0, 0, 256, 256);
+  g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(0, 0, 256, 18); for (let fx = 0; fx < 2; fx++) { const gr = g.createLinearGradient(0, 40, 0, 220); gr.addColorStop(0, '#5d7f9c'); gr.addColorStop(0.5, '#2c4256'); gr.addColorStop(1, '#46637c'); g.fillStyle = gr; g.fillRect(24 + fx * 128, 46, 80, 160); g.strokeStyle = '#e6e2da'; g.lineWidth = 5; g.strokeRect(24 + fx * 128, 46, 80, 160); g.beginPath(); g.moveTo(64 + fx * 128, 46); g.lineTo(64 + fx * 128, 206); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t; };
 C3D.glowTex = () => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,255,255,.55)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); };
 C3D.gradTex = (stops) => { const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 256); stops.forEach(([o, col]) => gr.addColorStop(o, col)); g.fillStyle = gr; g.fillRect(0, 0, 4, 256); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t; };
 // lattice section (jibs, superlift mast, tower cranes) as one instanced mesh along +x
@@ -36,6 +45,8 @@ C3D.lattice = (len, h, w, mat, opts = {}) => {
   for (let j = 0; j < nb; j++) { const x0 = j * b, x1 = x0 + b; put(corner(x0, 0), corner(x1, 2)); put(corner(x0, 1), corner(x1, 3)); put(corner(x0, 0), corner(x1, 1)); put(corner(x0, 2), corner(x1, 3)); put(corner(x1, 0), corner(x1, 2)); put(corner(x1, 1), corner(x1, 3)); put(corner(x1, 0), corner(x1, 1)); put(corner(x1, 2), corner(x1, 3)); }
   im.count = k; im.instanceMatrix.needsUpdate = true; return im;
 };
+C3D.edgeMat = () => C3D._em || (C3D._em = new THREE.LineBasicMaterial({ color: C3D.lin('#1b1d21'), transparent: true, opacity: 0.55 }));
+C3D.edged = (m, deg = 28) => { m.userData.edges = deg; return m; };
 C3D.lines = (color, opacity = 1) => { const l = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: C3D.lin(color), transparent: opacity < 1, opacity })); l.frustumCulled = false; return l; };
 C3D.setLines = (l, pts) => { l.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); l.geometry.computeBoundingSphere(); };
 
@@ -71,6 +82,7 @@ C3D.bag = () => {
         const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(s.pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(s.nor, 3));
         geo.setIndex(s.n > 65535 ? new THREE.Uint32BufferAttribute(s.idx, 1) : new THREE.Uint16BufferAttribute(s.idx, 1)); geo.computeBoundingSphere();
         const m = new THREE.Mesh(geo, mat); m.castShadow = o.cast !== false && !mat.userData.noCast; m.receiveShadow = o.receive !== false; parent.add(m); out.push(m); if (o.disp) o.disp.push(geo);
+        if (mat.userData.edges) { const eg = new THREE.EdgesGeometry(geo, mat.userData.edges); const ln = new THREE.LineSegments(eg, C3D.edgeMat()); ln.raycast = () => {}; m.add(ln); if (o.disp) o.disp.push(eg); } // v11: crisp outlines, like the drawing
       } return out;
     }
   };
@@ -173,6 +185,35 @@ C3D.cadAnalyse = (dr) => {
     upper: { x0: X(ux0), x1: X(ux1 + 1), top: C3D.simplify(sample(up.map(p => [p[0], p[1]]), 2), 0.035), bot: C3D.simplify(sample(up.map(p => [p[0], p[2]]), 2), 0.035) } };
 };
 C3D.cadOf = (dr) => dr._c3d || (dr._c3d = C3D.cadAnalyse(dr));
+// v11: the DWG line-work as a decal. The CAD items (cm) are drawn onto a transparent canvas — every line in dark ink, dark and grey fills as
+// shading, light fills left out so the paint shows — and cut to the outline the 3D body is extruded from, so the side of the 3D crane reads
+// exactly like the drawing. xf maps a CAD point (m) to the part's own frame; clip is that part's outline [[u, v], …] (or several).
+C3D.cadDecal = (parts, clips, o = {}) => {
+  const cl = Array.isArray(clips[0][0]) ? clips : [clips]; let u0 = 1e9, v0 = 1e9, u1 = -1e9, v1 = -1e9;
+  for (const c of cl) for (const [u, v] of c) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+  if (!(u1 > u0 && v1 > v0)) return null; const ppm = Math.min(o.ppm || 150, 4096 / (u1 - u0), 2048 / (v1 - v0));
+  const cv = document.createElement('canvas'); cv.width = Math.max(4, Math.ceil((u1 - u0) * ppm)); cv.height = Math.max(4, Math.ceil((v1 - v0) * ppm)); const x = cv.getContext('2d');
+  const P = (u, v) => [(u - u0) * ppm, (v1 - v) * ppm]; x.lineJoin = x.lineCap = 'round';
+  const lum = (hex) => { const h = String(hex || '#fff').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h.slice(0, 6), 16); return ((n >> 16 & 255) * 0.299 + (n >> 8 & 255) * 0.587 + (n & 255) * 0.114) / 255; };
+  for (const { items, pal, xf } of parts) for (const [f, ci, fl] of items) {
+    if (fl.length < 4) continue; x.beginPath(); for (let i = 0; i < fl.length; i += 2) { const q = xf(fl[i] / 100, fl[i + 1] / 100); if (!q) continue; const [X, Y] = P(q[0], q[1]); if (i) x.lineTo(X, Y); else x.moveTo(X, Y); }
+    const L = lum(pal[ci]);
+    if (f) { if (L > 0.78) continue; x.closePath(); x.globalAlpha = L < 0.35 ? 0.88 : 0.32; x.fillStyle = L < 0.35 ? '#141619' : pal[ci]; x.fill(); x.globalAlpha = 1; }
+    else { x.strokeStyle = o.ink || 'rgba(20,22,25,.82)'; x.lineWidth = Math.max(1.2, ppm * (o.lw || 0.022)); x.stroke(); }
+  }
+  // panel shading: a soft dark band along the bottom and a highlight along the top, as on a painted steel side
+  if (o.shade !== false) { const gr = x.createLinearGradient(0, 0, 0, cv.height); gr.addColorStop(0, 'rgba(255,255,255,.10)'); gr.addColorStop(0.12, 'rgba(255,255,255,0)'); gr.addColorStop(0.8, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.22)'); x.fillStyle = gr; x.fillRect(0, 0, cv.width, cv.height); }
+  x.globalCompositeOperation = 'destination-in'; x.fillStyle = '#000'; x.beginPath(); for (const c of cl) { c.forEach(([u, v], i) => { const [X, Y] = P(u, v); if (i) x.lineTo(X, Y); else x.moveTo(X, Y); }); x.closePath(); } x.fill('evenodd');
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+  return { tex, u0, v0, w: u1 - u0, h: v1 - v0 };
+};
+// two planes carrying a decal, one on each side face (z = ±z). One geometry, drawn from both sides: every point of the side keeps the
+// drawing's pixel for its own position, so the cab stays at the cab end on both faces.
+C3D.decalPlanes = (d, z, own, parent) => {
+  if (!d) return []; const mat = own(new THREE.MeshStandardMaterial({ map: own(d.tex), transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, roughness: 0.55, metalness: 0.1 }));
+  const geo = own(new THREE.PlaneGeometry(d.w, d.h)); geo.translate(d.u0 + d.w / 2, d.v0 + d.h / 2, 0);
+  return [1, -1].map((s) => { const m = new THREE.Mesh(geo, mat); m.position.z = s * z; m.renderOrder = 2; m.receiveShadow = true; parent.add(m); return m; });
+};
 // axle positions for m axles between the rear end u0 and the cab end u1: a steering group behind the cab, a drive group at the rear
 C3D.axlesFor = (m, u0, u1, truck) => {
   const f = Math.min(m - 1, Math.max(1, Math.round(m * (truck ? 0.4 : 0.5)))), xs = [];
@@ -194,7 +235,7 @@ C3D.model = (p) => {
       const uc = (ws[gi] + ws[gi + 1]) / 2; let d = m - ws.length, s;
       if (d > 0) { const nw = ws.slice(0, gi + 1); for (let k = 1; k <= d; k++) nw.push(ws[gi] + pitch * k); s = d * pitch; ws = nw.concat(ws.slice(gi + 1).map(u => u + s)); }
       else { d = Math.min(-d, gi); s = -d * pitch; ws = ws.slice(0, gi + 1 - d).concat(ws.slice(gi + 1).map(u => u + s)); }
-      if (Math.abs(s) > 1e-6) { // the same shift in the outline: a flat strip is opened up (or cut out) at the cut
+      if (Math.abs(s) > 1e-6) { M.cut = { uc, s }; // the same shift in the outline: a flat strip is opened up (or cut out) at the cut
         const y = (u) => C3D.profAt(top, u), nt = []; for (const q of top) if (q[0] < uc + Math.min(0, s) - 1e-6) nt.push(q);
         if (s > 0) nt.push([uc, y(uc)], [uc + s, y(uc)]); else nt.push([uc + s, y(uc + s)], [uc + s, y(uc)]); for (const q of top) if (q[0] >= uc) nt.push([q[0] + s, q[1]]); top = nt; u1 += s; }
     }
@@ -243,11 +284,11 @@ C3D.buildCrane = (p) => {
   const g = { disp: [] }; const own = (x) => (g.disp.push(x), x); const root = new THREE.Group(); g.root = root;
   const M = C3D.model(p), W = M.W, wr = M.wr, deck = M.deck, lift = 0.12, dr = M.cad ? p.dr : null; g.M = M; g.cad = !!dr;
   const col = p.paint || '#f5c400', mat = (o) => own(C3D.mat(o));
-  const paint = mat({ color: col, metalness: 0.1, roughness: 0.38, envMapIntensity: 0.55 });
-  const paintDk = mat({ color: '#' + new THREE.Color(col).multiplyScalar(0.66).getHexString(), metalness: 0.15, roughness: 0.5, envMapIntensity: 0.5 });
+  const paint = C3D.edged(own(new THREE.MeshPhysicalMaterial({ color: C3D.lin(col), metalness: 0.08, roughness: 0.5, clearcoat: 0.45, clearcoatRoughness: 0.3, envMapIntensity: 0.45 }))); // v11: clear-coated crane paint, outlined
+  const paintDk = C3D.edged(mat({ color: '#' + new THREE.Color(col).multiplyScalar(0.66).getHexString(), metalness: 0.15, roughness: 0.5, envMapIntensity: 0.5 }));
   const steel = mat({ color: '#31353b', metalness: 0.6, roughness: 0.46 });
   const frame = mat({ color: '#1b1e22', metalness: 0.3, roughness: 0.72 });
-  const cw = mat({ color: '#464b52', metalness: 0.32, roughness: 0.58 });
+  const cw = C3D.edged(mat({ color: '#464b52', metalness: 0.32, roughness: 0.58 }));
   const glass = mat({ color: '#0a141d', metalness: 0.95, roughness: 0.05, envMapIntensity: 1.6 });
   const tyre = mat({ color: '#0f1011', metalness: 0, roughness: 0.96 });
   const rim = mat({ color: '#c6ccd2', metalness: 0.9, roughness: 0.3 });
@@ -267,10 +308,26 @@ C3D.buildCrane = (p) => {
     for (const s of [-1, 1]) { const m4 = car.xf([u, yc, s * trk], [s * Math.PI / 2, 0, 0], [1, 1, 1]); car.geo(tyre, tyreG, m4); car.geo(rim, rimG, m4); }
   }
   tyreG.dispose(); rimG.dispose();
+  { // v11: mudguards over the tyres, side steps and the deck handrails
+    const fend = new THREE.CylinderGeometry(wr + 0.12, wr + 0.12, 0.62, 18, 1, true, Math.PI * 0.65, Math.PI * 0.7); // the arc over the top of the tyre
+    for (const u of M.axles) for (const s of [-1, 1]) car.geo(frame, fend, car.xf([u, yc, s * trk], [Math.PI / 2, 0, 0], [1, 1, 1]));
+    fend.dispose();
+    const ys = deck + 0.95; const rail = [u0 + 0.6, Math.min(u1 - 3.0, u0 + (u1 - u0) * 0.62)];
+    for (const s of [-1, 1]) { car.cyl(chrome, 0.025, rail[1] - rail[0], [(rail[0] + rail[1]) / 2, ys, s * (Wb / 2 - 0.05)], 'x', 6); for (let u = rail[0]; u <= rail[1] + 1e-6; u += Math.max(1.2, (rail[1] - rail[0]) / 6)) car.cyl(chrome, 0.02, 0.95, [u, deck + 0.48, s * (Wb / 2 - 0.05)], 'y', 6); }
+  }
   // body: the CAD outline from the cab to the tail, bottom cut away over the tyres
   const flatBot = (t) => (t > 3.0 ? 0.85 : Math.max(0.95, Math.min(t - 0.5, deck - 0.5)));
   const bot = []; for (let u = u1; u >= u0 - 1e-6; u -= 0.1) { const t = C3D.profAt(top, u); let b = flatBot(t); for (const a of M.axles) { const ra = wr + 0.1, du = u - a; if (Math.abs(du) < ra) b = Math.max(b, yc + Math.sqrt(ra * ra - du * du)); } bot.push([u, Math.min(b, t - 0.07)]); }
   car.poly(paint, top.concat(bot), -Wb / 2, Wb / 2, 0.025);
+  // v11: the drawing's own line-work on both sides of the carrier (and, below, the superstructure and every boom section)
+  let upItems = null;
+  if (dr) {
+    const A0 = C3D.cadOf(dr), sg = A0.sgn, cut = M.cut; const body = typeof cleanBody === 'function' ? cleanBody(dr) : dr.body; const carItems = []; upItems = [];
+    for (const it of body) { const fl = it[2]; let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (let i = 0; i < fl.length; i += 2) { a = Math.min(a, fl[i]); c = Math.max(c, fl[i]); b = Math.min(b, fl[i + 1]); d = Math.max(d, fl[i + 1]); }
+      const cx = (a + c) / 200, cy = (b + d) / 200; (cx >= M.up.x0 - 0.1 && cx <= M.up.x1 + 0.1 && cy > deck + 0.08 ? upItems : carItems).push(it); }
+    const cu = (x) => { let u = sg * x; if (cut && u >= cut.uc) u += cut.s; return u; };
+    try { C3D.decalPlanes(C3D.cadDecal([{ items: carItems, pal: dr.pal, xf: (x, y) => [cu(x), y] }], top.concat(bot)), Wb / 2 + 0.012, own, root); } catch (e) { console.error(e); }
+  }
   // cab
   const roof = Math.max(C3D.profAt(top, u1 - 0.8), C3D.profAt(top, u1 - 1.3), C3D.profAt(top, u1 - 2.0)), sill = Math.max(roof - 1.2, 1.35); let cabBack = u1 - 2.4;
   for (let u = u1 - 1.2; u > u1 - 3.4; u -= 0.05) if (C3D.profAt(top, u) < roof - 0.3) { cabBack = u; break; }
@@ -303,16 +360,25 @@ C3D.buildCrane = (p) => {
   U.poly(cw, region(x0, xc, cwCap, 0), -(W - 0.3) / 2, (W - 0.3) / 2, 0.02);
   for (let y = cwB + 0.55; y < cwCap - 0.2; y += 0.55) { let xl = x0; while (xl < xc && tA(xl) < y) xl += 0.05; U.box(frame, [xc - xl, 0.035, W - 0.3 + 0.03], [(xl + xc) / 2, y, 0]); }
   // body, then the front: the lower deck at full width and the operator's cab beside the boom
-  const xCab = Math.max(M.pivX + 1.6, x1 - 2.2), sillU = 0.95;
+  const xCab = Math.max(M.pivX + 1.6, x1 - 2.2), sillU = 0.95; g.cabPt = [x1 - 0.35, sillU + 1.5, -Wu / 2 - 0.2]; // v11: the operator's eye, in the superstructure's frame
   U.poly(paint, region(xc, xCab, 99, 0), -Wu / 2, Wu / 2, 0.025);
   U.poly(paint, region(xCab, x1, sillU, 0), -Wu / 2, Wu / 2, 0.025);
   { const ct = C3D.profClip(uT, xCab, x1); if (Math.max(...ct.map(q => q[1])) > sillU + 0.4) { const cp = ct.map(q => [q[0], Math.max(q[1], sillU + 0.05)]).concat([[x1, sillU], [xCab, sillU]]); const cwid = 1.35, zc0 = -Wu / 2, zc1 = zc0 + cwid; U.poly(paint, cp, zc0, zc1, 0.025);
       const cx = (xCab + x1) / 2, cyy = (Math.max(...ct.map(q => q[1])) + sillU) / 2, win = cp.map(q => [cx + (q[0] - cx) * 0.8, cyy + (q[1] - cyy) * 0.7]); U.poly(glass, win, zc0 - 0.015, zc0 + 0.012); U.poly(glass, win, zc1 - 0.012, zc1 + 0.015);
       const fa = ct[ct.length - 1], ym = Math.max(...ct.map(q => q[1])), fb = ct.slice().reverse().find(q => q[1] >= ym - 0.12) || fa; if (fa && fb && x1 - fb[0] > 0.1 && fb[1] - fa[1] > 0.3) { const dx = x1 - fb[0], dy = fa[1] - fb[1], L = Math.hypot(dx, dy); if (L > 0.3) U.box(glass, [L, 0.03, cwid - 0.15], [(x1 + fb[0]) / 2 + (-dy / L) * 0.02, (fa[1] + fb[1]) / 2 + (dx / L) * 0.02, (zc0 + zc1) / 2], [0, 0, Math.atan2(dy, dx)]); } } }
+  // v11: the main hoist drum (rope wound on it) at the back of the superstructure, and a handrail on top
+  { const xd = Math.max(x0 + 1.2, xc + 0.6), yd = Math.min(tA(xd) + 0.35, g.ph + 0.2); U.cyl(steel, 0.42, Wu * 0.55, [xd, yd, 0], 'z', 22); U.cyl(frame, 0.47, 0.06, [xd, yd, Wu * 0.28], 'z', 22); U.cyl(frame, 0.47, 0.06, [xd, yd, -Wu * 0.28], 'z', 22);
+    const yt = Math.max(...uT.filter(q => q[0] > xc && q[0] < xCab).map(q => q[1]), 1.5) + 0.9; for (const s of [-1, 1]) { U.cyl(chrome, 0.025, Math.max(0.5, xCab - xc - 0.4), [(xc + xCab) / 2, yt, s * (Wu / 2 - 0.1)], 'x', 6); } }
   // boom foot: cheek plates and pin
   const bw = 0.9 * (p.D || 1.4), pvl = g.ph; for (const s of [-1, 1]) U.box(paintDk, [0.7, 1.1, 0.12], [M.pivX + 0.25, pvl - 0.15, s * (bw / 2 + 0.16)]);
   U.cyl(steel, 0.11, bw + 0.6, [M.pivX, pvl, 0], 'z', 12);
   U.build(up, { disp: g.disp });
+  if (dr && upItems && upItems.length) { // superstructure line-work: on the full-width body both sides; the operator's cab side also gets the cab
+    try { const xf = (x, y) => [x, y - deck]; const bodyClip = [region(xc, xCab, 99, 0), region(xCab, x1, sillU, 0)];
+      const one = (clips, z) => { const d = C3D.cadDecal([{ items: upItems, pal: dr.pal, xf }], clips); if (!d) return; const mat = own(new THREE.MeshStandardMaterial({ map: own(d.tex), transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, roughness: 0.55, metalness: 0.1 }));
+        const geo = own(new THREE.PlaneGeometry(d.w, d.h)); geo.translate(d.u0 + d.w / 2, d.v0 + d.h / 2, 0); const m = new THREE.Mesh(geo, mat); m.position.z = z; m.renderOrder = 2; up.add(m); };
+      one(bodyClip, Wu / 2 + 0.012); const ct = C3D.profClip(uT, xCab, x1); const cabClip = ct.map(q => [q[0], Math.max(q[1], sillU + 0.05)]).concat([[x1, sillU], [xCab, sillU]]); one(bodyClip.concat([cabClip]), -Wu / 2 - 0.012);
+    } catch (e) { console.error(e); } }
   // ---------- telescopic boom ----------
   const boom = new THREE.Group(); boom.position.set(M.pivX, pvl, 0); up.add(boom); g.boom = boom;
   const secs = [], n = p.n || 5; let tipN = 0, tipR = 0.35;
@@ -327,8 +393,12 @@ C3D.buildCrane = (p) => {
   g.secs = []; g.drSecs = secs; g.tipN = tipN; g.tipR = tipR;
   secs.forEach((s, i) => {
     const w = s.d * 0.88, geo = own(C3D.prismX(w, s.d, Math.min(w, s.d) * 0.2)); const sec = new THREE.Mesh(geo, paint); sec.castShadow = sec.receiveShadow = true; sec.position.y = s.q; boom.add(sec);
+    { const eg = own(new THREE.EdgesGeometry(geo, 20)); sec.add(new THREE.LineSegments(eg, C3D.edgeMat())); }
     let colr = null; if (i < n - 1) { colr = new THREE.Mesh(C3D._ub, steel); colr.castShadow = true; colr.scale.set(0.42, s.d * 1.05, w * 1.05); colr.position.y = s.q; boom.add(colr); }
-    g.secs.push({ sec, col: colr, d: s.d, w });
+    let dec = null; // v11: the section's own CAD line-work on both side faces
+    if (dr && dr.secs[i]?.items?.length) { try { const ds = dr.secs[i], d = C3D.cadDecal([{ items: ds.items, pal: dr.pal, xf: (x, y) => [x - s.s0, y] }], [[0, s.q - s.d / 2], [s.len, s.q - s.d / 2], [s.len, s.q + s.d / 2], [0, s.q + s.d / 2]], { ppm: 120, lw: 0.03 });
+      if (d) { dec = new THREE.Group(); C3D.decalPlanes(d, w / 2 + 0.01, own, dec); boom.add(dec); } } catch (e) { console.error(e); } }
+    g.secs.push({ sec, col: colr, d: s.d, w, dec });
   });
   if (p.livery) { // company lettering on both faces of the base section
     const tex = own(C3D.textTex(p.livery, { color: C3D.lum(p.paint || '#f5c400') > 0.55 ? '#111111' : '#ffffff' }));
@@ -361,7 +431,7 @@ C3D.pose = (g, st, world) => {
   const th = st.theta * Math.PI / 180; g.upper.rotation.y = st.slew * Math.PI / 180; g.boom.rotation.z = th;
   if (dr) { // sections slide exactly as the 2D elevation draws them (cadSections)
     const L = st.L || (p.Lmin + st.fr.reduce((a, f) => a + f * p.E, 0)), cs = cadSections(dr, L, st.fr); K = cs.k; const starts = [], lens = [];
-    g.secs.forEach(({ sec, col, d }, i) => { const s = g.drSecs[i], L0 = s.len * K, x0 = (s.s0 + cs.D[i]) * K; starts.push(x0); lens.push(L0); sec.scale.x = L0; sec.position.x = x0; if (col) col.position.x = x0 + L0 - 0.21; });
+    g.secs.forEach(({ sec, col, d, dec }, i) => { const s = g.drSecs[i], L0 = s.len * K, x0 = (s.s0 + cs.D[i]) * K; starts.push(x0); lens.push(L0); sec.scale.x = L0; sec.position.x = x0; if (col) col.position.x = x0 + L0 - 0.21; if (dec) { dec.position.x = x0; dec.scale.x = K; } });
     lay = { starts, lens, tip: (dr.tip[0] + cs.D[cs.D.length - 1]) * K, k: 1, foot: 0, head: 0, n: starts.length };
   } else {
     const spec = { n: p.n, lens: p.lens, lo: 0.3, E: p.E, foot: p.foot, head: p.head }; lay = boomLayout(spec, st.L || (p.Lmin + st.fr.reduce((a, f) => a + f * p.E, 0)), st.fr); K = lay.k;
@@ -443,7 +513,7 @@ C3D.paramsFor = (crane, plan, calc, livery) => {
   const sp = typeof outSpans === 'function' ? outSpans(crane, plan ? outExtOf(plan) : { left: 'full', right: 'full' }) : null;
   return { Lc: num(crane.carrierLen, 15), W: num(crane.width, 2.9), axles: Math.max(2, Math.round(num(crane.axles, 6))), outT: num(crane.outTrans, 8), outL: num(crane.outLong, 8), outEx: num(crane.outEx, 0), tail: num(crane.tail, 5),
     pivX: dr ? dr.pivot[0] : num(crane.pivotX, -1.5), pivH: dr ? dr.pivot[1] : num(crane.pivotH, 3.2), D: b ? Math.max(0.8, b.qb - b.qa) : spec.D, qc: b ? (b.qa + b.qb) / 2 : null,
-    paint: crane.tint || !dr ? (crane.color || '#f5c400') : (isLightFill(b?.fill) ? b.fill : '#f2f2f2'), n: spec.n, lens: spec.lens, E: spec.E, foot: spec.foot, head: spec.head, Lmin: spec.Lmin, Lmax: spec.Lmax,
+    paint: crane.color || '#f5c400', /* v11: the fleet colour (the drawings' pale fills made the 3D look washed out) */ n: spec.n, lens: spec.lens, E: spec.E, foot: spec.foot, head: spec.head, Lmin: spec.Lmin, Lmax: spec.Lmax,
     cwt, cwtR: cmax > 0 ? Math.max(0.25, Math.min(1, cwt / cmax)) : 1, livery, truck: /truck/i.test(crane.type || ''), mat: matDims(plan?.matSize)[0], falls: Math.max(2, Math.round(num(plan?.falls, 4))),
     dr, dkey: dr ? String(crane.drawing || '') : '', ...(sp ? { oTL: sp.yL, oTR: sp.yR } : {}) };
 };
@@ -546,16 +616,35 @@ C3D.twin = (host0, opts = {}) => {
   const coarse = window.matchMedia('(pointer: coarse)').matches; const dprMax = Math.min(window.devicePixelRatio || 1, 2); let dpr = dprMax;
   const r = C3D.makeRenderer(host, { aa: !coarse || dprMax < 2, exposure: 1.0, maxDpr: dprMax, shadows: true });
   r.domElement.classList.add('twin-cv');
-  const scene = new THREE.Scene(); scene.background = C3D.gradTex([[0, '#0b0f15'], [0.55, '#18212b'], [1, '#2a3440']]); scene.fog = new THREE.Fog(C3D.lin('#1f2833'), 220, 700);
+  const scene = new THREE.Scene(); scene.background = C3D.lin('#9fb9d4'); scene.fog = new THREE.Fog(C3D.lin('#c9d3dc'), 260, 1400);
+  { // v11: an evening sky dome with the sun's glow (game-like light, still readable)
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 32, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
+      uniforms: { top: { value: C3D.lin('#2f5d93') }, mid: { value: C3D.lin('#8fb3d8') }, hor: { value: C3D.lin('#f3d9b5') }, sun: { value: new THREE.Vector3(-0.45, 0.55, 0.7).normalize() } },
+      vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
+      fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 hor; uniform vec3 sun; varying vec3 vD; void main(){ float h = max(vD.y, 0.); vec3 c = mix(hor, mid, smoothstep(0., .22, h)); c = mix(c, top, smoothstep(.22, .9, h)); float s = max(dot(vD, sun), 0.); c += vec3(1., .82, .55) * (pow(s, 420.) * 3. + pow(s, 12.) * .35); if (vD.y < 0.) c = mix(hor, vec3(.55,.5,.44), smoothstep(0., .06, -vD.y)); gl_FragColor = vec4(c, 1.); }' }));
+    sky.renderOrder = -10; sky.frustumCulled = false; scene.add(sky); scene.userData.sky = sky; }
   const cam = new THREE.PerspectiveCamera(38, W0() / H0(), 0.3, 3000);
-  scene.add(new THREE.HemisphereLight(C3D.lin('#c4d6ee'), C3D.lin('#3a3128'), 0.7)); const envRT = C3D.envMap(r, 'dark'); scene.environment = envRT.texture;
-  const sun = new THREE.DirectionalLight(C3D.lin('#fff0d8'), 1.45); sun.position.set(-70, 120, 80); sun.castShadow = true; sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048); sun.shadow.bias = -0.0004;
+  scene.add(new THREE.HemisphereLight(C3D.lin('#d6e6f7'), C3D.lin('#7a6448'), 0.5)); const envRT = C3D.envMap(r, 'light'); scene.environment = envRT.texture;
+  const sun = new THREE.DirectionalLight(C3D.lin('#ffe2bc'), 1.75); sun.position.set(-70, 95, 110); sun.castShadow = true; sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048); sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.03; scene.add(sun.target);
   Object.assign(sun.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, near: 10, far: 420 }); scene.add(sun);
-  const fill = new THREE.DirectionalLight(C3D.lin('#8fb6ff'), 0.35); fill.position.set(80, 40, -60); scene.add(fill);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), C3D.mat({ color: '#3a4048', roughness: 0.95 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  const grid = new THREE.GridHelper(400, 80, C3D.lin('#5e7891'), C3D.lin('#465564')); grid.position.y = 0.02; grid.material.transparent = true; grid.material.opacity = 0.55; scene.add(grid);
+  const fill = new THREE.DirectionalLight(C3D.lin('#9cc0ff'), 0.4); fill.position.set(80, 40, -60); scene.add(fill);
+  // v11: desert ground, a concrete hardstand under the crane, a faint planning grid
+  const gTex = C3D.noiseTex('#b59f7c', 26, 256, { seed: 11 }); gTex.repeat.set(300, 300);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ map: gTex, color: C3D.lin('#d8c6a4'), roughness: 0.98 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const hTex = C3D.noiseTex('#a7a49d', 18, 256, { seed: 5, cracks: 5, joints: true }); hTex.repeat.set(12, 12);
+  const hard = new THREE.Mesh(new THREE.CircleGeometry(30, 64), new THREE.MeshStandardMaterial({ map: hTex, color: C3D.lin('#cfcac0'), roughness: 0.9 })); hard.rotation.x = -Math.PI / 2; hard.position.y = 0.012; hard.receiveShadow = true; scene.add(hard);
+  const grid = new THREE.GridHelper(400, 80, C3D.lin('#6b5a3e'), C3D.lin('#7d6c4f')); grid.position.y = 0.02; grid.material.transparent = true; grid.material.opacity = 0.16; grid.material.depthWrite = false; scene.add(grid);
+  // the exclusion zone round the tail swing: red / white posts with a chain (rebuilt when the tail changes)
+  const barrier = new THREE.Group(); scene.add(barrier); const bPostM = C3D.mat({ map: C3D.stripeTex('#d01f1f', '#f4f4f4'), roughness: 0.6 }), chainM = new THREE.LineBasicMaterial({ color: C3D.lin('#c4161c') });
+  const buildBarrier = (rad) => { while (barrier.children.length) { const c = barrier.children.pop(); c.geometry?.dispose(); } const n = Math.max(10, Math.round(2 * Math.PI * rad / 2.4)); const pg = new THREE.CylinderGeometry(0.05, 0.06, 1.0, 8); const im = new THREE.InstancedMesh(pg, bPostM, n); const m4 = new THREE.Matrix4(); const pts = [];
+    for (let i = 0; i < n; i++) { const a = 2 * Math.PI * i / n; m4.makeTranslation(rad * Math.cos(a), 0.5, rad * Math.sin(a)); im.setMatrixAt(i, m4); const b = 2 * Math.PI * (i + 1) / n; for (let k = 0; k < 4; k++) { const t0 = a + (b - a) * k / 4, t1 = a + (b - a) * (k + 1) / 4, sag = (q) => 0.88 - 0.12 * Math.sin(Math.PI * q); pts.push(rad * Math.cos(t0), sag(k / 4), rad * Math.sin(t0), rad * Math.cos(t1), sag((k + 1) / 4), rad * Math.sin(t1)); } }
+    im.castShadow = true; barrier.add(im); const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); barrier.add(new THREE.LineSegments(lg, chainM)); };
   const site = new THREE.Group(), dyn = new THREE.Group(), tand = new THREE.Group(); scene.add(site, dyn, tand);
   // shared materials (made once — the old twin made new ones on every update and never freed them)
+  const facade = C3D.facadeTex(); const facadeMats = new Map(); // one material per façade size (the windows keep their size on any building)
+  const facadeMat = (len, hgt, dep) => { const k = [Math.round(len), Math.round(hgt), Math.round(dep)].join('x'); let m = facadeMats.get(k); if (m) return m;
+    const side = (w) => { const t = facade.clone(); t.needsUpdate = true; t.repeat.set(Math.max(1, w / 4), Math.max(1, hgt / 3.4)); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.82, metalness: 0.05 }); };
+    const roof = C3D.mat({ color: '#8f8a80', roughness: 0.95 }); m = [side(dep), side(dep), roof, roof, side(len), side(len)]; facadeMats.set(k, m); return m; };
   const M = { conc: C3D.mat({ color: '#8a9097', roughness: 0.9 }), dark: C3D.mat({ color: '#454b52', roughness: 0.7 }), tm: C3D.mat({ color: '#d4a51e', metalness: 0.4, roughness: 0.5 }), cont: C3D.mat({ color: '#2f6fb3', roughness: 0.6, metalness: 0.4 }), box: C3D.mat({ color: '#9b7bc6' }), shed: C3D.mat({ color: '#c8b48c' }), trunk: C3D.mat({ color: '#5a3a1e' }), leaf: C3D.mat({ color: '#2f6b2f', roughness: 1 }), load: C3D.mat({ color: '#9aa1a8', metalness: 0.1, roughness: 0.85 }) };
   const ringM = (col, op) => new THREE.MeshBasicMaterial({ color: C3D.lin(col), transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false });
   const ringR = new THREE.Mesh(new THREE.BufferGeometry(), ringM('#4fe0ff', 0.9)), ringT = new THREE.Mesh(new THREE.BufferGeometry(), ringM('#ffb81c', 0.85));
@@ -567,7 +656,12 @@ C3D.twin = (host0, opts = {}) => {
   // camera: `to` is where the gestures put it, `orb` eases toward it
   const to = { az: -0.75, el: 0.42, dist: 90, tx: 10, ty: 12, tz: 0 }; const orb = { ...to }; let phS = 0, easing = false;
   const applyCam = () => { cam.position.set(orb.tx + orb.dist * Math.cos(orb.el) * Math.cos(orb.az), orb.ty + orb.dist * Math.sin(orb.el), orb.tz + orb.dist * Math.cos(orb.el) * Math.sin(orb.az)); cam.lookAt(orb.tx, orb.ty, orb.tz); };
-  const go = (snap) => { if (snap || reduceMotion3()) { Object.assign(orb, to); applyCam(); } easing = !snap; dirty = true; };
+  const go = (snap) => { if (camMode !== 'orbit') return; if (snap || reduceMotion3()) { Object.assign(orb, to); applyCam(); } easing = !snap; dirty = true; };
+  // v11: the operator's seat — the camera sits in the superstructure cab and looks at the hook (drag to look round, wheel / pinch to zoom)
+  let camMode = 'orbit'; const look = { yaw: 0, pitch: 0, fov: 58 };
+  const placeCab = () => { if (!g?.cabPt) return; const p = new THREE.Vector3(...g.cabPt); g.upper.localToWorld(p); const t = g.hook.position.clone(); t.y = Math.max(1, t.y - 3);
+    const d = t.sub(p).normalize(); const az = Math.atan2(d.z, d.x) + look.yaw, el = Math.max(-1.2, Math.min(1.3, Math.asin(d.y) + look.pitch));
+    cam.position.copy(p); cam.lookAt(p.x + Math.cos(el) * Math.cos(az), p.y + Math.sin(el), p.z + Math.cos(el) * Math.sin(az)); if (cam.fov !== look.fov) { cam.fov = look.fov; cam.updateProjectionMatrix(); } dirty = true; };
   function reduceMotion3() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   // ---- gestures ----
   const el = r.domElement; el.style.touchAction = 'none'; const ptrs = new Map(); let drag = null, pinch = null, lastTap = 0, moving = false;
@@ -579,7 +673,7 @@ C3D.twin = (host0, opts = {}) => {
     if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, o: { ...to } }; drag = null; return; }
     const now = performance.now(); if (now - lastTap < 300 && e.pointerType !== 'mouse') { framed = false; opts.onReframe?.(); lastTap = 0; return; } lastTap = now;
     if (e.button === 0 && !e.shiftKey && hitPad(e)) { drag = { kind: 'pad', y: pad.position.y }; el.style.cursor = 'grabbing'; return; }
-    drag = { kind: e.button === 2 || e.shiftKey ? 'pan' : 'orbit', x: e.clientX, y: e.clientY, o: { ...to } };
+    drag = { kind: e.button === 2 || e.shiftKey ? 'pan' : 'orbit', x: e.clientX, y: e.clientY, o: { ...to }, lk: { ...look } };
   });
   el.addEventListener('pointermove', (e) => {
     if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -592,6 +686,7 @@ C3D.twin = (host0, opts = {}) => {
     if (!drag) return;
     if (drag.kind === 'pad') { const w = groundAtPtr(e, drag.y); if (w) opts.onPad(w.x + orbBase.cx, -w.z + orbBase.cy, 'move'); return; }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (camMode === 'cab') { look.yaw = drag.lk.yaw + dx * 0.004; look.pitch = Math.max(-0.9, Math.min(0.9, drag.lk.pitch - dy * 0.004)); placeCab(); return; }
     if (drag.kind === 'pan') { const s = to.dist / 600; to.tx = drag.o.tx - dx * Math.sin(to.az) * s; to.tz = drag.o.tz + dx * Math.cos(to.az) * s; to.ty = Math.max(0, drag.o.ty + dy * s); }
     else { to.az = drag.o.az + dx * 0.006; to.el = Math.max(0.03, Math.min(1.5, drag.o.el + dy * 0.005)); }
     go();
@@ -599,7 +694,7 @@ C3D.twin = (host0, opts = {}) => {
   const up = (e) => { ptrs.delete(e.pointerId); if (drag?.kind === 'pad') { opts.onPad?.(0, 0, 'end'); el.style.cursor = ''; } if (ptrs.size < 2) pinch = null; drag = null; if (!ptrs.size) moving = false; };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('contextmenu', (e) => e.preventDefault());
   el.addEventListener('dblclick', () => { framed = false; opts.onReframe?.(); });
-  el.addEventListener('wheel', (e) => { e.preventDefault(); to.dist = Math.max(12, Math.min(600, to.dist * Math.exp(e.deltaY * 0.0012))); go(); }, { passive: false });
+  el.addEventListener('wheel', (e) => { e.preventDefault(); if (camMode === 'cab') { look.fov = Math.max(20, Math.min(80, look.fov * Math.exp(e.deltaY * 0.001))); placeCab(); return; } to.dist = Math.max(12, Math.min(600, to.dist * Math.exp(e.deltaY * 0.0012))); go(); }, { passive: false });
   const orbBase = { cx: 0, cy: 0 };                                                    // plan point at the scene origin (the lead crane)
   // ---- size, render loop, quality governor ----
   const resize = () => { const w = W0(), h = H0(); r.setSize(w, h, false); cam.aspect = w / Math.max(1, h); cam.updateProjectionMatrix(); dirty = true; };
@@ -646,7 +741,7 @@ C3D.twin = (host0, opts = {}) => {
         if (o.type === 'towercrane' && num(o.jib) > 0) { const jb = C3D.lattice(num(o.jib), 1.5, 1.2, M.tm, { bay: 2, r: 0.05, taper: 0.3 }); jb.position.y = hh + 0.5; m.add(jb); }
         m.position.y = e.b; place(m, num(o.x)); }
       else { const mat = o.type === 'container' ? M.cont : o.type === 'trailer' || o.type === 'truck' ? M.dark : o.type === 'box' ? M.box : o.type === 'shed' ? M.shed : M.conc;
-        m = C3D.box(len, hgt, dep, mat); m.position.y = e.b + hgt / 2; place(m, (e.x0 + e.x1) / 2); }
+        m = C3D.box(len, hgt, dep, o.type === 'building' && hgt > 2 ? facadeMat(len, hgt, dep) : mat); m.position.y = e.b + hgt / 2; place(m, (e.x0 + e.x1) / 2); }
       site.add(m);
     }
     for (const en of plan.env || []) { if (en.view !== 'plan' || en.hidden) continue; const gm = typeof ENV_CACHE !== 'undefined' ? ENV_CACHE[en.id] : null; if (!gm) continue; const f = envXf(en);
@@ -682,7 +777,9 @@ C3D.twin = (host0, opts = {}) => {
       // rings, landing pad, labels — moved in place
       const dir = new THREE.Vector3(Math.cos(sp.boom * D2R), 0, -Math.sin(sp.boom * D2R));
       if (Math.abs(res.R - lastR) > 0.004) { lastR = res.R; ringGeo(ringR, res.R, 0.14, 180); } ringR.position.y = 0.05;
-      const tl = num(crane.tail, 5); if (tl !== lastTail) { lastTail = tl; ringGeo(ringT, tl, 0.09, 96); } ringT.position.y = 0.05;
+      const tl = num(crane.tail, 5); if (tl !== lastTail) { lastTail = tl; ringGeo(ringT, tl, 0.09, 96); buildBarrier(tl + 1.0); } ringT.position.y = 0.05;
+      { const ext = Math.max(30, res.R + 12, (geo.tip?.y || 20) * 0.8); const sc = sun.shadow.camera; if (Math.abs(sc.right - ext) > 1) { Object.assign(sc, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 600 }); sc.updateProjectionMatrix(); }
+        sun.target.position.set(dir.x * res.R * 0.4, 0, dir.z * res.R * 0.4); sun.position.set(sun.target.position.x - 70, 95, sun.target.position.z + 110); }
       const T = res.tandem; const padOn = !T;
       pad.visible = padDot.visible = padHit.visible = padOn;
       pad.position.set(dir.x * res.R, res.landY + 0.06, dir.z * res.R); padDot.position.copy(pad.position); padHit.position.copy(pad.position); padHit.scale.setScalar(Math.max(1.6, res.R * 0.07));
@@ -713,18 +810,21 @@ C3D.twin = (host0, opts = {}) => {
       for (const [k, ex] of extra) if (!seen.has(k)) { ex.g.root.visible = ex.g.hook.visible = ex.g.rope.visible = ex.g.slings.visible = ex.g.load.visible = false; }
       { const reach = Math.max(20, res.R, (geo.tip?.y || 20), ...(T ? T.picks.map(p => Math.hypot(p.base.x - sp.cx, p.base.y - sp.cy) * 0.6) : []));
         api._auto = { dist: reach * 2.0, az: Math.PI / 2 - phS * D2R - 0.75, el: 0.36, tx: res.R * 0.45 * dir.x, tz: res.R * 0.45 * dir.z, ty: Math.max(6, (geo.tip?.y || 20) * 0.38) }; }
-      if (!framed) { Object.assign(to, api._auto); go(!api._shown); framed = true; api._shown = true; }
+      if (!framed && camMode === 'orbit') { Object.assign(to, api._auto); go(!api._shown); framed = true; api._shown = true; }
+      if (camMode === 'cab') placeCab();
       dirty = true;
     },
     reframe() { framed = false; dirty = true; },
+    mode: () => camMode,
     look(c) { Object.assign(to, c); go(true); },                                          // put the camera somewhere exact ({ az, el, dist, tx, ty, tz })
     zoom(f) { to.dist = Math.max(12, Math.min(600, to.dist / f)); go(); },
-    view(kind) { const a0 = Math.PI / 2 - num(phS) * D2R; if (kind === 'side') { to.az = a0; to.el = 0.04; } else if (kind === 'top') { to.az = a0; to.el = 1.5; } else { to.az = a0 - 0.75; to.el = 0.36; } go(); },
+    view(kind) { if (kind === 'cab') { camMode = 'cab'; look.yaw = 0; look.pitch = 0; easing = false; placeCab(); return; } if (camMode !== 'orbit') { camMode = 'orbit'; cam.fov = 38; cam.updateProjectionMatrix(); Object.assign(orb, to); applyCam(); }
+      const a0 = Math.PI / 2 - num(phS) * D2R; if (kind === 'side') { to.az = a0; to.el = 0.04; } else if (kind === 'top') { to.az = a0; to.el = 1.5; } else { to.az = a0 - 0.75; to.el = 0.36; } go(); },
     // move the canvas into another box (full view ↔ the small window); the scene and the WebGL context stay
     mount(h2) { if (!h2 || h2 === host) return; host = h2; h2.appendChild(r.domElement); ro.disconnect(); ro = new ResizeObserver(resize); ro.observe(h2); resize(); dirty = true; },
     host: () => host,
     // a still for the PDF: rendered once at the size asked, then the screen size is put back
-    snapshot(w = 1600, h = 1000, auto) { const ow = W0(), oh = H0(), od = dpr, keep = { ...orb }; Object.assign(orb, auto && api._auto ? api._auto : to); applyCam(); r.setPixelRatio(1); r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); r.render(scene, cam); const url = r.domElement.toDataURL('image/jpeg', 0.9); if (auto) { Object.assign(orb, keep); applyCam(); } r.setPixelRatio(od); r.setSize(ow, oh, false); cam.aspect = ow / Math.max(1, oh); cam.updateProjectionMatrix(); dirty = true; return url; },
+    snapshot(w = 1600, h = 1000, auto) { const ow = W0(), oh = H0(), od = dpr, keep = { ...orb }; Object.assign(orb, auto && api._auto ? api._auto : to); applyCam(); r.setPixelRatio(1); r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); r.render(scene, cam); const url = r.domElement.toDataURL('image/jpeg', 0.9); if (auto) { Object.assign(orb, keep); applyCam(); if (camMode === 'cab') placeCab(); } r.setPixelRatio(od); r.setSize(ow, oh, false); cam.aspect = ow / Math.max(1, oh); cam.updateProjectionMatrix(); dirty = true; return url; },
     stats: () => ({ dpr, ema: Math.round(ema * 10) / 10, calls: r.info.render.calls, tris: r.info.render.triangles, geos: r.info.memory.geometries, tex: r.info.memory.textures }),
     dispose() { alive = false; cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener('visibilitychange', vis); try { C3D.disposeCrane(g); for (const ex of extra.values()) C3D.disposeCrane(ex.g); for (const k of Object.keys(labels)) dropLabel(k); disposeTree(site); C3D.disposeScene(scene); envRT.dispose(); r.dispose(); r.forceContextLoss(); } catch {} r.domElement.remove(); }
   };

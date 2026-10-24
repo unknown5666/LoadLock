@@ -15,7 +15,9 @@ class Prims {
   arc(cx, cy, r, a1, a2, o = {}) { return this.add({ t: 'arc', cx, cy, r, a1, a2, ...o }); } // degrees, sheet coords (y down) measured CCW visually
   text(x, y, s, o = {}) { return this.add({ t: 'text', x, y, s: String(s ?? ''), size: 3, anchor: 'start', vAlign: 'base', ...o }); }
   path(segs, o = {}) { return this.add({ t: 'path', segs, ...o }); } // segs: [[x1,y1,x2,y2],...]
-  image(x, y, w, h, href, o = {}) { return this.add({ t: 'image', x, y, w, h, href, ...o }); }
+  image(x, y, w, h, href, o = {}) { // v11: fitted here ('meet'), from the picture's own size — svg2pdf ignores preserveAspectRatio and stretched every drawing in the PDFs
+    if (o.fit !== 'none' && !o.rot && typeof href === 'string') { const n = imgNatural(href); if (n && n.w > 0 && n.h > 0) { const k = Math.min(w / n.w, h / n.h), w2 = n.w * k, h2 = n.h * k; x += (w - w2) / 2; y += (h - h2) / 2; w = w2; h = h2; o = { ...o, fit: 'none' }; } }
+    return this.add({ t: 'image', x, y, w, h, href, ...o }); }
 }
 
 // ---------- small helpers ----------
@@ -131,6 +133,22 @@ function drawCrane(P, T, k, crane, geo, o = {}) {
 function isLightFill(hex) {
   const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || ''); if (!m) return false;
   const [r, g, b] = [1, 2, 3].map(i => parseInt(m[i], 16)); return (r + g + b) / 3 > 200;
+}
+// v11: a picture's pixel size straight from its data URL (PNG IHDR, JPEG SOF, GIF, WebP VP8/VP8L/VP8X headers). Cached; null when unknown.
+const _imgNat = new Map();
+function imgNatural(href) {
+  if (_imgNat.has(href)) return _imgNat.get(href); let out = null;
+  try {
+    const m = /^data:image\/(png|jpe?g|gif|webp);base64,/i.exec(href.slice(0, 40)); if (m) {
+      const b64 = href.slice(href.indexOf(',') + 1, href.indexOf(',') + 1 + 65536); const bin = atob(b64.slice(0, b64.length - (b64.length % 4))); const u = (i) => bin.charCodeAt(i) & 255;
+      const t = m[1].toLowerCase();
+      if (t === 'png' && bin.length > 24) out = { w: (u(16) << 24 | u(17) << 16 | u(18) << 8 | u(19)) >>> 0, h: (u(20) << 24 | u(21) << 16 | u(22) << 8 | u(23)) >>> 0 };
+      else if (t === 'gif') out = { w: u(6) | u(7) << 8, h: u(8) | u(9) << 8 };
+      else if (t === 'webp') { const f = bin.slice(12, 16); if (f === 'VP8 ') out = { w: (u(26) | u(27) << 8) & 0x3fff, h: (u(28) | u(29) << 8) & 0x3fff }; else if (f === 'VP8L') { const b0 = u(21), b1 = u(22), b2 = u(23), b3 = u(24); out = { w: 1 + (((b1 & 0x3f) << 8) | b0), h: 1 + (((b3 & 0xf) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6)) }; } else if (f === 'VP8X') out = { w: 1 + (u(24) | u(25) << 8 | u(26) << 16), h: 1 + (u(27) | u(28) << 8 | u(29) << 16) }; }
+      else { let i = 2; while (i + 9 < bin.length) { if (u(i) !== 0xff) { i++; continue; } const mk = u(i + 1); if (mk >= 0xc0 && mk <= 0xcf && mk !== 0xc4 && mk !== 0xc8 && mk !== 0xcc) { out = { h: u(i + 5) << 8 | u(i + 6), w: u(i + 7) << 8 | u(i + 8) }; break; } i += 2 + (u(i + 2) << 8 | u(i + 3)); } }
+    }
+  } catch (e) { out = null; }
+  if (out && !(out.w > 0 && out.h > 0)) out = null; _imgNat.set(href, out); return out;
 }
 function emitItems(P, items, pal, xf, sty) {
   for (const [f, ci, flat] of items) {
@@ -911,8 +929,9 @@ function drawChartTable(P, box, crane, chartDef, parsed, selCols, selRow) {
   const fs = Math.max(1.6, Math.min(3.2, rh * 0.62, cw * 0.28));
   const headFill = '#e9a23b';
   P.rect(box.x, top, box.w, rh * nHead, { fill: headFill, stroke: '#222', w: 0.2, layer: 'CHART' });
-  P.text(box.x + rcw / 2, top + rh * nHead / 2, chartDef.kind === 'luffing' ? 'R (m) / °' : 'R (m)', { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });
-  P.text(box.x + box.w - rcw / 2, top + rh * nHead / 2, 'R (m)', { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });
+  const rLab = chartDef.rowsBy === 'angle' ? 'BOOM °' : 'R (m)'; // v11: angle-indexed jib charts
+  P.text(box.x + rcw / 2, top + rh * nHead / 2, chartDef.kind === 'luffing' ? 'R (m) / °' : rLab, { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });
+  P.text(box.x + box.w - rcw / 2, top + rh * nHead / 2, rLab, { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });
   parsed.cols.forEach((c, i) => {
     const cx = box.x + rcw + cw * (i + 0.5);
     P.text(cx, top + rh * 0.5, (c.head || c.L) + (chartDef.kind === 'main' ? '' : '°'), { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });

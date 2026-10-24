@@ -123,6 +123,7 @@ function sharePaint() { if (V7.sheet && V7.sheet.kind === 'print') sheetRefresh(
 
 async function shareBuild(kind) {
   if (SHARE.job || !SHARE_KINDS[kind]) return;
+  if (kind === 'rams' && typeof docsGate === 'function' && !docsGate()) return; // v11: the report asks for missing documentation first (docs.js)
   try { navigator.vibrate?.(8); } catch {}
   SHARE.err = null; const old = SHARE.cache[kind];
   SHARE.job = { kind, frac: 0.04, label: 'Getting ready…', creep: true, sig: shareSig(true, kind), got: false, err: '', t0: performance.now() };
@@ -270,7 +271,8 @@ function shareOtherBlock() {
 SH.print = {
   title: () => 'Share & print', icon: 'share',
   body() {
-    const link = `<div style="margin-bottom:14px">` + grp('', Fx.link('open', 'Edit what is on the sheet', { data: 'data-k="sheetDetails"', ic: icb('sliders', 'var(--info-fill)'), sub: 'Job details, layout, rows, notes' }) + riskLink()) + '</div>';
+    const dc = typeof docsCount === 'function' ? docsCount() : null;
+    const link = `<div style="margin-bottom:14px">` + grp('', Fx.link('open', 'Edit what is on the sheet', { data: 'data-k="sheetDetails"', ic: icb('sliders', 'var(--info-fill)'), sub: 'Job details, layout, rows, notes' }) + (dc ? Fx.link('open', 'Documentation', { data: 'data-k="docs"', ic: icb('file', dc.have === dc.need ? 'var(--safe-fill)' : 'var(--warn-fill)'), sub: 'People, site, crane papers, ground, emergency — the report prints them', val: `${dc.have} of ${dc.need}` }) : '') + riskLink()) + '</div>';
     return `${link}${shareCard('a1')}${shareCard('rams')}${grp('Other formats', shareOtherBlock(), { raw: true, foot: 'The plan itself is locked inside the PDFs: they open and print, but cannot be copied or edited.' })}`;
   },
   live(root) { // the plan moved under a ready card: show it as out of date
@@ -280,14 +282,14 @@ SH.print = {
 };
 
 // ---------- v10: what's new (shown once, then under More) ----------
-const NEW10 = [
-  ['front', 'Lift over the front', 'Pick Front next to Left, Behind and Right. The app tells you if the crane can do it.'],
-  ['crane', 'Two cranes on the drawing', 'Tandem lifts are drawn in the side view, the top view and on the sheet.'],
-  ['hook', 'Sling detail', 'See how the load hangs and what each sling leg takes.'],
-  ['shield', 'A proper report pack', 'About 12 A4 pages: risk assessment, method statement, drawings and the load chart.'],
-  ['share', 'Share & print in two taps', 'Make the PDF, then Save it, AirDrop it or print it. The sheet settings moved to their own page.'],
-  ['lock', 'Locked PDFs', 'Your plans and reports open and print, but cannot be copied or edited.'],
-  ['bolt', 'Faster and smoother', 'Sheets glide, views fade into each other and the buttons answer your finger.']
+const NEW10 = [ // v11 (the sheet keeps its old name 'new10')
+  ['crane', 'The chart follows the crane', 'Telescope the boom, change the counterweight, put Y-guying or a fly jib on: the app picks the maker\'s chart and the safe load changes. Crane → Set-up.'],
+  ['file', 'More charts from the library', 'Fly-jib charts for the STC500, STC750, ZTC1000V, AC100 and AC700, and the LTM1650 main boom and Y-guy charts, read from the library PDFs.'],
+  ['side', 'Slew one degree at a time', 'Turn the boom to any angle under Side, or with , and . on the keyboard.'],
+  ['joy', 'Drive the crane', 'Two sticks like the cab: slew, boom up and down, telescope, hook. The LMI stops any move that overloads the crane.'],
+  ['cube', 'A real-looking 3D crane', 'Built from the CAD drawing with outlines, a desert site and a view from the operator\'s seat (3D → Cab).'],
+  ['shield', 'A report you can hand out', 'Your logo on every page and a watermark behind it, the crane on its own full page, drawings that keep their shape.'],
+  ['lock', 'Nothing printed blank', 'Documentation collects the names, papers and contacts. The report asks for anything missing before it is made.']
 ];
 SH.new10 = {
   title: () => 'What is new in ' + APP_VERSION.split('.')[0], icon: 'sparkle',
@@ -296,4 +298,4 @@ SH.new10 = {
       <button type="button" class="btn pri wide tap" data-sa="new10ok" style="margin-top:16px">Got it</button>`;
   }
 };
-SA_EXTRA.new10ok = () => { LS.set('lp.new10', true); closeSheet(true); };
+SA_EXTRA.new10ok = () => { LS.set('lp.new11', true); closeSheet(true); };

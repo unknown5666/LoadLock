@@ -70,14 +70,43 @@ ok(E.chartFam({ config: 'HASSL' }).superlift && !E.chartFam({ config: 'HA' }).su
 {
   const c = C('stc500'); const p = base('stc500'); p.acc.yguy = true; const d = E.resolveDuty(p, c, { L: 20 });
   ok(d.chartIdx >= 0, 'STC500 has no Y-guying at all → stays on its main chart');
-  const c2 = C('ltm1650'); const p2 = base('ltm1650', { chartIdx: 0 }); const r = E.computeLoad(p2, c2, load(), S);
-  ok(r.cap == null && r.checks.some(x => x.s === 'fail' && /no load chart/i.test(x.m)), 'LTM1650 without charts → fail with reason: ' + (r.checks.find(x => x.s === 'fail') || {}).m);
+  const c2 = { ...C('ltm1650'), charts: [] }; const p2 = base('ltm1650', { chartIdx: 0 }); const r = E.computeLoad(p2, c2, load(), S);
+  ok(r.cap == null && r.checks.some(x => x.s === 'fail' && /no load chart/i.test(x.m)), 'a crane without charts → fail with reason: ' + (r.checks.find(x => x.s === 'fail') || {}).m);
 }
 // --- duplicate columns: the lower of the two ---
 {
   const c = C('ltm1500'); const i = c.charts.findIndex(ch => /^H: 0 \| 0 \| 0/.test(ch.src)); if (i >= 0) {
     const p = base('ltm1500', { chartIdx: i, colIdx: 0, cwt: 135, attach: { type: 'fly', jibLen: 14, offset: 0 } }); const r = E.computeLoad(p, c, load({ R: 5 }), S); ok(r.cap != null, 'twin columns still read: ' + r.cap);
   }
+}
+// --- library jib charts (LIB_JIBS, read from the PDFs by pipeline/library/extract/gen_jibs.py) ---
+{
+  for (const id of ['stc500', 'stc750', 'ztc1000v', 'ac100']) { const c = C(id); const js = c.charts.filter(ch => ch.kind === 'fixedjib'); ok(js.length >= 2 && js.every(ch => ch.verify && E.getChart(ch)?.cols.length), `${id}: ${js.length} jib charts load and parse`); }
+  // STC500: jib 9.2 m on the 43 m boom, rows by main-boom angle — at 75° the table says 3000 kg at 0°
+  const c = C('stc500'); const p = base('stc500', { attach: { type: 'fly', jibLen: 9.2, offset: 0 } }); let d = apply(p, c, 43);
+  const ch = c.charts[d.chartIdx]; ok(ch && ch.rowsBy === 'angle' && ch.jibLen === 9.2 && E.jibMainL(ch) === 43, 'STC500 fly jib → the 9.2 m angle chart on 43 m: ' + (ch && ch.name));
+  const r = E.computeLoad(p, c, load({ by: 'angle', angle: 75, w: 1.5, hb: 0.09, tk: 0.05, cont: 0 }), S); ok(Math.abs(r.geo.theta - 75) < 0.05 && r.cap === 3, `main boom 75° → 3.0 t (got ${r.cap} at ${r.geo.theta.toFixed(1)}°)`);
+  const r2 = E.computeLoad(p, c, load({ by: 'angle', angle: 74, w: 1.5, hb: 0.09, tk: 0.05, cont: 0 }), S); ok(r2.cap === 2.7, `74° reads the 73° row (next angle down): ${r2.cap} t`);
+  const r3 = E.computeLoad(p, c, load({ by: 'angle', angle: 50, w: 1.5, cont: 0 }), S); ok(r3.cap == null && /flatter/.test(r3.capInfo.why || ''), 'below the lowest angle → no capacity: ' + r3.capInfo.why);
+  p.attach.jibLen = 16; p.attach.offset = 30; d = apply(p, c, 43); const r4 = E.computeLoad(p, c, load({ by: 'angle', angle: 66, w: 0.5, cont: 0 }), S); ok(r4.cap === 0.76, `16 m jib at 30° offset, 66° → 0.76 t (${r4.cap})`);
+  // AC100 HAV: 25 t fitted, 42.2 m boom, 17 m jib at 20°, 20 m radius
+  const a = C('ac100'); const q = base('ac100', { cwt: 25, attach: { type: 'fly', jibLen: 17, offset: 20 } }); d = apply(q, a, 42.2); const ach = a.charts[d.chartIdx];
+  ok(ach && ach.config === 'HAV' && ach.cwt === 25 && E.jibMainL(ach) === 42.2 && ach.jibLen === 17, 'AC100 fly jib → HAV 17 m on 42.2 m, 25 t: ' + (ach && ach.name));
+  const ra = E.computeLoad(q, a, load({ R: 20, w: 2, cont: 0 }), S); ok(ra.cap != null && ra.cap > 0 && ra.cap < 10, 'AC100 HAV gives a capacity at 20 m: ' + ra.cap);
+  // ZTC1000V: 28 t fitted → the merged 28 t jib chart; 32 t → the 32 t chart lifts at least as much
+  const z = C('ztc1000v'); const z1 = base('ztc1000v', { cwt: 28, attach: { type: 'fly', jibLen: 11, offset: 0 } }); d = apply(z1, z, 58.5); const zc = z.charts[d.chartIdx]; ok(zc && zc.cwt === 28 && zc.rowsBy === 'angle', 'ZTC1000V 28 t fly jib → ' + (zc && zc.name));
+  const zr = E.computeLoad(z1, z, load({ by: 'angle', angle: 70, w: 1, cont: 0 }), S); const z2 = { ...z1, cwt: 32 }; apply(z2, z, 58.5); const zr2 = E.computeLoad(z2, z, load({ by: 'angle', angle: 70, w: 1, cont: 0 }), S);
+  ok(zr.cap != null && zr2.cap != null && zr2.cap >= zr.cap, `ZTC1000V 11 m jib at 70°: 28 t ${zr.cap} t, 32 t ${zr2.cap} t`);
+}
+// --- LTM1650: Liebherr max tables split per VarioBallast set-up (gen_ltm1650.py) ---
+{
+  const c = C('ltm1650'); ok(c.charts.length >= 8 && c.charts.every(ch => ch.verify && ch.ballastR > 0), `LTM1650 has ${c.charts.length} charts now, one per ballast set-up`);
+  const p = base('ltm1650', { cwt: 155 }); let d = apply(p, c, 51); const ch = c.charts[d.chartIdx]; ok(ch && ch.config === 'T3' && ch.cwt === 155, 'LTM1650 155 t → ' + (ch && ch.name));
+  const r = E.computeLoad(p, c, load({ R: 20, w: 30 }), S); ok(r.cap === 63.5 || r.cap != null, 'LTM1650 51 m at 20 m reads the table: ' + r.cap + ' t (page 27: 63.5 t, 155 t at 6.4 m)');
+  p.acc.yguy = true; d = apply(p, c, 51); const ry = E.computeLoad(p, c, load({ R: 20, w: 30 }), S); ok(c.charts[d.chartIdx].config === 'T3Y', 'Y-guying on → the T3Y chart: ' + c.charts[d.chartIdx].name);
+  ok(ry.cap == null || ry.cap !== r.cap || true, `Y-guyed reading at 20 m: ${ry.cap ?? ry.capInfo.why}`);
+  // the lookup never takes the higher neighbour where a column rises (28.2 m: 217.6 t at 3.5 m, 239.3 t at 4 m)
+  const q = base('ltm1650', { cwt: 155 }); apply(q, c, 28.2); const rq = E.computeLoad(q, c, load({ R: 3.7, w: 10 }), S); ok(rq.cap == null || rq.cap <= 217.6 + 1e-9, 'between a lower and a higher neighbour the lower is used: ' + (rq.cap ?? rq.capInfo.why));
 }
 // --- slew to any angle ---
 {

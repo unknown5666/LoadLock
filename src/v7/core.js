@@ -1,7 +1,7 @@
 // ===== v7 core: icons, actions, refresh loop, undo history, views =====
 // The v7 interface keeps v6's engine, drawing and storage (app.js) and replaces every screen.
 
-const APP_VERSION = '10.0'; // shown on sign-in, More and Settings. v10 = front lifts, tandem in the drawings, sling detail, 12-page report pack, one-tap Share & print with AirDrop, locked PDFs, smoother motion (v9 = tandem lifts, Fit-Filter, wind on the load, satellite site map, RAMS pack, live 3D window, offline)
+const APP_VERSION = '11.0'; // v11 = the chart follows the set-up (boom, counterweight, Y-guy, jibs, library jib and LTM1650 charts), slew to any degree, cab controls with an LMI, CAD-faithful 3D with the operator's view, report with logo, watermark and the documentation it needs. shown on sign-in, More and Settings. v10 = front lifts, tandem in the drawings, sling detail, 12-page report pack, one-tap Share & print with AirDrop, locked PDFs, smoother motion (v9 = tandem lifts, Fit-Filter, wind on the load, satellite site map, RAMS pack, live 3D window, offline)
 
 // ---------- icons (24px grid, round caps; never emoji) ----------
 const IC = {
@@ -31,6 +31,7 @@ const IC = {
   folder: 'M3 6h7l2 2h9v12H3z', truck: 'M2 17h12V8H2zM14 17h4l3-3v-3h-7M5.5 20a1.5 1.5 0 1 0 0-.01M17.5 20a1.5 1.5 0 1 0 0-.01',
   gear: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   out: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10', sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+  joy: 'M12 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 10v6M5 16h14l1.5 4h-17zM8 13h-.01M16 13h-.01',
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z', user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0', key: 'M14 10a4 4 0 1 0-1.2 2.8L20 20M17 17l2-2',
   file: 'M5 3h10l4 4v14H5zM14 3v5h5', dl: 'M12 3v12M7 10l5 5 5-5M4 20h16', star: 'M12 3l2.2 5.6L20 9.4l-4.5 3.8 1.4 5.8L12 16l-4.9 3 1.4-5.8L4 9.4l5.8-.8z',
   gap: 'M4 4v16M20 4v16M8 12h8M8 12l2-2M8 12l2 2M16 12l-2-2M16 12l-2 2', eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
@@ -175,6 +176,7 @@ function setDial(k, v, o = {}) {
   const res = state.calc?.loads?.[li];
   if (k === 'W') { l.w = r2(Math.max(0, v)); if (l.empty && v > 0) l.empty = false; }
   else if (k === 'L') {
+    if (typeof applyDuty === 'function' && (p.attach?.type === 'fly' || p.attach?.type === 'luff')) { applyDuty({ L: v, quiet: !!o.live, live: !!o.live }); return; } // v11: snaps to a boom length the jib charts print
     if (res?.tele?.locked) { toast('The jib chart fixes the boom length'); return; }
     const { crane } = curChart(); const sp = boomSpec(crane, chartLengths(crane)); const L = Math.max(sp.Lmin, Math.min(sp.Lmax, v));
     if (!o.live && Math.abs(L - v) > 0.01) toast(`This boom goes from ${fmt(sp.Lmin, 1)} to ${fmt(sp.Lmax, 1)} m`);
@@ -224,7 +226,11 @@ function accToggle(k, on) {
   if (k === 'flyjib' || k === 'extension') { if (on) { const [a, b] = jibRange(crane, 'fly'); p.attach = { ...at, type: 'fly', ext: k === 'extension', jibLen: Math.round(Math.max(a, Math.min(b, num(at.type === 'fly' ? at.jibLen : a + (b - a) * 0.4, a))) * 2) / 2, offset: k === 'extension' ? 0 : (at.type === 'fly' && !at.ext ? num(at.offset, 20) : 20) }; } else p.attach = { ...at, type: 'none' }; }
   else if (k === 'luffing') { if (on) { const [a, b] = jibRange(crane, 'luff'); p.attach = { ...at, type: 'luff', ext: false, jibLen: Math.round(Math.max(a, Math.min(b, num(at.type === 'luff' ? at.jibLen : a + (b - a) * 0.4, a))) * 2) / 2, boomAngle: num(at.boomAngle, 83) }; } else p.attach = { ...at, type: 'none' }; }
   else { p.acc = { ...(p.acc || {}), [k]: !!on }; }
-  Scene.views.elev = null; if (state.twin) state.twin.reframe(); commit({ sheet: true });
+  Scene.views.elev = null; if (state.twin) state.twin.reframe();
+  if (typeof applyDuty === 'function' && k !== 'runner') { // v11: the chart follows the set-up (v11.js). A jib just put on starts as the shortest charted jib
+    if (on && (k === 'flyjib' || k === 'luffing') && at.type !== p.attach.type && typeof dutyOptions === 'function') { const op = dutyOptions(p, crane, dutyNowL()); if (op.jibLs.length) p.attach.jibLen = op.jibLs[0]; if (k === 'flyjib' && op.cols.length && !op.cols.includes(num(p.attach.offset))) p.attach.offset = op.cols[0]; }
+    applyDuty(); return; }
+  commit({ sheet: true });
 }
 function addObject(type) {
   const p = state.plan; const t = OBJ_TYPES[type]; const site = p.site; const R = state.calc?.loads?.[activeLi()]?.R || 15;

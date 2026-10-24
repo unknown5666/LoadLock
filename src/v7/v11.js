@@ -29,10 +29,14 @@ function dutyGroup(crane, r) {
   const chip = (sa, v, label, on, extra = '') => `<button type="button" class="chip tap" data-sa="${sa}" data-v="${h(v)}" aria-pressed="${!!on}"${extra}>${h(label)}</button>`;
   const row = (title, sub, inner) => `<div class="it stack"><span class="lb"><b>${h(title)}</b>${sub ? `<small>${sub}</small>` : ''}</span><div class="chips" style="margin-top:8px">${inner}</div></div>`;
   const capTxt = r?.cap != null ? `${fmt(r.cap, 1)} t` : '—';
-  let out = `<div class="duty-card ${r?.cap == null ? 'none' : ''}"><div class="dc-l"><span class="k">Crane can lift here</span><span class="v num">${capTxt}</span><span class="s">at ${fmt(r?.R, 1)} m reach · boom ${fmt(L, 1)} m</span></div>
-    <div class="dc-r"><span class="k">Chart in use</span><b>${ch ? h(chartShort(ch)) : 'None for this set-up'}</b><small>${ch ? h(ch.source || '') + (ch.verify ? ' · <span class="w">check against the maker</span>' : '') : h(r?.dutyWhy || r?.capInfo?.why || '')}</small></div></div>`;
+  const srcShort = (t) => { t = String(t || '').replace(/^.*\//, ''); const m = /^(.*?p\.\s?[\d,–-]+)/.exec(t); t = m ? m[1] : t; return t.length > 96 ? t.slice(0, 94) + '…' : t; };
+  let out = `<div class="duty-card ${r?.cap == null ? 'none' : ''}"><div class="dc-l"><span class="k">Crane can lift here</span><span class="v num">${capTxt}</span><span class="s">${r?.cap == null && r?.capInfo?.why ? h(r.capInfo.why) : `at ${fmt(r?.R, 1)} m reach · boom ${fmt(L, 1)} m`}</span></div>
+    <div class="dc-r"><span class="k">Chart in use</span><b>${ch ? h(chartShort(ch).replace(/\s*·\s*UNVERIFIED$/, '')) : 'None for this set-up'}</b><small>${ch ? h(srcShort(ch.source)) + (ch.verify ? ' · <span class="w">check against the maker</span>' : '') : h(r?.dutyWhy || r?.capInfo?.why || '')}</small></div></div>`;
   let rows = '';
   const cws = op.cwts; if (cws.length) rows += row('Counterweight', fitted != null ? `${fmt(fitted, 1)} t on the crane${cws.includes(fitted) ? '' : ' — the chart for the next lighter counterweight is used'}` : 'Pick what is fitted', cws.map(v => chip('dutyCwt', v, fmt(v, 1) + ' t', fitted != null && Math.abs(v - fitted) < 1e-6)).join(''));
+  const bal = dutyBallasts(p, crane, L, r?.R);
+  if (bal.length > 1) { const here = bal.filter(b => b.cap != null); const cur = bal.find(b => b.on);
+    rows += row('VarioBallast position', cur && cur.cap == null && here.length ? `This reach is charted with the ballast at ${here.map(b => fmt(b.r, 1) + ' m').join(' or ')}` : 'Where the ballast hangs. Each position has its own cells in the maker\'s table', bal.map(b => chip('dutyBal', b.i, `${fmt(b.r, 1)} m${b.cap != null ? ' · ' + fmt(b.cap, 1) + ' t' : ''}`, b.on)).join('')); }
   if (op.has.yguy || av.includes('yguy')) rows += Fx.swRaw('data-acc="yguy"', 'Y-guying', !!want.yguy, { sub: op.has.yguy ? 'Guy ropes over the boom — longer booms lift more. The guyed chart is used.' : 'No guyed chart in the library for this crane' });
   const jibs = [['none', 'Boom only', true], ['fly', 'Fly jib', op.has.fly || av.includes('flyjib')], ['luff', 'Luffing jib', op.has.luff || av.includes('luffing')]].filter(x => x[2]);
   if (jibs.length > 1) rows += row('On the boom head', at.type === 'fly' ? (op.has.fly ? 'Fixed lattice / folding jib — the jib chart is used' : 'No fly-jib chart in the library — type the jib capacity below') : at.type === 'luff' ? (op.has.luff ? 'Luffing lattice jib — the luffing chart is used' : 'No luffing-jib chart in the library') : 'Telescopic boom only', jibs.map(([k, t]) => chip('dutyJib', k, t, (at.type || 'none') === k)).join(''));
@@ -44,6 +48,7 @@ function dutyGroup(crane, r) {
   out += `<div class="list" style="margin-top:12px">${rows || Fx.ro('Nothing to set on this crane', '')}</div>`;
   return grp('Set-up on the crane', out, { raw: true, foot: 'Change anything here and the app picks the maker\'s chart for it — the safe load changes with the boom, the counterweight, Y-guying and the jib.' });
 }
+SA_EXTRA.dutyBal = (d) => { state.plan.chartIdx = +d.v; applyDuty(); };
 SA_EXTRA.dutyCwt = (d) => { state.plan.cwt = num(d.v); applyDuty(); };
 SA_EXTRA.dutyJib = (d) => { const k = d.v; if (k === 'none') { const at = state.plan.attach || {}; if (at.type === 'fly') accToggle(at.ext ? 'extension' : 'flyjib', false); else if (at.type === 'luff') accToggle('luffing', false); } else accToggle(k === 'fly' ? 'flyjib' : 'luffing', true); };
 SA_EXTRA.dutyMain = (d) => applyDuty({ L: num(d.v) });
@@ -59,6 +64,7 @@ function setSlew(deg, o = {}) {
   const side0 = sideOfLoad(l); l.slew = r2(normDeg(deg)); l.side = sideFromSlew(l.slew);
   if (l.side !== side0) { const crane = curCrane(); const bi = typeof bestChartForSide === 'function' && crane ? bestChartForSide(crane, l.side, +p.chartIdx) : null; if (bi != null && bi >= 0 && bi !== +p.chartIdx) { p.chartIdx = bi; p.colIdx = 0; p.boomOverride = ''; p.loads.forEach(x => x.colIdx = ''); if (!o.quiet) toast('Load chart changed to one that covers this side'); } }
   markDirty(); histMark(); refresh(true); if (!o.noSheet) sheetLive();
+  const sb = $('#sideBoom'); if (sb) sb.style.transform = `rotate(${-l.slew}deg)`;
   const v = $('#slewVal'); if (v) v.textContent = `${Math.round(l.slew)}°`; const rg = $('#slewRg'); if (rg && document.activeElement !== rg) { rg.value = String(Math.round(l.slew)); syncSliders(rg.parentElement); }
 }
 // the slew card at the top of the Side sheet
@@ -87,6 +93,7 @@ const CAB_RATE = { slew: 6, luff: 3, tele: 1.2, hoist: 1.5 }; // °/s, °/s, m/s
 const CAB_KEYS = { a: ['L', 'x', -1], d: ['L', 'x', 1], w: ['L', 'y', 1], s: ['L', 'y', -1], arrowup: ['R', 'y', 1], arrowdown: ['R', 'y', -1], arrowleft: ['R', 'x', -1], arrowright: ['R', 'x', 1] };
 function cabToggle(on) {
   CAB.on = on ?? !CAB.on; let el = $('#cab');
+  $('#stage')?.classList.toggle('cab-on', CAB.on); document.body.classList.toggle('cab-mode', CAB.on); setTimeout(() => { try { if (typeof sceneResize === 'function') sceneResize(); window.dispatchEvent(new Event('resize')); } catch {} }, 30);
   if (!CAB.on) { if (el) el.remove(); cancelAnimationFrame(CAB.raf); CAB.raf = 0; CAB.keys.clear(); CAB.sticks.L = { x: 0, y: 0 }; CAB.sticks.R = { x: 0, y: 0 }; histMark(); renderFloats(); sheetLive(); return; }
   const l = state.plan.loads[activeLi()]; if (!hasCarrierRot(state.plan.sitePlan)) state.plan.sitePlan = { ...(state.plan.sitePlan || {}), carrierRot: Math.round(carrierHeadingFor(state.plan, l) * 100) / 100 };
   if (!hasSlew(l)) l.slew = r2(slewOf(l));
@@ -102,8 +109,8 @@ function cabStick(id, labels) {
 }
 function cabHTML() {
   return `<div class="cab-hud" aria-live="polite"><div class="lmi"><div class="lmi-bar"><i id="cabBar"></i><b class="m75"></b><b class="m90"></b></div><div class="lmi-row"><span class="lmi-pct num" id="cabPct">—</span><span class="lmi-st" id="cabSt">LMI</span></div></div>
-      <div class="cab-read" id="cabRead"></div><button type="button" class="cab-x tap" data-act="cabOff" aria-label="Leave cab controls">${ic('x', 20, 2.4)}</button></div>
-    <div class="cab-stop" id="cabStop" hidden>LMI STOP — only moves that make the lift lighter: boom up, telescope in, set the load down</div>
+      <div class="cab-read" id="cabRead"></div><button type="button" class="cab-x tap" data-act="cabOff" aria-label="Leave cab controls">${ic('x', 20, 2.4)}</button>
+      <div class="cab-stop" id="cabStop" hidden>LMI STOP — only moves that make the lift lighter: boom up, telescope in, set the load down</div></div>
     ${cabStick('L', ['Boom up', 'Boom down', 'Slew left', 'Slew right'])}${cabStick('R', ['Hook up', 'Hook down', 'Tele in', 'Tele out'])}
     <div class="cab-keys">${isDesk() ? 'Keys: A D slew · W S boom · ↑ ↓ hook · ← → telescope · Shift = slow' : ''}</div>`;
 }
@@ -131,7 +138,8 @@ function cabAxes() {
 function cabLoop(t) {
   if (!CAB.on) return; CAB.raf = requestAnimationFrame(cabLoop);
   const dt = Math.min(0.1, Math.max(0, (t - CAB.t) / 1000)); CAB.t = t; const ax = cabAxes();
-  const any = Object.values(ax).some(v => Math.abs(v) > 1e-4); if (!any) { if (CAB.moving) { CAB.moving = false; histMark(); sheetLive(); } return; }
+  const any = Object.values(ax).some(v => Math.abs(v) > 1e-4);
+  if (!any) { if (CAB.moving) { CAB.moving = false; histMark(); sheetLive(); } if (CAB.cut && t - CAB.cut > 1600) { CAB.cut = 0; CAB.cutWhy = ''; } if (t - (CAB.hudT || 0) > 250) { CAB.hudT = t; cabHud(); } return; }
   CAB.moving = true; cabStep(ax, dt);
 }
 // one frame of motion. Each axis is tried on its own; the LMI keeps the ones that do not push the lift over 100 % (or into a sector the chart
@@ -172,6 +180,6 @@ function cabHud() {
   if (st) { st.textContent = CAB.cut ? 'LMI STOP' : { ok: 'LMI OK', warn: 'CAREFUL', over: 'OVER PLAN LIMIT', stop: 'OVERLOAD', off: 'NO CAPACITY' }[cls]; st.className = 'lmi-st ' + (CAB.cut ? 'stop' : cls); }
   if (stop) { stop.hidden = !CAB.cut; if (CAB.cut) stop.textContent = `LMI STOP — ${CAB.cutWhy}. Boom up, telescope in or set the load down.`; }
   const ch = loadCol(li).ch; const ang = r.geo?.tip ? currentAngle(r, ch) : null;
-  const cell = (k, v, u2) => `<div><span>${k}</span><b class="num">${v}<small>${u2}</small></b></div>`;
-  if (rd) rd.innerHTML = cell('Slew', Math.round(slewOf(l)), '°') + cell('Boom', fmt(r.tele?.L, 1), 'm') + cell('Angle', ang != null ? fmt(ang, 1) : '—', '°') + cell('Reach', fmt(r.R, 1), 'm') + cell('Hook', fmt(num(r.hookY) + num(r.lift), 1), 'm') + cell('Load', fmt(r.design ?? r.total, 1), 't') + cell('Can lift', r.cap != null ? fmt(r.cap, 1) : '—', 't');
+  const cell = (k, v, u2, x = '') => `<div${x ? ` class="${x}"` : ''}><span>${k}</span><b class="num">${v}<small>${u2}</small></b></div>`; // x: hidden on phones
+  if (rd) rd.innerHTML = cell('Slew', Math.round(slewOf(l)), '°') + cell('Boom', fmt(r.tele?.L, 1), 'm', 'x') + cell('Angle', ang != null ? fmt(ang, 1) : '—', '°', 'x') + cell('Reach', fmt(r.R, 1), 'm') + cell('Hook', fmt(num(r.hookY) + num(r.lift), 1), 'm', 'x') + cell('Load', fmt(r.design ?? r.total, 1), 't') + cell('Can lift', r.cap != null ? fmt(r.cap, 1) : '—', 't');
 }

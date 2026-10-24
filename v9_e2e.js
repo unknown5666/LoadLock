@@ -26,7 +26,7 @@ function pngTile() {
   await ev(() => { LS.set('lp.new10', true); });
   ok(await ev(() => !document.body.classList.contains('locked')), 'signed in');
   await ev(() => { LS.set('lp.coach7', true); document.getElementById('coach')?.remove(); });
-  ok(await ev(() => APP_VERSION === '10.0'), 'version 10.0');
+  ok(await ev(() => APP_VERSION === '11.0'), 'version 11.0');
 
   // ---- speed: a full recompute + redraw per change ----
   const ms = await ev(() => { const t = performance.now(); for (let i = 0; i < 30; i++) setDial('R', 12 + (i % 10) * 0.5); return (performance.now() - t) / 30; });
@@ -84,6 +84,7 @@ function pngTile() {
 
   // ---- RAMS pack (2 × A4) ----
   await ev(() => { closeSheet(true); openSheet('print'); }); await p.waitForTimeout(400);
+  await p.evaluate(() => { V7.docsOk = true; }); // v11: skip the documentation gate (v11_e2e.js tests it)
   await p.click('#sheet [data-sa="xbuild"][data-kind="rams"]'); await p.waitForSelector('#sheet .xc[data-kind="rams"] [data-sa="xsave"]', { timeout: 120000 });
   const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }), p.click('#sheet [data-sa="xsave"][data-kind="rams"]')]);
   const fp = await dl.path(); const pdf = fs.readFileSync(fp); const info = await ev(() => state.lastRams);

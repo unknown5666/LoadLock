@@ -112,6 +112,7 @@ function bindSheet(sh, scrim) {
     if (k === 'boomOverride' && v !== '') { setDial('L', num(v)); sheetRefresh(); return; }
     if (k === 'activeLoad') { selectLoad(+v); commit({ sheet: true }); return; }
     if (/^loads\.\d+\.crane$/.test(k)) { setLoadRig(+k.split('.')[1], +v); commit({ sheet: true }); return; }
+    if (typeof applyDuty === 'function' && (k === 'cwt' || (/^attach\./.test(k) && k !== 'attach.swl'))) { setP(p, k, v); applyDuty(); return; } // v11: the chart follows the set-up
     setP(p, k, v);
     if (k === 'chartIdx') { p.colIdx = 0; p.cwt = null; p.config = null; p.loads.forEach(l => l.colIdx = ''); p.boomOverride = ''; if (p.tele?.mode === 'manual') p.tele = { mode: 'auto', fr: [] }; Scene.views.elev = null; }
     if (k === 'colIdx') { p.boomOverride = ''; Scene.views.elev = null; }
@@ -307,6 +308,7 @@ SH.crane = {
     let out = `<div class="cur-crane" style="--bc:${brandCol(crane)}"><div><div class="mk">${h(crane.make || '')}</div><div class="md">${h(crane.model)}</div></div><div class="cl num">${crane.cls}<small>t</small></div>
       <div class="spec"><span>Boom <b>${fmt(spec.Lmin, 1)}–${fmt(spec.Lmax, 1)} m</b></span><span>Counterweight <b>${fmt(cw, 1)} t</b></span><span>Legs <b>${h(ch?.outrigger || crane.outrigger || '—')}</b></span></div></div>
       <div style="margin-top:12px"><button type="button" class="btn wide pri tap" data-sa="open" data-k="find">${ic('search', 20, 2.4)}Find the right crane for this lift</button></div>`;
+    if (typeof dutyGroup === 'function') out += dutyGroup(crane, r); // v11: counterweight, Y-guying, jib → the chart
     if ((p.cranes || []).length > 1 || true) {
       const rigs = p.cranes || [{}], act = num(p.activeCrane, 0);
       out += grp('Cranes on this job', rigs.map((rg, i) => { const c = cranes().find(x => x.id === (i === act ? p.craneId : rg.craneId)) || crane; const n = p.loads.filter(x => num(x.crane) === i).length;
@@ -318,23 +320,23 @@ SH.crane = {
     const kinds = { main: 'Boom', fixedjib: 'Fly jib', luffing: 'Luffing jib' };
     const chartOpts = charts.map((c, i) => [i, `${kinds[c.kind || 'main']} · ${c.name}`]).concat([[-1, 'No chart — type the capacity']]);
     const colOpts = parsed ? parsed.cols.map((c, i) => [i, `${c.head || c.L}${ch.kind === 'main' ? ' m' : '°'}${c.label ? ' · ' + c.label : ''}${c.falls ? ' · ' + c.falls + ' falls' : ''}`]) : [];
-    out += grp('Load chart', Fx.sel('chartIdx', 'Chart', chartOpts, { numeric: 1 }) + (parsed ? Fx.sel('colIdx', ch.kind === 'main' ? 'Boom on the chart' : ch.kind === 'luffing' ? 'Main boom angle' : 'Jib offset', colOpts, { numeric: 1 }) : '')
+    out += grp(typeof dutyGroup === 'function' ? 'Pick a chart by hand' : 'Load chart', Fx.sel('chartIdx', 'Chart', chartOpts, { numeric: 1 }) + (parsed ? Fx.sel('colIdx', ch.kind === 'main' ? 'Boom on the chart' : ch.kind === 'luffing' ? 'Main boom angle' : 'Jib offset', colOpts, { numeric: 1 }) : '')
       + Fx.num('cwt', 'Counterweight', 't', { ph: String(ch?.cwt ?? crane.cwt ?? '') }) + Fx.text('outriggerTxt', 'Outrigger legs', { ph: ch?.outrigger || crane.outrigger }) + Fx.num('falls', 'Rope falls', '', { ph: String(parsed?.cols[+p.colIdx]?.falls || '') }),
       { foot: ch?.verify ? `<span style="color:var(--warn);font-weight:600">Check this chart.</span> ${h(ch.source || 'Copied from a public datasheet')}. Compare every value with the crane's own chart before you lift.` : r?.capInfo?.between ? `Capacity uses the lower of ${r.capInfo.between.join(' / ')} m.` : '' });
-    out += grp('Extras on the boom', accRows(crane, ch, r), { foot: 'Only parts this crane carries are listed.' });
+    out += grp('Extras on the boom', accRows(crane, ch, r, typeof dutyGroup === 'function'), { foot: 'Only parts this crane carries are listed.' });
     out += grp('More', Fx.link('open', 'Slide sections by hand', { data: 'data-k="tele"', val: r?.tele?.mode === 'manual' ? 'On' : 'Off' }) + Fx.text('modelTxt', 'Name printed on the sheet', { ph: crane.model }) + Fx.num('hookAllowance', 'Hook + 2-block allowance', 'm') + Fx.text('matSize', 'Mat size', { ph: '2.5x2.5m' }) + Fx.text('wind', 'Wind on the sheet', { ph: '7M/S' }));
     return out;
   }
 };
-function accRows(crane, ch, r) {
+function accRows(crane, ch, r, setup) { // setup (v11): the jibs and Y-guying are in the Set-up group, only the other extras stay here
   const p = state.plan; const avail = crane.acc || ['flyjib']; const at = p.attach || {}; const jibChart = ch && ch.kind && ch.kind !== 'main'; const A = r?.acc || {};
   const rows = [];
   const row = (key, title, sub, on, body, dis) => Fx.swRaw(`data-acc="${key}"`, title, on, { sub, dis }) + (on && body ? body : '');
-  if (avail.includes('flyjib')) { const [a, b] = jibRange(crane, 'fly'); rows.push(row('flyjib', 'Fly jib', jibChart ? 'set by the jib chart' : `${a}–${b} m lattice jib`, at.type === 'fly' && !at.ext, Fx.num('attach.jibLen', 'Jib length', 'm') + Fx.num('attach.offset', 'Offset', '°') + Fx.num('attach.swl', 'Jib can lift', 't', { ph: 'from chart' }), jibChart)); }
+  if (avail.includes('flyjib') && !setup) { const [a, b] = jibRange(crane, 'fly'); rows.push(row('flyjib', 'Fly jib', jibChart ? 'set by the jib chart' : `${a}–${b} m lattice jib`, at.type === 'fly' && !at.ext, Fx.num('attach.jibLen', 'Jib length', 'm') + Fx.num('attach.offset', 'Offset', '°') + Fx.num('attach.swl', 'Jib can lift', 't', { ph: 'from chart' }), jibChart)); }
   if (avail.includes('extension')) rows.push(row('extension', 'Boom extension', 'lattice piece in line with the boom', at.type === 'fly' && !!at.ext, Fx.num('attach.jibLen', 'Extension length', 'm') + Fx.num('attach.swl', 'Can lift', 't', { ph: 'from chart' }), jibChart));
-  if (avail.includes('luffing')) { const [a, b] = jibRange(crane, 'luff'); rows.push(row('luffing', 'Luffing jib', jibChart ? 'set by the jib chart' : `${a}–${b} m luffing jib`, at.type === 'luff', Fx.num('attach.boomAngle', 'Main boom angle', '°') + Fx.num('attach.jibLen', 'Jib length', 'm') + Fx.num('attach.swl', 'Jib can lift', 't', { ph: 'from chart' }), jibChart)); }
+  if (avail.includes('luffing') && !setup) { const [a, b] = jibRange(crane, 'luff'); rows.push(row('luffing', 'Luffing jib', jibChart ? 'set by the jib chart' : `${a}–${b} m luffing jib`, at.type === 'luff', Fx.num('attach.boomAngle', 'Main boom angle', '°') + Fx.num('attach.jibLen', 'Jib length', 'm') + Fx.num('attach.swl', 'Jib can lift', 't', { ph: 'from chart' }), jibChart)); }
   if (avail.includes('superlift')) rows.push(row('superlift', 'Superlift', 'mast and hanging ballast', A.superlift, Fx.num('acc.slRadius', 'Ballast reach', 'm') + Fx.num('acc.slBallast', 'Ballast', 't')));
-  if (avail.includes('yguy')) rows.push(row('yguy', 'Y-guying', A.yguyAuto ? 'on — the chart needs it' : 'boom guying', A.yguy, '', A.yguyAuto));
+  if (avail.includes('yguy') && !setup) rows.push(row('yguy', 'Y-guying', A.yguyAuto ? 'on — the chart needs it' : 'boom guying', A.yguy, '', A.yguyAuto));
   if (avail.includes('runner')) rows.push(row('runner', 'Runner', 'small head for a second hook', A.runner, ''));
   return rows.join('') || Fx.ro('None listed', '');
 }
@@ -368,7 +370,7 @@ SH.side = {
   title: () => 'Lift side', icon: 'side',
   body() {
     const li = activeLi(), l = state.plan.loads[li], r = state.calc.loads[li]; const side = sideOfLoad(l);
-    const rot = { left: -90, rear: 180, right: 90, front: 0 }[side] ?? 180;
+    const rot = typeof hasSlew === 'function' && hasSlew(l) ? -slewOf(l) : ({ left: -90, rear: 180, right: 90, front: 0 }[side] ?? 180); // v11: the real slew (the picture turns clockwise, the slew anticlockwise)
     const cx = 170, cy = 170, r0 = 100, r1 = 162;
     const sector = (a0, a1) => { const p = (a, rr) => [cx + rr * Math.cos((a - 90) * Math.PI / 180), cy + rr * Math.sin((a - 90) * Math.PI / 180)]; const [x0, y0] = p(a0, r1), [x1, y1] = p(a1, r1), [x2, y2] = p(a1, r0), [x3, y3] = p(a0, r0); return `M${x0} ${y0}A${r1} ${r1} 0 0 1 ${x1} ${y1}L${x2} ${y2}A${r0} ${r0} 0 0 0 ${x3} ${y3}Z`; };
     const lab = (a) => { const rr = (r0 + r1) / 2; return [cx + rr * Math.cos((a - 90) * Math.PI / 180), cy + rr * Math.sin((a - 90) * Math.PI / 180) + 5]; };
@@ -378,10 +380,10 @@ SH.side = {
       <rect class="body" x="${cx - 30}" y="${cy - 78}" width="60" height="156" rx="10"/><rect class="cab" x="${cx - 26}" y="${cy - 74}" width="52" height="22" rx="6"/>
       <path d="M${cx - 30} ${cy - 40}h-22M${cx + 30} ${cy - 40}h22M${cx - 30} ${cy + 46}h-22M${cx + 30} ${cy + 46}h22" stroke="currentColor" stroke-width="5" stroke-linecap="round" opacity=".35"/>
       <circle cx="${cx}" cy="${cy}" r="20" fill="var(--card)" stroke="currentColor" stroke-width="2"/>
-      <g style="transform:rotate(${rot}deg);transform-origin:${cx}px ${cy}px;transition:transform .6s var(--spring)"><line class="boom" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 90}"/><line class="boom-f" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 90}"/><circle cx="${cx}" cy="${cy - 90}" r="7" fill="var(--brand)" stroke="var(--brand-ink)" stroke-width="2"/></g>
+      <g id="sideBoom" style="transform:rotate(${rot}deg);transform-origin:${cx}px ${cy}px;transition:transform .6s var(--spring)"><line class="boom" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 90}"/><line class="boom-f" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 90}"/><circle cx="${cx}" cy="${cy - 90}" r="7" fill="var(--brand)" stroke="var(--brand-ink)" stroke-width="2"/></g>
       <text x="${cx}" y="${cy - 84}" text-anchor="middle" style="font:700 11px var(--f-ui);fill:var(--ink-2)">CAB</text></svg>`;
     const sideChk = (r?.checks || []).find(c => /side/i.test(c.t));
-    return `<div class="side-pick">${svg}<div class="side-btns">${SIDES.map(([k, t]) => `<button type="button" class="tap" data-sa="side" data-v="${k}" aria-pressed="${side === k}" title="${h(SIDE_HELP[k])}">${sideIco(k)}<span>${t}</span></button>`).join('')}</div></div>
+    return `${typeof slewCard === 'function' ? slewCard() : ''}<div class="side-pick">${svg}<div class="side-btns">${SIDES.map(([k, t]) => `<button type="button" class="tap" data-sa="side" data-v="${k}" aria-pressed="${side === k}" title="${h(SIDE_HELP[k])}">${sideIco(k)}<span>${t}</span></button>`).join('')}</div></div>
       <p class="side-help" aria-live="polite"><b>${h((SIDES.find(x => x[0] === side) || [0, side])[1])}.</b> ${h(SIDE_HELP[side])}</p>
       ${sideChk && sideChk.s !== 'ok' ? note(sideChk.s === 'fail' ? 'fail' : 'warn', 'alert', `<b>${h(sideChk.t)}.</b> ${h(sideChk.m)}`) : note('ok', 'check', `Lifting <b>${side === 'rear' ? 'behind the crane' : side === 'front' ? 'over the front' : 'on the ' + side + ' side'}</b>. The chart covers this side.`)}
       <p class="hint" style="margin-top:12px">The yellow dot is the boom. The cab is at the top of the picture.</p>`;
@@ -558,6 +560,7 @@ SH.more = {
   body() {
     const t = state.settings.theme || 'auto';
     return grp('', `${Fx.link('page', 'Plans', { data: 'data-v="plans"', ic: icb('folder', 'var(--info-fill)'), sub: 'Open, copy or start a plan' })}<button type="button" class="it has-ic tap" data-sa="open" data-k="print">${icb('share', 'var(--info-fill)')}<span class="lb"><b>Share &amp; print</b><small>Make the PDF, then save, AirDrop or print it</small></span></button><button type="button" class="it has-ic tap" data-sa="save" data-v="">${icb('save', 'var(--safe-fill)')}<span class="lb"><b>Save</b><small id="moreSave">${h($('#saveState')?.textContent || $('#tbState')?.textContent || '')}</small></span></button><button type="button" class="it has-ic tap" data-sa="save" data-v="new">${icb('copy', 'var(--safe-fill)')}<span class="lb"><b>Save a copy</b><small>A new plan with the same set-up</small></span></button>`)
+      + (typeof docsCount === 'function' ? grp('', Fx.link('open', 'Documentation for the report', { data: 'data-k="docs"', ic: icb('file', '#5856d6'), sub: 'People, site, crane papers, ground, emergency', val: (() => { const c = docsCount(); return `${c.have} of ${c.need}`; })() })) : '')
       + grp('', `${Fx.link('page', 'Cranes and charts', { data: 'data-v="fleet"', ic: icb('truck', '#ff9500') })}${Fx.link('page', 'Settings', { data: 'data-v="settings"', ic: icb('gear', 'var(--ink-3)') })}<button type="button" class="it has-ic tap" data-sa="coach">${icb('help', '#af52de')}<span class="lb"><b>Show the tips again</b></span></button><button type="button" class="it has-ic tap" data-sa="open" data-k="new10">${icb('sparkle', '#ff9500')}<span class="lb"><b>What is new in ${h(APP_VERSION.split('.')[0])}</b></span></button>`)
       + grp('Look', `<div class="it"><div class="seg" style="width:100%">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<button type="button" class="tap" data-sa="theme" data-v="${v}" aria-checked="${t === v}">${l}</button>`).join('')}</div></div>`)
       + grp('', `<button type="button" class="it has-ic tap" data-sa="signout">${icb('out', 'var(--stop-fill)')}<span class="lb"><b>Sign out</b><small>Signed in as ${h(V7.user || authUser() || '')}</small></span></button>`)

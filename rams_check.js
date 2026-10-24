@@ -18,7 +18,7 @@ async function readPdf(file) {
     const fontName = (id) => { try { return pg.commonObjs.has(id) ? pg.commonObjs.get(id).name || '' : ''; } catch (e) { return ''; } };
     const items = tc.items.filter(t => t.str.trim()).map(t => { const [a, b, , d, e, f] = t.transform; const hgt = Math.abs(d) || Math.abs(a); const rot = Math.abs(b) > Math.abs(a) * 0.5;
       const o = rot ? { x0: e - hgt * 0.8, x1: e + hgt * 0.1, y0: b > 0 ? f : f - t.width, y1: b > 0 ? f + t.width : f } : { x0: e, x1: e + t.width, y0: f, y1: f + hgt * 0.72 };
-      return { s: t.str, ...o, drawing: /helvetica/i.test(fontName(t.fontName)), size: hgt }; });
+      const fn = fontName(t.fontName); return { s: t.str, ...o, drawing: /helvetica/i.test(fn), wm: /courier/i.test(fn), size: hgt }; }).filter(t => !t.wm); // v11: the diagonal watermark (set in Courier) is not page layout
     pages.push({ n, w: vp.width, h: vp.height, items, text: items.map(t => t.s).join(' ') });
   }
   return pages;

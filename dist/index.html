@@ -1887,6 +1887,1537 @@ const LIB_CHARTS = {
   ]
 };
 for (const c of DEFAULT_CRANES) if (LIB_CHARTS[c.id]) c.charts = (c.charts || []).concat(LIB_CHARTS[c.id]);
+// ---------- v11: jib charts from the crane library (UNVERIFIED) ----------
+// Fly-jib tables read from the library PDFs by pipeline/library/extract/gen_jibs.py (text layer, never typed). All verify:true. rowsBy:'angle' = the rows are
+// the main-boom angle (SANY, Zoomlion), otherwise the radius. The app picks them from the set-up (duty.js) when a fly jib is put on.
+const LIB_JIBS = {
+  stc500: [
+    { id:"j9.2", name:"Fly jib 9.2 m on 43 m boom · 0/15/30° · over rear and side · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:null, mainLen:43, mainLabel:43, jibLen:9.2, sectors:["rear", "side"], rowsBy:'angle', verify:true,
+      source:"SANY STC500 - 50t Truck/Load Charts/Cranepedia - Sany STC500 - STC500 - Load Chart - Metric - English (2).pdf p.8 (brochure p.14, jib table: outriggers fully extended, over rear and side; the jib table states no counterweight). UNVERIFIED. kg converted to t. Rows are the main-boom angle (lowest 55°). The ratings include the hook; with the jib unfolded the main-boom hook rating drops by 2.3 t (maker's note 6).",
+      src:`H: 0 | 15 | 30
+56: 0.7 0.65 0.55
+58: 1.1 0.95 0.75
+61: 1.5 1.2 0.95
+63: 1.8 1.4 1.1
+66: 2 1.5 1.3
+68: 2.2 1.7 1.4
+71: 2.5 1.8 1.6
+73: 2.7 2 1.7
+75: 3 2.2 1.8
+77: 3.2 2.3 1.9
+78: 3.5 2.4 2` },
+    { id:"j16", name:"Fly jib 16 m on 43 m boom · 0/15/30° · over rear and side · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:null, mainLen:43, mainLabel:43, jibLen:16.0, sectors:["rear", "side"], rowsBy:'angle', verify:true,
+      source:"SANY STC500 - 50t Truck/Load Charts/Cranepedia - Sany STC500 - STC500 - Load Chart - Metric - English (2).pdf p.8 (brochure p.14, jib table: outriggers fully extended, over rear and side; the jib table states no counterweight). UNVERIFIED. kg converted to t. Rows are the main-boom angle (lowest 55°). The ratings include the hook; with the jib unfolded the main-boom hook rating drops by 2.3 t (maker's note 6).",
+      src:`H: 0 | 15 | 30
+56: 0.5 - -
+58: 0.65 0.6 0.55
+61: 0.95 0.75 0.65
+63: 1.1 0.85 0.72
+66: 1.3 0.95 0.76
+68: 1.5 1 0.8
+71: 1.8 1.1 0.85
+73: 2 1.2 0.85
+75: 2.3 1.3 0.95
+77: 2.4 1.4 1
+78: 2.4 1.45 1` }
+  ],
+  stc750: [
+    { id:"j9.2", name:"Fly jib 9.2 m on 45 m boom · 0/15/30° · over rear and side · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:null, mainLen:45, mainLabel:45, jibLen:9.2, sectors:["rear", "side"], rowsBy:'angle', verify:true,
+      source:"SANY STC750 - 75t Truck/Load Charts/Cranepedia - Sany STC750 - STC750 - Load Chart - Metric - English.pdf p.5 (brochure p.8, LOAD CHART FOR JIB: fully extended outriggers, over rear and side). UNVERIFIED. kg converted to t. Rows are the main-boom angle (lowest 55°). The ratings include the hook; with the jib unfolded the main hook rating drops by 2 t (maker's note 4).",
+      src:`H: 0 | 15 | 30
+56: 0.7 0.65 0.55
+58: 1.1 0.95 0.75
+61: 1.5 1.2 0.95
+63: 1.8 1.4 1.1
+66: 2 1.5 1.3
+68: 2.2 1.7 1.4
+71: 2.5 1.8 1.6
+73: 2.7 2 1.7
+75: 3 2.2 1.8
+77: 3.2 2.3 1.9
+78: 3.5 2.4 2
+80: 3.5 2.4 2` },
+    { id:"j16", name:"Fly jib 16 m on 45 m boom · 0/15/30° · over rear and side · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:null, mainLen:45, mainLabel:45, jibLen:16, sectors:["rear", "side"], rowsBy:'angle', verify:true,
+      source:"SANY STC750 - 75t Truck/Load Charts/Cranepedia - Sany STC750 - STC750 - Load Chart - Metric - English.pdf p.5 (brochure p.8, LOAD CHART FOR JIB: fully extended outriggers, over rear and side). UNVERIFIED. kg converted to t. Rows are the main-boom angle (lowest 55°). The ratings include the hook; with the jib unfolded the main hook rating drops by 2 t (maker's note 4).",
+      src:`H: 0 | 15 | 30
+56: 0.5 - -
+58: 0.65 0.6 0.55
+61: 0.95 0.75 0.65
+63: 1.1 0.85 0.72
+66: 1.3 0.95 0.76
+68: 1.5 1 0.8
+71: 1.8 1.1 0.85
+73: 2 1.2 0.85
+75: 2.3 1.3 0.95
+77: 2.4 1.4 1
+78: 2.4 1.45 1
+80: 2.8 1.5 1.1` }
+  ],
+  ztc1000v: [
+    { id:"j11-58.5-32", name:"ZTC1000 (not the V) · Fly jib 11 m on 58.5 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:58.5, mainLabel:58.5, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+35: 1.2 1.1
+40: 1.6 1.5
+42: 1.8 1.6
+44: 2 1.8
+46: 2.2 2
+48: 2.4 2.2
+50: 2.5 2.3
+52: 2.7 2.5
+54: 2.8 2.6
+56: 3 2.7
+58: 3.2 2.8
+60: 3.4 3
+62: 3.6 3.2
+64: 3.9 3.4
+66: 4.2 3.5
+68: 4.5 3.6
+70: 4.8 3.7
+72: 5.2 3.8
+74: 5.6 3.9
+76: 5.8 4
+78: 6 4.1
+80: 6 4.2
+82: 6 4.5` },
+    { id:"j11-63-32", name:"ZTC1000 (not the V) · Fly jib 11 m on 63 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:63.0, mainLabel:63.0, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+35: 0.9 0.8
+40: 1.1 1
+42: 1.3 1.2
+44: 1.5 1.4
+46: 1.6 1.6
+48: 1.8 1.7
+50: 2 1.8
+52: 2.2 2
+54: 2.4 2.2
+56: 2.6 2.4
+58: 2.8 2.5
+60: 3 2.7
+62: 3.2 2.8
+64: 3.4 3
+66: 3.7 3.1
+68: 4 3.3
+70: 4.2 3.4
+72: 4.4 3.5
+74: 4.8 3.6
+76: 5.2 3.8
+78: 5.5 4
+80: 5.5 4
+82: 5.5 4` },
+    { id:"j18.6-58.5-32", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 58.5 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:58.5, mainLabel:58.5, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+40: 1 0.9
+42: 1.1 1
+44: 1.4 1.2
+46: 1.5 1.3
+48: 1.6 1.4
+50: 1.7 1.4
+52: 1.8 1.4
+54: 1.9 1.5
+56: 2 1.5
+58: 2.1 1.6
+60: 2.2 1.6
+62: 2.3 1.7
+64: 2.5 1.7
+66: 2.6 1.8
+68: 2.8 1.8
+70: 3 1.9
+72: 3.2 2
+74: 3.5 2.1
+76: 3.7 2.2
+78: 4 2.3
+80: 4.2 2.4
+82: 4.5 2.5` },
+    { id:"j18.6-63-32", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 63 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:63.0, mainLabel:63.0, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+42: 0.8 -
+44: 0.9 0.8
+46: 1 0.9
+48: 1.1 1
+50: 1.2 1.1
+52: 1.3 1.2
+54: 1.5 1.3
+56: 1.6 1.4
+58: 1.7 1.4
+60: 1.8 1.4
+62: 2 1.5
+64: 2.2 1.6
+66: 2.3 1.6
+68: 2.4 1.7
+70: 2.6 1.8
+72: 2.8 1.8
+74: 3 1.9
+76: 3.3 1.9
+78: 3.6 2
+80: 3.8 2
+82: 4 2` },
+    { id:"j26.6-58.5-32", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 58.5 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:58.5, mainLabel:58.5, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+52: 1
+54: 1
+56: 1.1
+58: 1.1
+60: 1.2
+62: 1.3
+64: 1.4
+66: 1.5
+68: 1.7
+70: 1.8
+72: 2
+74: 2.1
+76: 2.2
+78: 2.3
+80: 2.4
+82: 2.5` },
+    { id:"j26.6-63-32", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 63 m boom · 32 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:32, mainLen:63.0, mainLabel:63.0, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Table 10: outriggers fully extended, 32 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+56: 0.9
+58: 1
+60: 1
+62: 1.1
+64: 1.2
+66: 1.3
+68: 1.4
+70: 1.6
+72: 1.7
+74: 1.8
+76: 1.9
+78: 2
+80: 2.1
+82: 2.2` },
+    { id:"j11-58.5-28", name:"ZTC1000 (not the V) · Fly jib 11 m on 58.5 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:58.5, mainLabel:58.5, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+44: 0.9 0.8
+46: 1.1 1
+48: 1.3 1.2
+50: 1.5 1.4
+52: 1.8 1.7
+54: 2.1 1.9
+56: 2.4 2.2
+58: 2.7 2.5
+60: 3.1 2.9
+62: 3.6 3.2
+64: 3.9 3.4
+66: 4.2 3.5
+68: 4.5 3.6
+70: 4.8 3.7
+72: 5.2 3.8
+74: 5.6 3.9
+76: 5.8 4
+78: 6 4.1
+80: 6 4.2
+82: 6 4.5` },
+    { id:"j11-63-28", name:"ZTC1000 (not the V) · Fly jib 11 m on 63 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:63.0, mainLabel:63.0, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+48: 0.8 0.7
+50: 1 0.9
+52: 1.3 1.2
+54: 1.5 1.4
+56: 1.8 1.7
+58: 2.1 2
+60: 2.5 2.3
+62: 2.9 2.6
+64: 3.3 3
+66: 3.7 3.1
+68: 4 3.3
+70: 4.2 3.4
+72: 4.4 3.5
+74: 4.8 3.6
+76: 5.2 3.8
+78: 5.5 4
+80: 5.5 4
+82: 5.5 4` },
+    { id:"j18.6-58.5-28", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 58.5 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:58.5, mainLabel:58.5, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+48: 0.7 -
+50: 0.9 0.8
+52: 1.1 1
+54: 1.3 1.2
+56: 1.6 1.4
+58: 1.9 1.6
+60: 2.2 1.6
+62: 2.3 1.7
+64: 2.5 1.7
+66: 2.6 1.8
+68: 2.8 1.8
+70: 3 1.9
+72: 3.2 2
+74: 3.5 2.1
+76: 3.7 2.2
+78: 4 2.3
+80: 4.2 2.4
+82: 4.5 2.5` },
+    { id:"j18.6-63-28", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 63 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:63.0, mainLabel:63.0, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+54: 0.9 0.8
+56: 1.1 1
+58: 1.4 1.2
+60: 1.7 1.4
+62: 2 1.5
+64: 2.2 1.6
+66: 2.3 1.6
+68: 2.4 1.7
+70: 2.6 1.8
+72: 2.8 1.8
+74: 3 1.9
+76: 3.3 1.9
+78: 3.6 2
+80: 3.8 2
+82: 4 2` },
+    { id:"j26.6-58.5-28", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 58.5 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:58.5, mainLabel:58.5, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+56: 1
+58: 1.1
+60: 1.2
+62: 1.3
+64: 1.4
+66: 1.5
+68: 1.7
+70: 1.8
+72: 2
+74: 2.1
+76: 2.2
+78: 2.3
+80: 2.4
+82: 2.5` },
+    { id:"j26.6-63-28", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 63 m boom · 28 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:28, mainLen:63.0, mainLabel:63.0, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.5 (Tables 11 and 12, lower value of each cell: outriggers fully extended, 28 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+60: 1
+62: 1.1
+64: 1.2
+66: 1.3
+68: 1.4
+70: 1.6
+72: 1.7
+74: 1.8
+76: 1.9
+78: 2
+80: 2.1
+82: 2.2` },
+    { id:"j11-58.5-6", name:"ZTC1000 (not the V) · Fly jib 11 m on 58.5 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:58.5, mainLabel:58.5, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+58: 0.8 0.7
+60: 1.2 1
+62: 1.5 1.3
+64: 2 1.7
+66: 2.5 2.1
+68: 3.1 2.6
+70: 3.7 3.1
+72: 4.5 3.7
+74: 5.3 3.9
+76: 5.8 4
+78: 6 4.1
+80: 6 4.2
+82: 6 4.5` },
+    { id:"j11-63-6", name:"ZTC1000 (not the V) · Fly jib 11 m on 63 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:63.0, mainLabel:63.0, jibLen:11.0, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+60: 0.7 -
+62: 1 0.9
+64: 1.4 1.2
+66: 1.9 1.6
+68: 2.4 2
+70: 3 2.5
+72: 3.7 3
+74: 4.4 3.6
+76: 5.2 3.8
+78: 5.5 4
+80: 5.5 4
+82: 5.5 4` },
+    { id:"j18.6-58.5-6", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 58.5 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:58.5, mainLabel:58.5, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+64: 1.3 1
+66: 1.7 1.3
+68: 2.2 1.6
+70: 2.6 1.8
+72: 3.2 2
+74: 3.5 2.1
+76: 3.7 2.2
+78: 4 2.3
+80: 4.2 2.4
+82: 4.5 2.5` },
+    { id:"j18.6-63-6", name:"ZTC1000 (not the V) · Fly jib 18.6 m on 63 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:63.0, mainLabel:63.0, jibLen:18.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0 | 30
+64: 0.8 -
+66: 1.1 0.8
+68: 1.6 1.2
+70: 2 1.5
+72: 2.6 1.7
+74: 3 1.8
+76: 3.3 1.9
+78: 3.6 2
+80: 3.8 2
+82: 4 2` },
+    { id:"j26.6-58.5-6", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 58.5 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:58.5, mainLabel:58.5, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+66: 1
+68: 1.4
+70: 1.8
+72: 2
+74: 2.1
+76: 2.2
+78: 2.3
+80: 2.4
+82: 2.5` },
+    { id:"j26.6-63-6", name:"ZTC1000 (not the V) · Fly jib 26.6 m on 63 m boom · 6 t CWT · full outriggers · UNVERIFIED", kind:'fixedjib', config:"JIB", cwt:6, mainLen:63.0, mainLabel:63.0, jibLen:26.6, sectors:["360"], rowsBy:'angle', verify:true,
+      source:"Zoomlion ZTC1000V - 100t Truck/Load Charts/Cranepedia - Zoomlion ZTC1000 - ZTC1000 - Load Chart - Metric - EN.pdf p.6 (Table 13: outriggers fully extended, 6 t counterweight, over full range). UNVERIFIED. Rows are the main-boom angle. Zoomlion ZTC1000 chart, the nearest in the library — check it against the ZTC1000V's own jib chart.",
+      src:`H: 0
+68: 0.9
+70: 1.3
+72: 1.6
+74: 1.8
+76: 1.9
+78: 2
+80: 2.1
+82: 2.2` }
+  ],
+  ac100: [
+    { id:"hav9.2-38-32", name:"Fly jib (HAV) 9.2 m on 38 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:38.0, mainLabel:38.0, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+7: 14.4 - -
+8: 14.2 - -
+9: 13.7 - -
+10: 13.1 9.3 -
+12: 12.2 8.9 -
+14: 11.3 8.6 7.1
+16: 10.4 8.3 7
+18: 9.7 8 6.8
+20: 9 7.7 6.6
+22: 8.3 7.5 6.5
+24: 7.7 7.1 6.4
+26: 7.1 6.8 6.3
+28: 6.5 6.4 6.2
+30: 5.9 6 6.1
+32: 5.3 5.5 5.8
+34: 4.6 4.9 5
+36: 4.1 4.3 -
+38: 3.7 3.7 -
+40: 3.6 3.5 -
+42: 3.4 3.4 -` },
+    { id:"hav17-38-32", name:"Fly jib (HAV) 17 m on 38 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:38.0, mainLabel:38.0, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+8: 8.1 - -
+9: 7.8 - -
+10: 7.5 - -
+12: 7 - -
+14: 6.5 4.8 -
+16: 6 4.6 -
+18: 5.6 4.3 3.6
+20: 5.3 4.1 3.5
+22: 5 3.9 3.4
+24: 4.7 3.7 3.3
+26: 4.4 3.6 3.2
+28: 4.2 3.4 3.1
+30: 4 3.3 3
+32: 3.8 3.2 3
+34: 3.6 3.1 2.9
+36: 3.5 3.1 2.9
+38: 3.3 3 2.9
+40: 3.2 3 2.9
+42: 3 2.9 2.9
+44: 2.7 2.8 -
+46: 2.4 2.6 -
+48: 2.1 2.2 -
+50: 2 2 -` },
+    { id:"hav9.2-42.2-32", name:"Fly jib (HAV) 9.2 m on 42.2 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:42.2, mainLabel:42.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 11.7 - -
+10: 11.3 - -
+12: 10.7 8.8 -
+14: 10 8.4 7.1
+16: 9.3 8.1 6.9
+18: 8.7 7.8 6.7
+20: 8.1 7.5 6.5
+22: 7.5 7.2 6.4
+24: 7 6.9 6.2
+26: 6.5 6.6 6
+28: 6 6.2 5.9
+30: 5.6 5.9 5.7
+32: 5.2 5.5 5.5
+34: 4.8 5.1 5.3
+36: 4.3 4.5 4.6
+38: 3.9 4 4.1
+40: 3.7 3.7 -
+42: 3.4 3.5 -
+44: - 3.1 -
+46: 2.7 2.8 -` },
+    { id:"hav17-42.2-32", name:"Fly jib (HAV) 17 m on 42.2 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:42.2, mainLabel:42.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 7.2 - -
+10: 7 - -
+12: 6.5 - -
+14: 6.1 - -
+16: 5.7 4.5 -
+18: 5.3 4.3 -
+20: 5 4.1 3.4
+22: 4.7 3.9 3.3
+24: 4.5 3.7 3.2
+26: 4.2 3.6 3.1
+28: 4 3.4 3.1
+30: 3.8 3.3 3
+32: 3.7 3.2 2.9
+34: 3.5 3.1 2.9
+36: 3.4 3.1 2.8
+38: 3.2 3.1 2.8
+40: 3.1 3.1 2.8
+42: 3 3.1 2.8
+44: 2.8 3.1 2.8
+46: 2.5 2.7 2.8
+48: 2.3 2.4 -
+50: 2.2 2.2 -
+52: 2.1 2.2 -
+54: 1.9 - -` },
+    { id:"hav9.2-46.4-32", name:"Fly jib (HAV) 9.2 m on 46.4 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:46.4, mainLabel:46.4, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+10: 10.3 - -
+12: 9.4 - -
+16: 8.1 6.8 6.1
+18: 7.5 6.5 5.8
+20: 7 6.2 5.5
+22: 6.5 5.8 5.2
+24: 6.1 5.5 5
+26: 5.7 5.2 4.8
+28: 5.4 5 4.6
+30: 5.1 4.7 4.4
+32: 4.8 4.5 4.2
+34: 4.5 4.2 4.1
+36: 4.2 4 3.9
+38: 3.9 3.8 3.8
+40: - 3.6 3.6
+42: - - 3.3
+50: 1.8 1.9 -` },
+    { id:"hav17-46.4-32", name:"Fly jib (HAV) 17 m on 46.4 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:46.4, mainLabel:46.4, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 6.2 - -
+16: 5.5 - -
+18: 5.2 4.1 -
+20: 4.9 4 -
+22: 4.7 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.5 3.1
+28: 4 3.3 3
+30: 3.8 3.2 3
+32: 3.6 3 2.9
+34: 3.5 2.9 2.9
+36: 3.3 2.8 2.8
+38: 3.2 2.7 2.7
+40: 3.1 2.6 2.6
+42: 2.9 2.6 2.5
+44: 2.8 2.5 2.5
+46: 2.6 2.5 2.4
+48: 2.3 2.4 2.4
+50: - 2.2 -
+52: - 1.9 -
+58: 1.1 - -` },
+    { id:"hav9.2-50.2-32", name:"Fly jib (HAV) 9.2 m on 50.2 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:50.2, mainLabel:50.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 8.4 - -
+14: 7.9 6.9 -
+16: 7.5 6.4 -
+18: 7.1 6.1 5.5
+20: 6.7 5.7 5.2
+22: 6.3 5.4 5
+24: 6 5.2 4.8
+26: 5.7 4.9 4.6
+28: 5.4 4.7 4.4
+30: 5 4.5 4.2
+32: 4.7 4.3 4.1
+34: 4.4 4.1 4
+36: 4.1 3.9 3.8
+38: 3.8 3.7 3.7
+40: 3.4 3.5 3.5
+42: 3 3.2 3.3
+44: 2.6 2.8 2.9
+46: 2.3 2.4 -
+48: 2 2.1 -
+50: 1.7 1.8 -
+52: 1.5 1.6 -
+54: 1.3 - -` },
+    { id:"hav17-50.2-32", name:"Fly jib (HAV) 17 m on 50.2 m boom · 32 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:32, mainLen:50.2, mainLabel:50.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.14 (AC 100 HAV, 32 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 5.6 - -
+14: 5.4 - -
+16: 5.2 - -
+18: 5 4.1 -
+20: 4.8 3.9 -
+22: 4.6 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.4 3
+28: 4 3.3 2.9
+30: 3.8 3.1 2.9
+32: 3.6 3 2.8
+34: 3.4 2.9 2.7
+36: 3.2 2.8 2.7
+38: 3 2.7 2.6
+40: 2.8 2.6 2.5
+42: 2.7 2.5 2.5
+44: 2.5 2.4 2.4
+46: 2.4 2.3 2.3
+48: 2.2 2.3 2.2
+50: 1.9 2.2 2.2
+52: 1.6 1.9 2
+54: 1.4 1.6 -
+56: 1.2 1.4 -
+58: 1 - -
+60: 0.8 - -
+62: 0.7 - -` },
+    { id:"hav9.2-38-25", name:"Fly jib (HAV) 9.2 m on 38 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:38.0, mainLabel:38.0, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+7: 14.4 - -
+8: 14.2 - -
+9: 13.7 - -
+10: 13.1 9.3 -
+12: 12.2 8.9 -
+14: 11.3 8.6 7.1
+16: 10.4 8.3 7
+18: 9.7 8 6.8
+20: 9 7.7 6.6
+22: 8.3 7.5 6.5
+24: 7.7 7.1 6.4
+26: 6.6 6.8 6.3
+28: 5.7 6.1 6.2
+30: 4.9 5.2 5.5
+32: 4.4 4.5 4.7
+34: 4.2 3.9 4
+36: 3.9 3.7 -
+38: 3.7 3.6 -
+40: 3.3 3.4 -
+42: 3 3 -` },
+    { id:"hav17-38-25", name:"Fly jib (HAV) 17 m on 38 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:38.0, mainLabel:38.0, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+8: 8.1 - -
+9: 7.8 - -
+10: 7.5 - -
+12: 7 - -
+14: 6.5 4.8 -
+16: 6 4.6 -
+18: 5.6 4.3 3.6
+20: 5.3 4.1 3.5
+22: 5 3.9 3.4
+24: 4.7 3.7 3.3
+26: 4.4 3.6 3.2
+28: 4.2 3.4 3.1
+30: 4 3.3 3
+32: 3.8 3.2 3
+34: 3.6 3.1 2.9
+36: 3.5 3.1 2.9
+38: 3 3 2.9
+40: 2.6 3 2.9
+42: 2.4 2.5 2.7
+44: 2.3 2.2 -
+46: 2.2 2.1 -
+48: 2.1 2.1 -
+50: 2 2 -` },
+    { id:"hav9.2-42.2-25", name:"Fly jib (HAV) 9.2 m on 42.2 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:42.2, mainLabel:42.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 11.7 - -
+10: 11.3 - -
+12: 10.7 8.8 -
+14: 10 8.4 7.1
+16: 9.3 8.1 6.9
+18: 8.7 7.8 6.7
+20: 8.1 7.5 6.5
+22: 7.5 7.2 6.4
+24: 7 6.9 6.2
+26: 6.5 6.6 6
+28: 5.9 6.2 5.9
+30: 5.1 5.5 5.7
+32: 4.6 4.7 4.9
+34: 4.3 4.1 4.3
+36: - 3.9 3.9
+38: - 3.5 3.6
+46: 1.9 2 -` },
+    { id:"hav17-42.2-25", name:"Fly jib (HAV) 17 m on 42.2 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:42.2, mainLabel:42.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 7.2 - -
+10: 7 - -
+12: 6.5 - -
+14: 6.1 - -
+16: 5.7 4.5 -
+18: 5.3 4.3 -
+20: 5 4.1 3.4
+22: 4.7 3.9 3.3
+24: 4.5 3.7 3.2
+26: 4.2 3.6 3.1
+28: 4 3.4 3.1
+30: 3.8 3.3 3
+32: 3.7 3.2 2.9
+34: 3.5 3.1 2.9
+36: 3.4 3.1 2.8
+38: 3.1 3.1 2.8
+40: 2.8 3.1 2.8
+42: 2.7 2.7 2.8
+44: 2.4 2.5 2.5
+46: - 2.4 2.4
+54: 1.2 - -` },
+    { id:"hav9.2-46.4-25", name:"Fly jib (HAV) 9.2 m on 46.4 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:46.4, mainLabel:46.4, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+10: 10.3 - -
+12: 9.4 - -
+14: 8.7 7.1 -
+16: 8.1 6.8 6.1
+18: 7.5 6.5 5.8
+20: 7 6.2 5.5
+22: 6.5 5.8 5.2
+24: 6.1 5.5 5
+26: 5.7 5.2 4.8
+28: 5.4 5 4.6
+30: 5.1 4.7 4.4
+32: - 4.5 4.2
+34: - 4.2 4.1
+36: - - 3.9
+42: - - 2.5
+50: 1.1 1.1 -` },
+    { id:"hav17-46.4-25", name:"Fly jib (HAV) 17 m on 46.4 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:46.4, mainLabel:46.4, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 6.2 - -
+14: 5.8 - -
+16: 5.5 - -
+18: 5.2 4.1 -
+20: 4.9 4 -
+22: 4.7 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.5 3.1
+28: 4 3.3 3
+30: 3.8 3.2 3
+32: 3.6 3 2.9
+34: 3.5 2.9 2.9
+36: 3.3 2.8 2.8
+38: 3.2 2.7 2.7
+40: - 2.6 2.6
+42: - 2.6 2.5
+44: - 2.4 2.5
+46: - - 2.3` },
+    { id:"hav9.2-50.2-25", name:"Fly jib (HAV) 9.2 m on 50.2 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:50.2, mainLabel:50.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 8.4 - -
+14: 7.9 6.9 -
+16: 7.5 6.4 -
+18: 7.1 6.1 5.5
+20: 6.7 5.7 5.2
+22: 6.3 5.4 5
+24: 6 5.2 4.8
+26: 5.7 4.9 4.6
+28: 5.4 4.7 4.4
+30: 5 4.5 4.2
+32: 4.5 4.3 4.1
+34: 3.9 4.1 4
+36: 3.4 3.7 3.8
+38: 2.9 3.2 3.3
+40: 2.5 2.7 2.9
+42: 2.1 2.3 2.5
+44: 1.8 2 2.1
+46: 1.5 1.7 -
+48: 1.2 1.4 -
+50: 1 1.1 -
+52: 0.8 0.9 -` },
+    { id:"hav17-50.2-25", name:"Fly jib (HAV) 17 m on 50.2 m boom · 25 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:25, mainLen:50.2, mainLabel:50.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.15 (AC 100 HAV, 25 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 5.6 - -
+14: 5.4 - -
+16: 5.2 - -
+18: 5 4.1 -
+20: 4.8 3.9 -
+22: 4.6 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.4 3
+28: 4 3.3 2.9
+30: 3.8 3.1 2.9
+32: 3.6 3 2.8
+34: 3.4 2.9 2.7
+36: 3.2 2.8 2.7
+38: 3 2.7 2.6
+40: 2.7 2.6 2.5
+42: 2.3 2.5 2.5
+44: 2 2.4 2.4
+46: 1.7 2 2.3
+48: 1.4 1.7 1.9
+50: 1.2 1.4 1.6
+52: 0.9 1.2 1.3
+54: 0.7 0.9 -
+56: - 0.7 -` },
+    { id:"hav9.2-38-13.3", name:"Fly jib (HAV) 9.2 m on 38 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:38.0, mainLabel:38.0, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+7: 14.4 - -
+8: 14.2 - -
+9: 13.7 - -
+10: 13.1 9.3 -
+12: 12.2 8.9 -
+14: 11.3 8.6 7.1
+16: 10 8.3 7
+18: 8.3 8 6.8
+20: 6.8 7.5 6.6
+22: 5.9 6.2 6.5
+24: 5.6 5.1 5.5
+26: 4.9 4.7 4.6
+28: 4.1 4.4 4.4
+30: 3.5 3.8 4
+32: 3 3.2 3.4
+34: 2.5 2.7 2.8
+36: 2.1 2.3 -
+38: 1.8 1.9 -
+40: 1.4 1.6 -
+42: 1.2 1.2 -` },
+    { id:"hav17-38-13.3", name:"Fly jib (HAV) 17 m on 38 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:38.0, mainLabel:38.0, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+8: 8.1 - -
+9: 7.8 - -
+10: 7.5 - -
+12: 7 - -
+14: 6.5 4.8 -
+16: 6 4.6 -
+18: 5.6 4.3 3.6
+20: 5.3 4.1 3.5
+22: 5 3.9 3.4
+24: 4.7 3.7 3.3
+26: 4.1 3.6 3.2
+28: 3.7 3.4 3.1
+30: 3.4 3.3 3
+32: 3.2 2.9 3
+34: 2.8 2.8 2.8
+36: 2.4 2.7 2.7
+38: 2 2.4 2.6
+40: 1.7 2 2.2
+42: 1.4 1.7 1.8
+44: 1.1 1.4 -
+46: 0.9 1.1 -
+48: 0.7 0.9 -
+50: - 0.6 -` },
+    { id:"hav9.2-42.2-13.3", name:"Fly jib (HAV) 9.2 m on 42.2 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:42.2, mainLabel:42.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 11.7 - -
+10: 11.3 - -
+12: 10.7 8.8 -
+14: 10 8.4 7.1
+16: 9.3 8.1 6.9
+18: 8.3 7.8 6.7
+20: 7 7.5 6.5
+22: 6.2 6.4 6.4
+24: 5.3 5.3 5.7
+26: - 4.9 4.7
+28: - - 4.4` },
+    { id:"hav17-42.2-13.3", name:"Fly jib (HAV) 17 m on 42.2 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:42.2, mainLabel:42.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 7.2 - -
+10: 7 - -
+12: 6.5 - -
+14: 6.1 - -
+16: 5.7 4.5 -
+18: 5.3 4.3 -
+20: 5 4.1 3.4
+22: 4.7 3.9 3.3
+24: 4.5 3.7 3.2
+26: 4.2 3.6 3.1
+28: 3.9 3.4 3.1
+30: 3.4 3.3 3
+32: - 3.1 2.9
+34: - 2.9 2.9
+36: - - 2.8
+46: - - 0.9` },
+    { id:"hav9.2-46.4-13.3", name:"Fly jib (HAV) 9.2 m on 46.4 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:46.4, mainLabel:46.4, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+0: 10.3 - -
+2: 9.4 - -
+4: 8.7 7.1 -
+6: 8.1 6.8 6.1
+8: 7.5 6.5 5.8
+20: 7 6.2 5.5
+22: 5.9 5.8 5.2
+24: - 5.4 5
+26: - 4.5 4.8` },
+    { id:"hav17-46.4-13.3", name:"Fly jib (HAV) 17 m on 46.4 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:46.4, mainLabel:46.4, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+2: 6.2 - -
+4: 5.8 - -
+6: 5.5 - -
+8: 5.2 4.1 -
+20: 4.9 4 -
+22: 4.7 3.8 3.2
+24: 4.4 3.6 3.1
+26: 4.2 3.5 3.1
+28: - 3.3 3
+30: - 3.2 3
+32: - 3 2.9
+34: - - 2.9` },
+    { id:"hav9.2-50.2-13.3", name:"Fly jib (HAV) 9.2 m on 50.2 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:50.2, mainLabel:50.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 8.4 - -
+14: 7.9 6.9 -
+16: 7.5 6.4 -
+18: 7.1 6.1 5.5
+20: 6.7 5.7 5.2
+22: 5.6 5.4 5
+24: 4.7 5.2 4.8
+26: 3.8 4.3 4.6
+28: 3.2 3.6 3.9
+30: 2.6 3 3.3
+32: 2.1 2.5 2.7
+34: 1.7 2 2.2
+36: 1.3 1.6 1.8
+38: 0.9 1.2 1.3
+40: 0.6 0.8 1
+42: - - 0.7` },
+    { id:"hav17-50.2-13.3", name:"Fly jib (HAV) 17 m on 50.2 m boom · 13.3 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:13.3, mainLen:50.2, mainLabel:50.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.16 (AC 100 HAV, 13.3 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 5.6 - -
+14: 5.4 - -
+16: 5.2 - -
+18: 5 4.1 -
+20: 4.8 3.9 -
+22: 4.6 3.8 3.2
+24: 4.4 3.6 3.1
+26: 3.9 3.4 3
+28: 3.3 3.3 2.9
+30: 2.7 3.1 2.9
+32: 2.2 2.9 2.8
+34: 1.8 2.4 2.7
+36: 1.4 2 2.4
+38: 1.1 1.6 2
+40: 0.8 1.3 1.6
+42: - 1 1.3
+44: - 0.7 0.9
+46: - - 0.6` },
+    { id:"hav9.2-38-12", name:"Fly jib (HAV) 9.2 m on 38 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:38.0, mainLabel:38.0, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+7: 14.4 - -
+8: 14.2 - -
+9: 13.7 - -
+10: 13.1 9.3 -
+12: 12.2 8.9 -
+14: 11.3 8.6 7.1
+16: 9.5 8.3 7
+18: 7.8 8 6.8
+20: 6.4 7 6.6
+22: 5.9 5.7 6.2
+24: 5.4 4.9 5.1
+26: 4.5 4.7 4.6
+28: 3.8 4.1 4.3
+30: 3.2 3.5 3.7
+32: 2.7 2.9 3.1
+34: 2.2 2.4 2.6
+36: 1.8 2 -
+38: 1.5 1.7 -
+40: 1.2 1.3 -
+42: 1 1 -` },
+    { id:"hav17-38-12", name:"Fly jib (HAV) 17 m on 38 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:38.0, mainLabel:38.0, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+8: 8.1 - -
+9: 7.8 - -
+10: 7.5 - -
+12: 7 - -
+14: 6.5 4.8 -
+16: 6 4.6 -
+18: 5.6 4.3 3.6
+20: 5.3 4.1 3.5
+22: 5 3.9 3.4
+24: 4.6 3.7 3.3
+26: 3.9 3.6 3.2
+28: 3.7 3.4 3.1
+30: 3.4 3.1 3
+32: 2.9 2.9 3
+34: 2.5 2.8 2.7
+36: 2.1 2.5 2.7
+38: 1.8 2.1 2.4
+40: 1.4 1.8 2
+42: 1.2 1.4 1.6
+44: 0.9 1.2 -
+46: 0.7 0.9 -
+48: - 0.7 -` },
+    { id:"hav9.2-42.2-12", name:"Fly jib (HAV) 9.2 m on 42.2 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:42.2, mainLabel:42.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 11.7 - -
+10: 11.3 - -
+12: 10.7 8.8 -
+14: 10 8.4 7.1
+16: 9.3 8.1 6.9
+18: 7.8 7.8 6.7
+20: 6.7 7.2 6.5
+22: 6 6 6.4
+24: 5.3 5.3 5.3
+26: - - 4.7` },
+    { id:"hav17-42.2-12", name:"Fly jib (HAV) 17 m on 42.2 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:42.2, mainLabel:42.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+9: 7.2 - -
+10: 7 - -
+12: 6.5 - -
+14: 6.1 - -
+16: 5.7 4.5 -
+18: 5.3 4.3 -
+20: 5 4.1 3.4
+22: 4.7 3.9 3.3
+24: 4.5 3.7 3.2
+26: 4.1 3.6 3.1
+28: 3.7 3.4 3.1
+30: - 3.3 3
+32: - 3.1 2.9
+34: - - 2.9
+36: - - 2.5
+46: - - 0.7` },
+    { id:"hav9.2-46.4-12", name:"Fly jib (HAV) 9.2 m on 46.4 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:46.4, mainLabel:46.4, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+10: 10.3 - -
+12: 9.4 - -
+14: 8.7 7.1 -
+16: 8.1 6.8 6.1
+18: 7.5 6.5 5.8
+20: 6.6 6.2 5.5
+22: - 5.8 5.2
+24: - 5 5
+26: - - 4.5` },
+    { id:"hav17-46.4-12", name:"Fly jib (HAV) 17 m on 46.4 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:46.4, mainLabel:46.4, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 6.2 - -
+14: 5.8 - -
+16: 5.5 - -
+18: 5.2 4.1 -
+20: 4.9 4 -
+22: 4.7 3.8 3.2
+24: 4.4 3.6 3.1
+26: - 3.5 3.1
+28: - 3.3 3
+30: - 3.2 3
+32: - - 2.9
+34: - - 2.7` },
+    { id:"hav9.2-50.2-12", name:"Fly jib (HAV) 9.2 m on 50.2 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:50.2, mainLabel:50.2, jibLen:9.2, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 8.4 - -
+14: 7.9 6.9 -
+16: 7.5 6.4 -
+18: 7.1 6.1 5.5
+20: 6.3 5.7 5.2
+22: 5.1 5.4 5
+24: 4.2 4.7 4.8
+26: 3.4 3.9 4.3
+28: 2.8 3.2 3.6
+30: 2.3 2.6 2.9
+32: 1.8 2.1 2.4
+34: 1.4 1.7 1.9
+36: 1 1.3 1.5
+38: 0.7 0.9 1.1
+40: - 0.6 0.7` },
+    { id:"hav17-50.2-12", name:"Fly jib (HAV) 17 m on 50.2 m boom · 12 t CWT · 7.1×7.0 m · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:12, mainLen:50.2, mainLabel:50.2, jibLen:17.0, sectors:["360"], outrigger:"7.0x7.1", verify:true,
+      source:"Demag AC100 - 100t AT/Load Charts/Bigge AC 100 - Demag-AC100.pdf p.17 (AC 100 HAV, 12 t, 7.10 m x 7.00 m, 360°, ISO). UNVERIFIED. Cells marked * or ** (they belong to a 40.8 m or 45.0 m boom) are left blank.",
+      src:`H: 0 | 20 | 40
+12: 5.6 - -
+14: 5.4 - -
+16: 5.2 - -
+18: 5 4.1 -
+20: 4.8 3.9 -
+22: 4.6 3.8 3.2
+24: 4.3 3.6 3.1
+26: 3.5 3.4 3
+28: 2.9 3.3 2.9
+30: 2.3 3.1 2.9
+32: 1.9 2.5 2.8
+34: 1.5 2.1 2.6
+36: 1.1 1.7 2.1
+38: 0.8 1.3 1.7
+40: - 1 1.4
+42: - 0.7 1
+44: - - 0.7` }
+  ],
+  ac700: [
+    { id:"hav6-60-100", name:"Fly jib (HAV) 6 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:6.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0
+14: 46.4
+16: 43
+18: 39.9
+20: 37.1
+22: 34.5
+24: 32.2
+26: 30.1
+28: 28.1
+30: 26.4
+32: 24.8
+34: 23.3
+36: 22
+38: 20.6
+40: 19.5
+42: 18.3
+44: 17.3
+46: 16.4
+48: 15.5
+50: 14.7
+54: 13.2
+58: 11.9` },
+    { id:"hav12-60-100", name:"Fly jib (HAV) 12 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:12.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+16: 37.1 -
+18: 34.3 -
+20: 31.9 28.1
+22: 29.7 26.7
+24: 27.8 25.4
+26: 26.1 24.2
+28: 24.6 23.1
+30: 23.3 22
+32: 22.1 21
+34: 20.9 20
+36: 19.9 19.1
+38: 18.8 18.2
+40: 17.9 17.4
+42: 16.9 16.6
+44: 16 15.8
+46: 15.2 15
+48: 14.4 14.3
+50: 13.6 13.6
+54: 12.2 12.3
+58: 11 11.1
+62: 9.9 10` },
+    { id:"hav18-60-100", name:"Fly jib (HAV) 18 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:18.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+16: 31.4 -
+18: 29.3 -
+20: 27.5 -
+22: 25.8 21.8
+24: 24.3 20.8
+26: 22.9 19.9
+28: 21.6 19
+30: 20.5 18.2
+32: 19.5 17.5
+34: 18.5 16.8
+36: 17.6 16.1
+38: 16.7 15.5
+40: 15.9 14.9
+42: 15.1 14.3
+44: 14.4 13.8
+46: 13.7 13.2
+48: 13 12.6
+50: 12.3 12
+54: 11.1 10.9
+58: 10 9.9
+62: 8.9 8.9
+66: 8 8
+70: - 7.3` },
+    { id:"hav24-60-100", name:"Fly jib (HAV) 24 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:24.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+18: 24 -
+20: 22.6 -
+22: 21.4 -
+24: 20.3 -
+26: 19.3 15.2
+28: 18.3 14.7
+30: 17.4 14.3
+32: 16.6 13.9
+34: 15.8 13.5
+36: 15.1 13.1
+38: 14.3 12.7
+40: 13.7 12.4
+42: 13 12
+44: 12.4 11.6
+46: 11.8 11.2
+48: 11.3 10.8
+50: 10.7 10.4
+54: 9.6 9.5
+58: 8.6 8.6
+62: 7.7 7.8
+66: 6.8 6.9
+70: 6 6.1
+74: 5.2 5.4` },
+    { id:"hav30-60-100", name:"Fly jib (HAV) 30 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:30.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+20: 18.8 -
+22: 18.1 -
+24: 17.4 -
+26: 16.7 -
+28: 16 -
+30: 15.3 12.4
+32: 14.6 12
+34: 14 11.5
+36: 13.3 11.1
+38: 12.7 10.6
+40: 12 10.2
+42: 11.4 9.7
+44: 10.8 9.2
+46: 10.2 8.8
+48: 9.7 8.3
+50: 9.1 7.9
+54: 8.1 7.1
+58: 7.2 6.4
+62: 6.3 5.7
+66: 5.5 5
+70: 4.7 4.4
+74: 4 3.9
+78: 3.3 3.4
+82: - 3` },
+    { id:"hav36-60-100", name:"Fly jib (HAV) 36 m on 60 m boom · 100 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:100, mainLen:60, mainLabel:60, jibLen:36.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 100 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20
+20: 15.8 -
+22: 15.1 -
+24: 14.5 -
+26: 13.8 -
+28: 13.2 -
+30: 12.6 -
+32: 12 9.7
+34: 11.4 9.3
+36: 10.9 9
+38: 10.3 8.6
+40: 9.8 7.9
+42: 9.3 7.6
+44: 8.8 7.3
+46: 8.3 6.9
+48: 7.8 6.6
+50: 7.4 5.9
+54: 6.4 5.3
+58: 5.6 4.7
+62: 4.8 4.1
+66: 4 3.5
+70: 3.4 2.9
+74: 2.7 2.4
+78: 2.2 -` },
+    { id:"hav6-60-60", name:"Fly jib (HAV) 6 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:6.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0
+14: 46.4
+16: 43
+18: 39.9
+20: 37.1
+22: 34.5
+24: 32.2
+26: 30.1
+28: 28.1
+30: 26.4
+32: 24.1
+34: 21.4
+36: 19
+38: 16.9
+40: 15
+42: 13.2
+44: 11.7
+46: 10.3
+48: 9
+50: 7.8
+54: 5.7
+58: 3.9` },
+    { id:"hav12-60-60", name:"Fly jib (HAV) 12 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:12.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+16: 37.1 - -
+18: 34.3 - -
+20: 31.9 28.1 24.4
+22: 29.7 26.7 23.5
+24: 27.8 25.4 22.7
+26: 26.1 24.2 21.8
+28: 24.6 23.1 21
+30: 23.3 22 20.2
+32: 22.1 21 19.5
+34: 20.9 20 18.7
+36: 19 19.1 18
+38: 16.9 18.2 17.2
+40: 15 16.3 15.3
+42: 13.3 14.5 13.6
+44: 11.8 12.9 12
+46: 10.4 11.4 10.5
+48: 9.1 10 9.2
+50: 7.9 8.7 -
+54: 5.8 6.5 -
+58: 4.1 4.5 -
+62: 2.5 2.8 -` },
+    { id:"hav18-60-60", name:"Fly jib (HAV) 18 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:18.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+16: 31.4 - -
+18: 29.3 - -
+20: 27.5 - -
+22: 25.8 21.8 -
+24: 24.3 20.8 -
+26: 22.9 19.9 17.7
+28: 21.6 19 17.1
+30: 20.5 18.2 16.5
+32: 19.5 17.5 16
+34: 18.5 16.8 15.5
+36: 17.6 16.1 15
+38: 16.7 15.5 14.5
+40: 15.6 14.9 14
+42: 13.9 14.3 13.5
+44: 12.4 13.8 13.1
+46: 11 12.6 12.6
+48: 9.8 11.3 12.2
+50: 8.6 10 10.9
+54: 6.5 7.7 8.4
+58: 4.8 5.7 6.2
+62: 3.2 4 -
+66: - 2.4 -` },
+    { id:"hav24-60-60", name:"Fly jib (HAV) 24 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:24.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+18: 24 - -
+20: 22.6 - -
+22: 21.4 - -
+24: 20.3 - -
+26: 19.3 15.2 -
+28: 18.3 14.7 -
+30: 17.4 14.3 -
+32: 16.6 13.9 11.7
+34: 15.8 13.5 11.6
+36: 15.1 13.1 11.5
+38: 14.3 12.7 11.3
+40: 13.7 12.4 11.2
+42: 13 12 11
+44: 12.4 11.6 10.8
+46: 11.6 11.2 10.6
+48: 10.4 10.8 10.4
+50: 9.2 10.4 10.2
+54: 7.2 8.8 9.6
+58: 5.4 6.8 7.8
+62: 3.9 5.1 5.8
+66: 2.5 3.5 -
+70: - 2.1 -` },
+    { id:"hav30-60-60", name:"Fly jib (HAV) 30 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:30.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+20: 18.8 - -
+22: 18.1 - -
+24: 17.4 - -
+26: 16.7 - -
+28: 16 - -
+30: 15.3 12.4 -
+32: 14.6 12 -
+34: 14 11.5 -
+36: 13.3 11.1 9.4
+38: 12.7 10.6 9.1
+40: 12 10.2 8.8
+42: 11.4 9.7 8.5
+44: 10.8 9.2 8.2
+46: 10.2 8.8 7.9
+48: 9.7 8.3 7.6
+50: 9.1 7.9 7.3
+54: 7.6 7.1 6.8
+58: 5.9 6.4 6.3
+62: 4.4 5.7 5.7
+66: 3 4.4 5.2
+70: - 3.1 -` },
+    { id:"hav36-60-60", name:"Fly jib (HAV) 36 m on 60 m boom · 60 t CWT · 360° · UNVERIFIED", kind:'fixedjib', config:"HAV", cwt:60, mainLen:60, mainLabel:60, jibLen:36.0, sectors:["360"], verify:true,
+      source:"Demag AC700 - 700t AT/Load Charts/Cranepedia - Demag AC700 - AC 700 - Load Chart - Metric - English.pdf p.17 (AC 700 HAV, 60 t, 360°, ISO, main boom 60 m). UNVERIFIED. The superlift jib tables (HAVSSL, pp.18-19) are not included.",
+      src:`H: 0 | 20 | 40
+20: 15.8 - -
+22: 15.1 - -
+24: 14.5 - -
+26: 13.8 - -
+28: 13.2 - -
+30: 12.6 - -
+32: 12 9.7 -
+34: 11.4 9.3 -
+36: 10.9 9 -
+38: 10.3 8.6 -
+40: 9.8 8.3 -
+42: 9.3 7.9 6.9
+44: 8.8 7.6 6.6
+46: 8.3 7.3 6.4
+48: 7.8 6.9 6.2
+50: 7.4 6.6 6
+54: 6.4 5.9 5.6
+58: 5.6 5.3 5.1
+62: 4.6 4.7 4.7
+66: 3.3 4.1 4.2
+70: 2.1 3.5 3.7
+74: - 2.4 3.2` }
+  ]
+};
+for (const c of DEFAULT_CRANES) if (LIB_JIBS[c.id]) c.charts = (c.charts || []).concat(LIB_JIBS[c.id]);
+// ---------- v11: LTM 1650-8.1 charts from the crane library (UNVERIFIED) ----------
+// Read by pipeline/library/extract/gen_ltm1650.py: one chart per VarioBallast set-up, only the cells Liebherr colours for it (see the script).
+const LIB_1650 = [
+  { id:"t3-155-6.4", name:"T3 · 155 t CWT · VarioBallast at 6,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:155, ballastR:6.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 6.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+3: 239.3 239.3 - - - - - - - -
+3.5: 239.3 239.3 217.6 - - - - - - -
+4: 239.3 239.3 239.3 - - - - - - -
+4.5: 239.3 239.3 239.3 222 - - - - - -
+5: 239.3 239.3 239.3 225.6 - - - - - -
+6: - - - - 176.2 - - - - -
+7: - - - - 163.1 139.1 - - - -
+8: - - - - 151.5 130.9 107.5 - - -
+9: - - - - 140.9 123.2 102.5 99.3 93 90.9
+10: - - - - 131.4 116.1 97.6 94.7 89.2 87.1
+11: - - - - 123 109.5 93.2 90.5 85.7 83.4
+12: - - - - 115.5 103.6 88.9 86.4 82.3 79.8
+14: - - - - 102.8 93 81.2 79.2 76.3 73.2
+16: - - - - 93.9 84 74.5 72.8 70.8 67.3
+18: - - - - 86.6 76.4 68.7 67.2 65.4 62.3
+20: - - - - - 69.8 63.5 62.3 60.7 57.8
+22: - - - - - 64.1 58.6 57.8 56.5 53.8
+24: - - - - - 59 54.4 53.8 52.7 50.1
+26: - - - - - - 50.4 50 49.2 47.1
+28: - - - - - - 47 46.6 45.8 44.1
+30: - - - - - - - 43.5 42.9 41.5
+32: - - - - - - - - - 39.1` },
+  { id:"t3-155-7.4", name:"T3 · 155 t CWT · VarioBallast at 7,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:155, ballastR:7.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 7.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+6: 239.3 239.3 239.3 - - - - - - -
+7: 231.2 231.6 226.7 211.8 - - - - - -
+8: - - 207.6 194.5 - - - - - -
+9: - - - 179.1 - - - - - -
+10: - - - 165.9 - - - - - -
+11: - - - 154.1 - - - - - -
+12: - - - 144 - - - - - -
+14: - - - 126.7 - - - - - -
+20: - - - - 79.9 - - - - -
+22: - - - - 74.1 - - - - -
+24: - - - - 69.1 - - - - -
+26: - - - - - 54.5 - - - -
+28: - - - - - 50.5 - - - -
+30: - - - - - 46.9 43.8 - - -
+32: - - - - - 43.6 41.1 40.8 40.2 -
+34: - - - - - 41.1 38.5 38.3 37.8 37
+36: - - - - - - 36.1 35.9 35.5 34.9
+38: - - - - 33.9 - 33.8 33.7 33.4 32.9
+40: - - - - - - - 31.8 31.4 30.9
+42: - - - - - - - - - 29.2` },
+  { id:"t3-155-8.4", name:"T3 · 155 t CWT · VarioBallast at 8,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:155, ballastR:8.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 8.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+14: 141.4 141.3 - - - - - - - -
+16: - 124 - 113.1 - - - - - -
+18: - 108.2 108.3 101.3 - - - - - -
+20: - 95.6 95.6 91.2 - - - - - -
+22: - - 85 82.8 - - - - - -
+24: - - 76 74.8 - - - - - -
+26: - - - - 64.6 - - - - -
+28: - - - - 60.8 - - - - -
+32: - - - 48.8 - - - - - -
+36: - - - - - 38.9 - - - -
+38: - - - - - 36.9 - - - -
+40: - - - - - 35.2 31.9 - - -
+42: - - - - - 33.8 30 29.9 29.6 -
+44: - - - - - - 28.4 28.3 28 27.6
+46: - - - - - - 26.9 26.8 26.5 26.1
+48: - - - - - - 25.6 25.5 25.1 24.7
+50: - - - - - - - 23.3 24 23.5
+52: - - - - - - - - - 21.4` },
+  { id:"t3-175-6.4", name:"T3 · 175 t CWT · VarioBallast at 6,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:175, ballastR:6.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 175 t ballast at 6.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+6: - - - 225.8 - - - - - -` },
+  { id:"t3-175-7.4", name:"T3 · 175 t CWT · VarioBallast at 7,4 m · 360° · telescopic boom · UNVERIFIED", kind:'main', config:"T3", cwt:175, ballastR:7.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.29 (Liebherr LTM 1650-8.1 T3, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 175 t ballast at 7.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 16.7 | 22.4 | 28.2 | 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+8: 212.6 211.5 - - - - - - - -
+9: 194.7 194.6 191.7 - - - - - - -
+10: 179.3 180.2 179.4 - - - - - - -
+11: 166 167 166.9 - - - - - - -
+12: 154.5 155.4 155.6 - - - - - - -
+14: - - 136.3 - - - - - - -
+16: - - 121.1 - - - - - - -
+26: - - 67.4 67.1 - - - - - -
+28: - - - 60.9 - - - - - -
+30: - - - 55.3 56.6 - - - - -
+32: - - - - 51.6 - - - - -
+34: - - - - 47.3 - - - - -
+36: - - - - 43.7 - - - - -` },
+  { id:"t3y-155-6.4", name:"T3Y · 155 t CWT · VarioBallast at 6,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:155, ballastR:6.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 6.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+5: 231.9 - - - - - -
+6: - 201.5 - - - - -
+8: - - - 165.1 161.7 158.6 -
+9: - - - - - - 150.9` },
+  { id:"t3y-155-7.4", name:"T3Y · 155 t CWT · VarioBallast at 7,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:155, ballastR:7.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 7.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+8: 198.8 - - - - - -
+9: 182.7 - - - - - -
+10: - 166.2 160.5 153.7 150.7 147.6 -
+11: 159.4 154.7 149.7 144.5 142.9 140.2 139.7
+12: - - - 135.5 134.8 132.8 132.2
+38: - 27.4 - - - - -
+50: - - - - 17.7 - -
+52: - - - - - - 16` },
+  { id:"t3y-155-8.4", name:"T3Y · 155 t CWT · VarioBallast at 8,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:155, ballastR:8.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 155 t ballast at 8.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+14: 132.6 - - - - - -
+16: 122.8 - - - - - -
+18: 107.3 104.9 102 98.7 98.2 97.9 96.2
+20: 94.7 92.9 90.5 87.8 87.5 87.2 86.6
+22: 83.8 82.8 81 78.6 78.5 78.3 77.7
+24: 74.4 74.4 72.9 70.8 70.8 70.7 70.2
+26: 66.3 66.8 66.1 64.3 64.2 64.2 63.8
+28: 59.2 59.9 59.9 58.3 58.3 58.2 57.9
+30: - - 53.9 53 53.1 53.1 52.7
+32: 41.7 - - 48.3 48.4 48.5 48.2` },
+  { id:"t3y-175-6.4", name:"T3Y · 175 t CWT · VarioBallast at 6,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:175, ballastR:6.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 175 t ballast at 6.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+6: 225.2 - - - - - -
+7: 204.7 198.8 187.1 - - - -
+8: - 182.8 175.5 - - - -
+9: - 168.5 162.4 155.9 155 153.4 -
+10: - - - - - - 142.6` },
+  { id:"t3y-175-7.4", name:"T3Y · 175 t CWT · VarioBallast at 7,4 m · 360° · telescopic boom, Y-guyed · UNVERIFIED", kind:'main', config:"T3Y", cwt:175, ballastR:7.4, sectors:['360'], verify:true,
+    source:"Liebherr LTM1650-8.1 - 650t AT/Load Charts/Nordic Crane LTM 1650-8.1.pdf p.31 (Liebherr LTM 1650-8.1 T3Y, 360°, max table). UNVERIFIED. Only the cells Liebherr colours for 175 t ballast at 7.4 m are in this chart; a '-' means the maker gives that point for another ballast set-up. The over-rear-only column is left out.",
+    src:`H: 33.9 | 39.7 | 45.3 | 51 | 52 | 53 | 54
+10: 170.8 - - - - - -
+12: 150.6 146.3 141.9 - - - -
+14: - 129.1 125.5 121.6 121.1 120.1 118.1
+16: - 115 112.2 108.8 108.4 108.1 106.2
+30: 53.2 53.9 - - - - -
+32: - 48.8 49.2 - - - -
+34: - 44.4 44.8 44.3 44.4 44.4 44.1
+36: - 40.3 40.7 40.5 40.7 40.8 40.6
+38: - - 37.1 36.8 37.1 37.3 37.2
+40: - - 33.9 33.6 33.9 34.1 34
+42: - - 31.1 30.8 31 31.2 31.1
+44: - - - 28.2 28.5 28.6 28.6
+46: - - - 25.9 26.1 26.3 26.2
+48: - - - 23.8 24.1 24.2 24.2
+50: - - - - - 22.3 22.3` }
+];
+for (const c of DEFAULT_CRANES) if (c.id === 'ltm1650') c.charts = (c.charts || []).concat(LIB_1650);
 
 // ---------- lifting sectors: which sides of the carrier a load chart is valid for ----------
 // chart.sectors = ['360'] (full circle — also the default when a chart says nothing), or any of 'rear' (over the rear) and 'side' (over the left / right
@@ -2101,15 +3632,21 @@ const LIFT_SIDES = ['left', 'right', 'rear', 'front'];
 const SIDE_OFFSET = { rear: 180, left: 90, right: -90, front: 0 };
 const SIDE_WORD = { rear: 'rear', left: 'left side', right: 'right side', front: 'front' };      // "lifting over the rear / left side / right side / front"
 const SIDE_NAME = { rear: 'REAR', left: 'LEFT SIDE', right: 'RIGHT SIDE', front: 'FRONT' };       // "OVER REAR / OVER LEFT SIDE / OVER RIGHT SIDE / OVER FRONT" on the sheet
-function sideOf(load) { const s = String(typeof load === 'string' ? load : load?.side ?? '').toLowerCase(); return s === 'left' || s === 'right' || s === 'rear' || s === 'front' ? s : 'rear'; }
+function sideOf(load) { if (hasSlew(load)) return sideFromSlew(load.slew); const s = String(typeof load === 'string' ? load : load?.side ?? '').toLowerCase(); return s === 'left' || s === 'right' || s === 'rear' || s === 'front' ? s : 'rear'; }
+// v11 slew: the boom can point any way, one degree at a time. load.slew = boom direction relative to the carrier, degrees counter-clockwise
+// from the way the cab faces (0 front, 90 left, 180 rear, 270 right); '' = straight over load.side. The side (the chart sector) follows the
+// slew: front within 45° of the cab's way, then left, rear and right quarters.
+function hasSlew(load) { return !!load && typeof load === 'object' && load.slew !== '' && load.slew != null && Number.isFinite(parseFloat(String(load.slew).replace(',', '.'))); }
+function sideFromSlew(a) { a = normDeg(a); return a >= 45 && a < 135 ? 'left' : a >= 135 && a < 225 ? 'rear' : a >= 225 && a < 315 ? 'right' : 'front'; }
+function slewOf(load) { return hasSlew(load) ? normDeg(num(load.slew)) : normDeg(SIDE_OFFSET[sideOf(load)]); }
 function normDeg(a) { return ((num(a) % 360) + 360) % 360; }                      // 0 ≤ a < 360
 function degDiff(a, b) { const d = normDeg(num(a) - num(b)); return d > 180 ? d - 360 : d; } // signed a − b, −180 < d ≤ 180
 function hasCarrierRot(sp) { return !!sp && sp.carrierRot !== '' && sp.carrierRot != null && Number.isFinite(parseFloat(String(sp.carrierRot).replace(',', '.'))); }
 // Carrier heading (degrees, the way the cab faces). When sitePlan.carrierRot is set it rules; when it is empty the carrier simply follows the
 // boom (sitePlan.rot) so that the boom stays on the chosen side — which also keeps every v6 plan's boom heading exactly where it was.
-function carrierHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) : num(sp.rot) - SIDE_OFFSET[sideOf(load)]); }
+function carrierHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) : num(sp.rot) - slewOf(load)); }
 // Boom (= load) heading in degrees: carrier heading + 180 (rear) / +90 (left) / −90 (right) / +0 (front).
-function boomHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) + SIDE_OFFSET[sideOf(load)] : num(sp.rot)); }
+function boomHeadingFor(plan, load) { const sp = plan?.sitePlan || {}; return normDeg(hasCarrierRot(sp) ? num(sp.carrierRot) + slewOf(load) : num(sp.rot)); }
 // v6 plans: which side was the boom on? `boom` and `carrier` are headings; v6 drew the carrier cab at the −u end, so the cab faced carrier + 180°.
 // Boom within 45° of the way the cab faced = a lift over the FRONT (v6 drew it, so it stays a front lift and the front check applies).
 function sideFromHeadings(boom, carrier) {
@@ -2223,7 +3760,19 @@ function lookupCap(parsed, ci, R, mode = 'conservative') {
   const hi = pts.find(p => p[0] > R); const lo = [...pts].reverse().find(p => p[0] < R);
   if (mode === 'interpolate' && lo && hi) return { cap: r2(lo[1] + (hi[1] - lo[1]) * (R - lo[0]) / (hi[0] - lo[0])), row: R, interp: true };
   if (mode === 'curve' && lo && hi) return { cap: r2(curveCap(pts, R)), row: R, interp: true, curve: true };
-  return { cap: hi[1], row: hi[0], rounded: true };
+  // v11: a column that is not falling here (a few Liebherr columns rise at the steepest radii): the lower neighbour, never the higher one
+  return lo && lo[1] < hi[1] ? { cap: lo[1], row: lo[0], rounded: true, lower: true } : { cap: hi[1], row: hi[0], rounded: true };
+}
+// v11: jib charts printed against the MAIN-BOOM ANGLE instead of the radius (SANY / Zoomlion truck cranes: "working angle" rows).
+// Conservative: the row at the next angle DOWN (a flatter boom carries less); steeper than the top row → the top row's value; flatter than
+// the lowest row → not allowed.
+function lookupCapAngle(parsed, ci, ang) {
+  if (!parsed || ci == null || ci < 0 || ci >= parsed.cols.length) return { cap: null, why: 'No chart column selected' };
+  const pts = parsed.rows.filter(r => r[ci + 1] != null).map(r => [r[0], r[ci + 1]]); if (!pts.length) return { cap: null, why: 'Column has no values' };
+  const min = pts[0][0], max = pts[pts.length - 1][0];
+  if (!(ang >= min - 1e-9)) return { cap: null, why: `Main boom at ${(+ang).toFixed(1)}° is flatter than this jib chart allows (lowest ${min}°)` };
+  if (ang >= max - 1e-9) return { cap: pts[pts.length - 1][1], row: max, angle: true };
+  const lo = [...pts].reverse().find(p => p[0] <= ang + 1e-9); return { cap: lo[1], row: lo[0], angle: true, rounded: Math.abs(lo[0] - ang) > 1e-6 };
 }
 // v9 curve fit between chart radii: a monotone cubic (Fritsch–Carlson / PCHIP) through the column, so the curve bends the way a load chart
 // does instead of cutting straight across. Never more than the straight line between the two neighbouring points, never less than the next
@@ -2402,7 +3951,8 @@ const ACC_LABELS = { flyjib: 'Fly jib', luffing: 'Luffing jib', yguy: 'Y-guying'
 function accState(plan, crane, chartDef) {
   const a = plan.acc || {}; const avail = crane?.acc || ['flyjib'];
   const cfg = String(chartDef?.config || '').toUpperCase();
-  return { yguy: avail.includes('yguy') && (!!a.yguy || /^TY/.test(cfg)), yguyAuto: /^TY/.test(cfg), superlift: avail.includes('superlift') && !!a.superlift, runner: avail.includes('runner') && !!a.runner,
+  const ty = /^TY/.test(cfg) || (typeof chartFam === 'function' && !!chartDef && chartFam(chartDef).yguy); // v11: any guyed chart (TY, TYF, TYN, T3Y…)
+  return { yguy: (avail.includes('yguy') || ty) && (!!a.yguy || ty), yguyAuto: ty, superlift: avail.includes('superlift') && !!a.superlift, runner: avail.includes('runner') && !!a.runner,
     slRadius: num(a.slRadius, 15), slBallast: num(a.slBallast, 100), avail };
 }
 // capacity chart + geometry used for one load; a manual fly / luffing jib (no jib chart) overrides the geometry
@@ -2501,19 +4051,27 @@ function computeLoad(plan, crane, load, settings) {
   const design = daf ? r2(total * daf) : total;
   const res = { R, W, contW, cont, contOn, hb, tk, ex, jd, rope, ropeInfo: { kgm: ropeKgM, falls, len: ropeLen }, total, daf, dafAuto: Dd.on && Dd.mode !== 'manual', design, empty, stack, checks: [], col, ci, chartDef, angleMode, heightMode, manualJib: G.manual, gChart: G.gChart, gCol: G.gCol, boomOv, tele: G.tele, spec: G.spec, acc: G.acc };
   // capacity — capAt reads the chart at any radius the same way (used again for the wind drift)
+  const dutyC = typeof dutyCheck === 'function' ? dutyCheck(plan, crane, chartDef, G) : null; res.dutyWhy = !chartDef && dutyC ? dutyC.m : '';
   const capAt = (Rq) => {
     if (load.capOverride !== '' && load.capOverride != null && num(load.capOverride) > 0) return { cap: num(load.capOverride), manual: true };
+    if (!parsed && !G.manual && res.dutyWhy) return { cap: null, why: res.dutyWhy };
+    if (parsed && chartDef?.rowsBy === 'angle') return lookupCapAngle(parsed, ci, g.theta); // v11: rows are main-boom angles
     if (G.manual) return num(plan.attach?.swl) > 0 ? { cap: num(plan.attach.swl), manual: true, jib: true } : { cap: null, why: 'Enter the jib SWL from the ' + (G.manual === 'fly' ? 'fly-jib' : 'luffing-jib') + ' load chart' };
     if (parsed && chartDef.kind === 'main' && boomOv > 0 && col && Math.abs(boomOv - col.L) > 0.05) {
       // boom between chart columns → take the lower capacity of the bracketing lengths
       const Ls = [...new Set(parsed.cols.map(c => c.L))].sort((a, b) => a - b);
       const lower = [...Ls].reverse().find(L => L <= boomOv), upper = Ls.find(L => L >= boomOv);
       if (upper == null) return { cap: null, why: `Boom ${boomOv} m is longer than the longest chart column (${Ls[Ls.length - 1]} m)` };
+      if (lower == null) return { cap: null, why: `Boom ${boomOv} m is shorter than the shortest column on this chart (${Ls[0]} m)` }; // v11: e.g. a Y-guy chart that starts at 31.7 m
       const cand = parsed.cols.map((c, i) => ({ c, i })).filter(o => (o.c.L === lower || o.c.L === upper) && (o.c.label || '') === (col.label || ''));
       const caps = cand.map(o => lookupCap(parsed, o.i, Rq, S.lookup)).filter(x => x.cap != null);
       return caps.length ? { cap: Math.min(...caps.map(x => x.cap)), row: caps[0].row, between: [lower ?? upper, upper] } : { cap: null, why: 'Boom length outside chart columns' };
     }
-    return lookupCap(parsed, ci, Rq, S.lookup);
+    // v11: a column printed twice (some imported tables carry the same boom / offset more than once) → the lower of the two
+    const twins = parsed && col ? parsed.cols.map((c, i) => i).filter(i => i !== ci && parsed.cols[i].L === col.L && (parsed.cols[i].label || '') === (col.label || '')) : [];
+    const own = lookupCap(parsed, ci, Rq, S.lookup); if (!twins.length) return own;
+    const all = [own, ...twins.map(i => lookupCap(parsed, i, Rq, S.lookup))].filter(x => x.cap != null);
+    return all.length ? all.reduce((a, b) => (b.cap < a.cap ? b : a)) : own;
   };
   let capInfo = capAt(R);
   res.capChart = capInfo.cap;
@@ -2538,11 +4096,14 @@ function computeLoad(plan, crane, load, settings) {
   if (res.cap != null && res.cap > 0) { res.util = r2(design / res.cap * 100); res.sf = Math.round(res.cap / design * 10000) / 10000; }
   // net capacity: what the load itself (with its margin) may weigh once the hook, tackles and deductions come off the chart value
   if (res.cap != null) { res.ded = r2(hb + tk + ex + jd + rope); res.netCap = r2(res.cap / (daf || 1) - res.ded); res.margin = res.cap > 0 ? r2((res.cap - design) / res.cap * 100) : null; }
+  // v11: the chart has to be the one for the set-up on the crane (Y-guying, counterweight, jib) — duty.js. With no chart at all the
+  // 'Chart capacity' check below already carries the reason.
+  if (dutyC && chartDef && !capInfo.manual) res.checks.push(dutyC);
   if (chartDef && chartDef.verify) res.checks.push({ s: 'warn', t: 'Load chart', m: 'This chart was transcribed from a public datasheet (' + (chartDef.source || 'unverified') + ') — check it against the crane\'s own chart before issuing' });
   if (G.tele.mode === 'manual' && !G.tele.locked) res.checks.push({ s: 'info', t: 'Telescoping', m: `Sections set by hand (${G.tele.fr.map(f => Math.round(f * 100)).join(' / ')} %) → ${G.tele.L} m boom. Capacity is read for that length; check the crane's telescoping sequence gives the same chart` });
   res.geo = g;
   // lift side: the selected chart must be valid for the side the load is lifted over (a hand-entered capacity is the user's own responsibility)
-  res.side = sideOf(load); res.sideOk = true;
+  res.side = sideOf(load); res.slew = slewOf(load); res.sideOk = true;
   if (chartDef && !G.manual && !capInfo.manual && !chartCoversSide(chartDef, res.side)) {
     res.sideOk = false;
     res.checks.push({ s: 'fail', t: 'Lift side', m: `Chart does not cover lifting over the ${SIDE_WORD[res.side]} — this chart is only valid ${chartSectorLabel(chartDef)}. Pick a load chart that covers the ${SIDE_WORD[res.side]}, or lift over the rear instead.` });
@@ -2565,11 +4126,14 @@ function computeLoad(plan, crane, load, settings) {
   const allowance = num(plan.hookAllowance, 3);
   res.reqTipY = r2(surface + loadH + rig + allowance);
   res.hookY = r2(surface + loadH + rig);
+  // v11 hoist: the load lifted off its landing (cab controls). Only the picture moves: the checks stay on the landed load (the worst case for
+  // headroom is kept by stopping the hook short of the boom head, hook allowance included).
+  res.lift = g.tip ? r2(Math.max(0, Math.min(num(load.hoist, 0), g.tip.y - allowance - res.hookY))) : 0; res.liftMax = g.tip ? r2(Math.max(0, g.tip.y - allowance - res.hookY)) : 0;
   // checks
   const lim = num(S.utilMax, 85), warn = num(S.utilWarn, 75);
   if (res.cap == null) res.checks.push({ s: 'fail', t: 'Chart capacity', m: capInfo.why || 'No capacity' });
   else {
-    const note = capInfo.jib ? ' (jib SWL entered manually)' : capInfo.manual ? ' (entered manually)' : capInfo.wind ? ` (read at ${(R + res.wind.dR).toFixed(2)} m — the wind pushes the load ${res.wind.dR.toFixed(2)} m out)` : capInfo.between ? ` (lower of ${capInfo.between.join(' / ')} m columns)` : capInfo.rounded ? ` (taken at ${capInfo.row} m — next chart radius up)` : capInfo.curve ? ' (curve fit between chart radii)' : capInfo.interp ? ' (interpolated)' : '';
+    const note = capInfo.jib ? ' (jib SWL entered manually)' : capInfo.manual ? ' (entered manually)' : capInfo.wind ? ` (read at ${(R + res.wind.dR).toFixed(2)} m — the wind pushes the load ${res.wind.dR.toFixed(2)} m out)` : capInfo.between ? ` (lower of ${capInfo.between.join(' / ')} m columns)` : capInfo.angle ? ` (main boom at ${(+g.theta).toFixed(1)}°: read at the ${capInfo.row}° row${capInfo.rounded ? ', next angle down' : ''})` : capInfo.rounded ? ` (taken at ${capInfo.row} m — next chart radius up)` : capInfo.curve ? ' (curve fit between chart radii)' : capInfo.interp ? ' (interpolated)' : '';
     res.checks.push({ s: res.util > 100 ? 'fail' : res.util > lim ? 'fail' : res.util > warn ? 'warn' : 'ok', t: 'Capacity utilisation', m: `${res.util.toFixed(2)}% of ${res.cap.toFixed(2)} t${note}${daf ? ` — with DAF ${daf} (${design.toFixed(2)} t design load)` : ''}` + (res.util > lim && res.util <= 100 ? ` — over the ${lim}% limit` : res.util > warn && res.util <= lim ? ` — critical lift (> ${warn}%)` : '') });
   }
   if (jd || rope) res.checks.push({ s: 'info', t: 'Deductions', m: [jd ? `folded jib ${jd.toFixed(2)} t` : '', rope ? `hoist rope ${rope.toFixed(2)} t (${falls} falls × ${ropeLen.toFixed(1)} m × ${ropeKgM} kg/m)` : ''].filter(Boolean).join(' and ') + ' counted in the hook load, as the load chart asks' });
@@ -2838,6 +4402,134 @@ function bestPerCrane(res) {
 }
 
 
+// ===== v11 duty: the load chart follows what is rigged on the crane =====
+// The crane is set up the way it stands on site (counterweight, Y-guying, fly jib or luffing jib, boom length) and the maker's chart
+// for that set-up is found in the library, so the safe load changes as the boom telescopes or a jib / Y-guying goes on or comes off.
+// Rules (all conservative):
+//  · family first: main boom / fly jib / luffing jib, guyed or not, superlift or not. A chart for another rigging is never used.
+//  · counterweight: the heaviest chart counterweight that is not more than what is fitted (a chart for more ballast would overstate).
+//  · lift side: a chart that covers the side when there is one (otherwise the side check in computeLoad fails the lift).
+//  · boom: a main chart reads the column for the boom length (between two columns: the lower of the two, in computeLoad).
+//    Jib charts are printed for set boom lengths only, so the boom snaps to the nearest length that has a chart.
+//  · jib length, offset and main-boom angle: snapped to what the charts print.
+const DUTY_WORD = { main: 'main boom', fixedjib: 'fly jib', luffing: 'luffing jib' };
+function chartFam(ch) {
+  const cfg = String(ch?.config || '').toUpperCase().replace(/MAINBOOM/g, ''); const nm = String(ch?.name || '').toLowerCase();
+  return { kind: ch?.kind || 'main', yguy: /Y/.test(cfg) || /\bguyed\b|y-guy/.test(nm), superlift: /SSL|SL$|SUPERLIFT/.test(cfg) || /superlift/.test(nm) };
+}
+// the boom length a jib chart is printed for, as the telescopic boom shows it (without the jib adapter)
+function jibMainL(ch) { return num(ch?.mainLabel) > 0 ? num(ch.mainLabel) : num(ch?.mainLen); }
+function chartCwt(ch) { const v = num(ch?.cwt, NaN); return Number.isFinite(v) && v > 0 ? v : null; }
+function dutyWant(plan, crane) {
+  const at = plan?.attach || {}, a = plan?.acc || {}, av = crane?.acc || [];
+  const kind = at.type === 'fly' ? 'fixedjib' : at.type === 'luff' ? 'luffing' : 'main';
+  const cw = plan?.cwt !== '' && plan?.cwt != null && num(plan.cwt) > 0 ? num(plan.cwt) : null;
+  return { kind, ext: !!at.ext, yguy: !!a.yguy && (av.includes('yguy') || dutyHas(crane, { yguy: true })), superlift: !!a.superlift && av.includes('superlift'), cwt: cw, jibLen: num(at.jibLen, 0), offset: num(at.offset, 0), boomAngle: num(at.boomAngle, 83) };
+}
+function dutyHas(crane, f) { return (crane?.charts || []).some(ch => { const g = chartFam(ch); return Object.keys(f).every(k => g[k] === f[k]); }); }
+// every chart of the family the crane is rigged for
+function dutyFamily(crane, want) {
+  const out = []; (crane?.charts || []).forEach((ch, i) => { const f = chartFam(ch); if (f.kind === want.kind && f.yguy === !!want.yguy && f.superlift === !!want.superlift) out.push({ ch, i, f }); });
+  return out;
+}
+// the counterweights the charts of this family are printed for (heaviest first)
+function dutyCwts(crane, want) { return [...new Set(dutyFamily(crane, want).map(o => chartCwt(o.ch)).filter(v => v != null))].sort((a, b) => b - a); }
+// the counterweight on the crane: typed, else the one of the chart in use, else the crane record's
+function dutyFitted(plan, crane) {
+  if (plan?.cwt !== '' && plan?.cwt != null && num(plan.cwt) > 0) return num(plan.cwt);
+  const cur = crane?.charts?.[+plan?.chartIdx]; return chartCwt(cur) ?? (num(crane?.cwt) > 0 ? num(crane.cwt) : null);
+}
+function nearestBy(arr, f, v) { let best = null, bd = Infinity; for (const o of arr) { const d = Math.abs(f(o) - v); if (d < bd - 1e-9) { bd = d; best = o; } } return best; }
+// what is missing, in plain words, when no chart of the family fits
+function dutyNoChart(crane, want, extra) {
+  const what = (want.yguy ? 'Y-guyed ' : '') + (want.superlift ? 'superlift ' : '') + DUTY_WORD[want.kind];
+  return `No ${what} chart for the ${crane?.model || 'crane'} in the library${extra ? ' ' + extra : ''}. ${want.kind === 'main' ? (want.yguy ? 'Take the Y-guying off, or type' : 'Type') : 'Type'} the capacity from the maker's chart for this set-up.`;
+}
+// → { kind, chartIdx, colIdx, boomOverride, L, jibLen, offset, boomAngle, cwt, why, snapped:{…} }
+//   chartIdx −1 = no chart for this set-up (why says what is missing)
+function resolveDuty(plan, crane, o = {}) {
+  const want = dutyWant(plan, crane); const res = { kind: want.kind, chartIdx: -1, colIdx: 0, boomOverride: '', why: '', snapped: {}, want };
+  const L = num(o.L, 0); res.L = L;
+  let fam = dutyFamily(crane, want);
+  if (!fam.length) { res.why = dutyNoChart(crane, want); res.boomOverride = L > 0 ? L : ''; return res; }
+  // lift side first: a chart that covers it, when there is one
+  const side = o.side || 'rear'; const cov = fam.filter(x => chartCoversSide(x.ch, side)); if (cov.length) fam = cov; else res.sideMiss = true;
+  // counterweight: the heaviest chart ballast not above what is fitted
+  const fitted = o.cwt != null ? num(o.cwt) : dutyFitted(plan, crane); res.fitted = fitted;
+  if (fitted != null) {
+    const ok = fam.filter(x => chartCwt(x.ch) == null || chartCwt(x.ch) <= fitted + 1e-6);
+    if (!ok.length) { const need = Math.min(...fam.map(x => chartCwt(x.ch)).filter(v => v != null)); res.needCwt = need; res.why = `The ${DUTY_WORD[want.kind]} charts need at least ${fmtN(need)} t counterweight; ${fmtN(fitted)} t is fitted.`; res.boomOverride = L > 0 ? L : ''; return res; }
+    const top = Math.max(...ok.map(x => chartCwt(x.ch) ?? -1)); fam = ok.filter(x => (chartCwt(x.ch) ?? -1) === top); res.cwt = top > 0 ? top : null;
+  } else { const top = Math.max(...fam.map(x => chartCwt(x.ch) ?? -1)); fam = fam.filter(x => (chartCwt(x.ch) ?? -1) === top); res.cwt = top > 0 ? top : null; res.cwtUnknown = true; }
+  const curI = +plan?.chartIdx;
+  if (want.kind === 'main') {
+    // the chart in use when it is still in the family (keeps an outrigger / sector choice), else the first one
+    const pick = fam.find(x => x.i === curI) || fam[0]; res.chartIdx = pick.i; const pr = getChart(pick.ch);
+    if (pr && pr.cols.length) {
+      const curLab = pr.cols[+plan?.colIdx]?.label || ''; let best = 0, bd = Infinity;
+      pr.cols.forEach((c, i) => { const d = Math.abs(c.L - L) + ((c.label || '') === curLab ? 0 : 0.01); if (d < bd) { bd = d; best = i; } });
+      res.colIdx = best; res.boomOverride = L > 0 && bd >= 0.45 ? L : '';
+    }
+    return res;
+  }
+  // jib charts: the boom length, then the jib length, then the column (offset or main-boom angle)
+  const mainLs = [...new Set(fam.map(x => jibMainL(x.ch)).filter(v => v > 0))].sort((a, b) => a - b);
+  const mL = L > 0 ? nearestBy(mainLs, v => v, L) : mainLs[0]; res.L = mL; if (L > 0 && Math.abs(mL - L) > 0.05) res.snapped.L = [L, mL];
+  const onL = fam.filter(x => Math.abs(jibMainL(x.ch) - mL) < 1e-6);
+  const jls = [...new Set(onL.map(x => num(x.ch.jibLen)).filter(v => v > 0))].sort((a, b) => a - b);
+  const jl = jls.length ? nearestBy(jls, v => v, want.jibLen || jls[0]) : null; res.jibLen = jl; if (jl != null && want.jibLen > 0 && Math.abs(jl - want.jibLen) > 0.05) res.snapped.jibLen = [want.jibLen, jl];
+  const onJ = onL.filter(x => jl == null || Math.abs(num(x.ch.jibLen) - jl) < 1e-6);
+  const pick = onJ.find(x => x.i === curI) || onJ[0]; res.chartIdx = pick.i; const pr = getChart(pick.ch);
+  const target = want.kind === 'fixedjib' ? want.offset : want.boomAngle;
+  if (pr && pr.cols.length) {
+    const vals = [...new Set(pr.cols.map(c => c.L))]; const v = nearestBy(vals, x => x, target); res.colIdx = pr.cols.findIndex(c => c.L === v);
+    // columns printed twice (some imported tables): the one with the most values
+    let bestN = -1; pr.cols.forEach((c, i) => { if (c.L !== v) return; const n = pr.rows.filter(r => r[i + 1] != null).length; if (n > bestN) { bestN = n; res.colIdx = i; } });
+    if (want.kind === 'fixedjib') { res.offset = v; if (Math.abs(v - want.offset) > 0.05) res.snapped.offset = [want.offset, v]; }
+    else { res.boomAngle = v; if (Math.abs(v - want.boomAngle) > 0.05) res.snapped.boomAngle = [want.boomAngle, v]; }
+  }
+  return res;
+}
+const fmtN = (v) => (Math.round(num(v) * 10) / 10).toString();
+// the choices the set-up screen offers: counterweights, boom lengths with a jib chart, jib lengths, offsets / angles
+function dutyOptions(plan, crane, L) {
+  const want = dutyWant(plan, crane); const fam = dutyFamily(crane, want); const out = { want, cwts: dutyCwts(crane, want), mainLs: [], jibLs: [], cols: [] };
+  const anyKind = (k) => dutyHas(crane, { kind: k }); out.has = { fly: anyKind('fixedjib'), luff: anyKind('luffing'), yguy: dutyHas(crane, { yguy: true }), superlift: dutyHas(crane, { superlift: true }) };
+  if (want.kind === 'main' || !fam.length) return out;
+  const fitted = dutyFitted(plan, crane); const f2 = fitted != null ? fam.filter(x => chartCwt(x.ch) == null || chartCwt(x.ch) <= fitted + 1e-6) : fam;
+  out.mainLs = [...new Set(f2.map(x => jibMainL(x.ch)).filter(v => v > 0))].sort((a, b) => a - b);
+  const mL = out.mainLs.length ? nearestBy(out.mainLs, v => v, num(L, out.mainLs[0])) : null;
+  const onL = f2.filter(x => mL != null && Math.abs(jibMainL(x.ch) - mL) < 1e-6);
+  out.jibLs = [...new Set(onL.map(x => num(x.ch.jibLen)).filter(v => v > 0))].sort((a, b) => a - b);
+  const jl = out.jibLs.length ? nearestBy(out.jibLs, v => v, want.jibLen || out.jibLs[0]) : null;
+  const vals = new Set(); for (const x of onL) if (jl == null || Math.abs(num(x.ch.jibLen) - jl) < 1e-6) { const pr = getChart(x.ch); if (pr) pr.cols.forEach((c, ci) => { if (pr.rows.some(r => r[ci + 1] != null)) vals.add(c.L); }); }
+  out.cols = [...vals].sort((a, b) => a - b);
+  return out;
+}
+// v11: charts of one counterweight that differ only by where the ballast sits (Liebherr VarioBallast radius): the radius, the chart, and
+// what each would read at this reach and boom (so the set-up card can say which ballast position the point needs)
+function dutyBallasts(plan, crane, L, R) {
+  const cur = crane?.charts?.[+plan?.chartIdx]; if (!cur || cur.ballastR == null) return [];
+  const want = dutyWant(plan, crane); const fam = dutyFamily(crane, want).filter(x => chartCwt(x.ch) === chartCwt(cur) && x.ch.ballastR != null);
+  return fam.map(x => { const pr = getChart(x.ch); let cap = null; if (pr) { const ci = pr.cols.findIndex(c => Math.abs(c.L - num(L)) < 0.45); if (ci >= 0) cap = lookupCap(pr, ci, num(R)).cap; } return { i: x.i, r: x.ch.ballastR, cap, on: x.i === +plan.chartIdx }; }).sort((a, b) => a.r - b.r);
+}
+// does the chart in use match the set-up? (cheap: one chart, no search) → a check or null
+function dutyCheck(plan, crane, chartDef, G) {
+  const want = dutyWant(plan, crane);
+  if (!chartDef) {
+    if (G?.manual) return null;
+    if (!(crane?.charts || []).length) return { s: 'fail', t: 'Load chart', m: `There is no load chart for the ${crane?.model || 'crane'} in the library yet. Type the capacity from the maker's chart, or add the chart under Fleet.` };
+    const fam = dutyFamily(crane, want); if (!fam.length) return { s: 'fail', t: 'Load chart', m: dutyNoChart(crane, want) };
+    const d = resolveDuty(plan, crane, {}); return { s: 'fail', t: 'Load chart', m: d.why || 'No load chart is picked for this set-up. Open Crane → Set-up, or type the capacity.' };
+  }
+  const f = chartFam(chartDef);
+  if (want.yguy && !f.yguy && dutyHas(crane, { kind: f.kind, yguy: true })) return { s: 'warn', t: 'Y-guying', m: 'Y-guying is on but the capacity comes from the chart without it. Open Crane → Set-up so the Y-guy chart is used.' };
+  if (want.yguy && !f.yguy) return { s: 'warn', t: 'Y-guying', m: dutyNoChart(crane, { ...want }, '— the capacity shown is from the chart without Y-guying') };
+  const cw = chartCwt(chartDef);
+  if (want.cwt != null && cw != null && cw > want.cwt + 1e-6) return { s: 'fail', t: 'Counterweight', m: `This chart is for ${fmtN(cw)} t counterweight but ${fmtN(want.cwt)} t is fitted. Use a chart for ${fmtN(want.cwt)} t or less.` };
+  return null;
+}
+
 // ===== Outrigger loads (v8): leg (pad) reactions, lift-off, tipping and ground bearing — pure functions =====
 // Model (the outrigger brief, §2–§7): the crane is a handful of point masses (carrier, superstructure, counterweight, boom, jib, hook load);
 // the slewing ones turn with the boom. The four pads are the only supports. Four pads and three equilibrium equations is statically
@@ -3053,7 +4745,7 @@ function outriggerCrane(pv, crane, lifts, op = {}) {
   let anyLift = false;
   for (const { li, res } of lifts) {
     if (!res?.geo) continue; anyLift = true;
-    const side = res.side || 'rear', theta = OUT_SLEW[side] ?? 180, hookT = num(res.design, num(res.total)), R = num(res.R);
+    const side = res.side || 'rear', theta = res.slew != null && Number.isFinite(res.slew) ? res.slew : OUT_SLEW[side] ?? 180, hookT = num(res.design, num(res.total)), R = num(res.R);
     const at = outAt(mm, pads, res.geo, theta, hookT, R);
     const tip = outTipHook(mm, pads, res.geo, theta, R);
     const sw = outSweep(mm, pads, res.geo, hookT, R, 5);
@@ -3698,7 +5390,9 @@ class Prims {
   arc(cx, cy, r, a1, a2, o = {}) { return this.add({ t: 'arc', cx, cy, r, a1, a2, ...o }); } // degrees, sheet coords (y down) measured CCW visually
   text(x, y, s, o = {}) { return this.add({ t: 'text', x, y, s: String(s ?? ''), size: 3, anchor: 'start', vAlign: 'base', ...o }); }
   path(segs, o = {}) { return this.add({ t: 'path', segs, ...o }); } // segs: [[x1,y1,x2,y2],...]
-  image(x, y, w, h, href, o = {}) { return this.add({ t: 'image', x, y, w, h, href, ...o }); }
+  image(x, y, w, h, href, o = {}) { // v11: fitted here ('meet'), from the picture's own size — svg2pdf ignores preserveAspectRatio and stretched every drawing in the PDFs
+    if (o.fit !== 'none' && !o.rot && typeof href === 'string') { const n = imgNatural(href); if (n && n.w > 0 && n.h > 0) { const k = Math.min(w / n.w, h / n.h), w2 = n.w * k, h2 = n.h * k; x += (w - w2) / 2; y += (h - h2) / 2; w = w2; h = h2; o = { ...o, fit: 'none' }; } }
+    return this.add({ t: 'image', x, y, w, h, href, ...o }); }
 }
 
 // ---------- small helpers ----------
@@ -3814,6 +5508,22 @@ function drawCrane(P, T, k, crane, geo, o = {}) {
 function isLightFill(hex) {
   const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || ''); if (!m) return false;
   const [r, g, b] = [1, 2, 3].map(i => parseInt(m[i], 16)); return (r + g + b) / 3 > 200;
+}
+// v11: a picture's pixel size straight from its data URL (PNG IHDR, JPEG SOF, GIF, WebP VP8/VP8L/VP8X headers). Cached; null when unknown.
+const _imgNat = new Map();
+function imgNatural(href) {
+  if (_imgNat.has(href)) return _imgNat.get(href); let out = null;
+  try {
+    const m = /^data:image\/(png|jpe?g|gif|webp);base64,/i.exec(href.slice(0, 40)); if (m) {
+      const b64 = href.slice(href.indexOf(',') + 1, href.indexOf(',') + 1 + 65536); const bin = atob(b64.slice(0, b64.length - (b64.length % 4))); const u = (i) => bin.charCodeAt(i) & 255;
+      const t = m[1].toLowerCase();
+      if (t === 'png' && bin.length > 24) out = { w: (u(16) << 24 | u(17) << 16 | u(18) << 8 | u(19)) >>> 0, h: (u(20) << 24 | u(21) << 16 | u(22) << 8 | u(23)) >>> 0 };
+      else if (t === 'gif') out = { w: u(6) | u(7) << 8, h: u(8) | u(9) << 8 };
+      else if (t === 'webp') { const f = bin.slice(12, 16); if (f === 'VP8 ') out = { w: (u(26) | u(27) << 8) & 0x3fff, h: (u(28) | u(29) << 8) & 0x3fff }; else if (f === 'VP8L') { const b0 = u(21), b1 = u(22), b2 = u(23), b3 = u(24); out = { w: 1 + (((b1 & 0x3f) << 8) | b0), h: 1 + (((b3 & 0xf) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6)) }; } else if (f === 'VP8X') out = { w: 1 + (u(24) | u(25) << 8 | u(26) << 16), h: 1 + (u(27) | u(28) << 8 | u(29) << 16) }; }
+      else { let i = 2; while (i + 9 < bin.length) { if (u(i) !== 0xff) { i++; continue; } const mk = u(i + 1); if (mk >= 0xc0 && mk <= 0xcf && mk !== 0xc4 && mk !== 0xc8 && mk !== 0xcc) { out = { h: u(i + 5) << 8 | u(i + 6), w: u(i + 7) << 8 | u(i + 8) }; break; } i += 2 + (u(i + 2) << 8 | u(i + 3)); } }
+    }
+  } catch (e) { out = null; }
+  if (out && !(out.w > 0 && out.h > 0)) out = null; _imgNat.set(href, out); return out;
 }
 function emitItems(P, items, pal, xf, sty) {
   for (const [f, ci, flat] of items) {
@@ -3970,7 +5680,7 @@ function hookOf(crane) { // the crane's own CAD hook block, else a generic one s
 function drawHookAndLoad(P, T, k, crane, geo, res, load, o = {}) {
   const base = o.baseY || 0;
   const tip = { x: geo.tip.x, y: geo.tip.y + base };
-  const R = res.R, landY = res.landY + base;
+  const R = res.R, landY = res.landY + base + num(res.lift, 0); // v11: hoisted off the landing by the cab controls
   const lL = num(load.l, 2), lH = num(load.h, 1.5);
   const rigH = res.rigH != null ? res.rigH : num(load.rigH, num(o.rigH, 3));
   const hk = hookOf(crane);
@@ -4317,7 +6027,8 @@ function drawSideGlyph(P, x, y, w, crane, side, o = {}) {
   const Ra = Math.max(0.55 * Lc, oT + 5), xm = Ra + 0.9, yTop = 0.64 * Lc + 4.4, yBot = -Math.max(0.36 * Lc, Ra) - 0.9;   // metres
   const s = w / (2 * xm), hDraw = (yTop - yBot) * s, labH = ds * 2.1, H = hDraw + labH;
   const G = (mx, my) => [x + (mx + xm) * s, y + (yTop - my) * s];
-  const d = { rear: [0, -1], left: [-1, 0], right: [1, 0], front: [0, 1] }[side];
+  const sa = o.slew != null && Number.isFinite(+o.slew) ? +o.slew * D2R : null; // v11: the boom drawn at its real slew angle (CCW from the cab's way)
+  const d = sa != null ? [-Math.sin(sa), Math.cos(sa)] : { rear: [0, -1], left: [-1, 0], right: [1, 0], front: [0, 1] }[side];
   const GB = (u, v) => G(u * d[0] - v * d[1], u * d[1] + v * d[0]);                  // boom frame: u along the boom, v to its left
   P.rect(x, y, w, H, { fill: '#ffffff', stroke: '#555', w: 0.25, layer: LY });
   P.circle(...G(0, 0), tail * s, { stroke: '#a0a0a0', w: 0.18, fill: 'none', layer: LY });
@@ -4332,7 +6043,7 @@ function drawSideGlyph(P, x, y, w, crane, side, o = {}) {
   const f = G(0, 0.64 * Lc + 0.5), f2 = G(0, 0.64 * Lc + 2.1); P.line(f[0], f[1], f2[0], f2[1], { stroke: '#333', w: 0.3, layer: LY });
   P.poly([f2, [f2[0] - 0.9 * s, f2[1] + 1.1 * s], [f2[0] + 0.9 * s, f2[1] + 1.1 * s]], { closed: true, fill: '#333', stroke: '#333', w: 0.1, layer: LY });
   const ft = G(0, 0.64 * Lc + 3.35); P.text(ft[0], ft[1], 'FRONT', { size: Math.max(1.6, ds * 0.62), anchor: 'middle', vAlign: 'middle', color: '#333', layer: LY });
-  const lab = 'LIFT OVER ' + SIDE_NAME[side].replace(' SIDE', ''); const ls = Math.min(ds * 1.05, fitSize(lab, w - 3, ds * 1.05, true));
+  const lab = 'LIFT OVER ' + SIDE_NAME[side].replace(' SIDE', '') + (sa != null && Math.abs(degDiff(+o.slew, SIDE_OFFSET[side])) > 0.5 ? ` · SLEW ${Math.round(normDeg(+o.slew))}°` : ''); const ls = Math.min(ds * 1.05, fitSize(lab, w - 3, ds * 1.05, true));
   P.text(x + w / 2, y + hDraw + labH / 2, lab, { size: ls, bold: true, anchor: 'middle', vAlign: 'middle', color: '#000', layer: LY });
   return { w, h: H };
 }
@@ -4481,7 +6192,7 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
       const cand = [[box.x + m, box.y + m], [box.x + box.w - gw - m, box.y + m], [box.x + m, box.y + m + gh + 3], [box.x + box.w - gw - m, box.y + m + gh + 3]];
       const free = cand.find(([cx, cy]) => !hits(cx, cy)); if (free) [gx, gy] = free;
     }
-    drawSideGlyph(P, gx, gy, gw, crane, liftSide, { ds });
+    drawSideGlyph(P, gx, gy, gw, crane, liftSide, { ds, slew: hasSlew(load) ? slewOf(load) : null });
   }
   return { scale: sc, T, ext };
 }
@@ -4593,8 +6304,9 @@ function drawChartTable(P, box, crane, chartDef, parsed, selCols, selRow) {
   const fs = Math.max(1.6, Math.min(3.2, rh * 0.62, cw * 0.28));
   const headFill = '#e9a23b';
   P.rect(box.x, top, box.w, rh * nHead, { fill: headFill, stroke: '#222', w: 0.2, layer: 'CHART' });
-  P.text(box.x + rcw / 2, top + rh * nHead / 2, chartDef.kind === 'luffing' ? 'R (m) / °' : 'R (m)', { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });
-  P.text(box.x + box.w - rcw / 2, top + rh * nHead / 2, 'R (m)', { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });
+  const rLab = chartDef.rowsBy === 'angle' ? 'BOOM °' : 'R (m)'; // v11: angle-indexed jib charts
+  P.text(box.x + rcw / 2, top + rh * nHead / 2, chartDef.kind === 'luffing' ? 'R (m) / °' : rLab, { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });
+  P.text(box.x + box.w - rcw / 2, top + rh * nHead / 2, rLab, { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });
   parsed.cols.forEach((c, i) => {
     const cx = box.x + rcw + cw * (i + 0.5);
     P.text(cx, top + rh * 0.5, (c.head || c.L) + (chartDef.kind === 'main' ? '' : '°'), { size: fs, anchor: 'middle', vAlign: 'middle', bold: true, layer: 'CHART' });
@@ -6160,6 +7872,15 @@ C3D.textTex = (text, o = {}) => {
   g.fillText(text, c.width / 2, c.height / 2 + 2); const t = new THREE.CanvasTexture(c); t.anisotropy = 8; t.encoding = THREE.sRGBEncoding; return t;
 };
 C3D.stripeTex = (a = '#f5c400', b = '#141414') => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); g.fillStyle = a; g.fillRect(0, 0, 128, 128); g.fillStyle = b; for (let i = -128; i < 256; i += 48) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 24, 0); g.lineTo(i + 24 - 128, 128); g.lineTo(i - 128, 128); g.fill(); } const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; return t; };
+// v11: procedural surface textures (no downloads): ground grit, a concrete hardstand, a building façade with floors and windows
+C3D.noiseTex = (base, var_, n = 256, o = {}) => { const c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'); g.fillStyle = base; g.fillRect(0, 0, n, n); const im = g.getImageData(0, 0, n, n), d = im.data; let s = o.seed || 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < d.length; i += 4) { const k = (rnd() - 0.5) * var_; d[i] = Math.max(0, Math.min(255, d[i] + k)); d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + k)); d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + k * 0.9)); } g.putImageData(im, 0, 0);
+  if (o.cracks) { g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 1; for (let k = 0; k < o.cracks; k++) { g.beginPath(); let x = rnd() * n, y = rnd() * n; g.moveTo(x, y); for (let j = 0; j < 6; j++) { x += (rnd() - 0.5) * 40; y += (rnd() - 0.5) * 40; g.lineTo(x, y); } g.stroke(); } }
+  if (o.joints) { g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2; g.strokeRect(1, 1, n - 2, n - 2); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
+C3D.facadeTex = () => { const c = document.createElement('canvas'); c.width = 256; c.height = 256; const g = c.getContext('2d'); g.fillStyle = '#b9b2a6'; g.fillRect(0, 0, 256, 256);
+  g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(0, 0, 256, 18); for (let fx = 0; fx < 2; fx++) { const gr = g.createLinearGradient(0, 40, 0, 220); gr.addColorStop(0, '#5d7f9c'); gr.addColorStop(0.5, '#2c4256'); gr.addColorStop(1, '#46637c'); g.fillStyle = gr; g.fillRect(24 + fx * 128, 46, 80, 160); g.strokeStyle = '#e6e2da'; g.lineWidth = 5; g.strokeRect(24 + fx * 128, 46, 80, 160); g.beginPath(); g.moveTo(64 + fx * 128, 46); g.lineTo(64 + fx * 128, 206); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t; };
 C3D.glowTex = () => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,255,255,.55)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); };
 C3D.gradTex = (stops) => { const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 256); stops.forEach(([o, col]) => gr.addColorStop(o, col)); g.fillStyle = gr; g.fillRect(0, 0, 4, 256); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t; };
 // lattice section (jibs, superlift mast, tower cranes) as one instanced mesh along +x
@@ -6175,6 +7896,8 @@ C3D.lattice = (len, h, w, mat, opts = {}) => {
   for (let j = 0; j < nb; j++) { const x0 = j * b, x1 = x0 + b; put(corner(x0, 0), corner(x1, 2)); put(corner(x0, 1), corner(x1, 3)); put(corner(x0, 0), corner(x1, 1)); put(corner(x0, 2), corner(x1, 3)); put(corner(x1, 0), corner(x1, 2)); put(corner(x1, 1), corner(x1, 3)); put(corner(x1, 0), corner(x1, 1)); put(corner(x1, 2), corner(x1, 3)); }
   im.count = k; im.instanceMatrix.needsUpdate = true; return im;
 };
+C3D.edgeMat = () => C3D._em || (C3D._em = new THREE.LineBasicMaterial({ color: C3D.lin('#1b1d21'), transparent: true, opacity: 0.55 }));
+C3D.edged = (m, deg = 28) => { m.userData.edges = deg; return m; };
 C3D.lines = (color, opacity = 1) => { const l = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: C3D.lin(color), transparent: opacity < 1, opacity })); l.frustumCulled = false; return l; };
 C3D.setLines = (l, pts) => { l.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); l.geometry.computeBoundingSphere(); };
 
@@ -6210,6 +7933,7 @@ C3D.bag = () => {
         const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(s.pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(s.nor, 3));
         geo.setIndex(s.n > 65535 ? new THREE.Uint32BufferAttribute(s.idx, 1) : new THREE.Uint16BufferAttribute(s.idx, 1)); geo.computeBoundingSphere();
         const m = new THREE.Mesh(geo, mat); m.castShadow = o.cast !== false && !mat.userData.noCast; m.receiveShadow = o.receive !== false; parent.add(m); out.push(m); if (o.disp) o.disp.push(geo);
+        if (mat.userData.edges) { const eg = new THREE.EdgesGeometry(geo, mat.userData.edges); const ln = new THREE.LineSegments(eg, C3D.edgeMat()); ln.raycast = () => {}; m.add(ln); if (o.disp) o.disp.push(eg); } // v11: crisp outlines, like the drawing
       } return out;
     }
   };
@@ -6312,6 +8036,35 @@ C3D.cadAnalyse = (dr) => {
     upper: { x0: X(ux0), x1: X(ux1 + 1), top: C3D.simplify(sample(up.map(p => [p[0], p[1]]), 2), 0.035), bot: C3D.simplify(sample(up.map(p => [p[0], p[2]]), 2), 0.035) } };
 };
 C3D.cadOf = (dr) => dr._c3d || (dr._c3d = C3D.cadAnalyse(dr));
+// v11: the DWG line-work as a decal. The CAD items (cm) are drawn onto a transparent canvas — every line in dark ink, dark and grey fills as
+// shading, light fills left out so the paint shows — and cut to the outline the 3D body is extruded from, so the side of the 3D crane reads
+// exactly like the drawing. xf maps a CAD point (m) to the part's own frame; clip is that part's outline [[u, v], …] (or several).
+C3D.cadDecal = (parts, clips, o = {}) => {
+  const cl = Array.isArray(clips[0][0]) ? clips : [clips]; let u0 = 1e9, v0 = 1e9, u1 = -1e9, v1 = -1e9;
+  for (const c of cl) for (const [u, v] of c) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+  if (!(u1 > u0 && v1 > v0)) return null; const ppm = Math.min(o.ppm || 150, 4096 / (u1 - u0), 2048 / (v1 - v0));
+  const cv = document.createElement('canvas'); cv.width = Math.max(4, Math.ceil((u1 - u0) * ppm)); cv.height = Math.max(4, Math.ceil((v1 - v0) * ppm)); const x = cv.getContext('2d');
+  const P = (u, v) => [(u - u0) * ppm, (v1 - v) * ppm]; x.lineJoin = x.lineCap = 'round';
+  const lum = (hex) => { const h = String(hex || '#fff').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h.slice(0, 6), 16); return ((n >> 16 & 255) * 0.299 + (n >> 8 & 255) * 0.587 + (n & 255) * 0.114) / 255; };
+  for (const { items, pal, xf } of parts) for (const [f, ci, fl] of items) {
+    if (fl.length < 4) continue; x.beginPath(); for (let i = 0; i < fl.length; i += 2) { const q = xf(fl[i] / 100, fl[i + 1] / 100); if (!q) continue; const [X, Y] = P(q[0], q[1]); if (i) x.lineTo(X, Y); else x.moveTo(X, Y); }
+    const L = lum(pal[ci]);
+    if (f) { if (L > 0.78) continue; x.closePath(); x.globalAlpha = L < 0.35 ? 0.88 : 0.32; x.fillStyle = L < 0.35 ? '#141619' : pal[ci]; x.fill(); x.globalAlpha = 1; }
+    else { x.strokeStyle = o.ink || 'rgba(20,22,25,.82)'; x.lineWidth = Math.max(1.2, ppm * (o.lw || 0.022)); x.stroke(); }
+  }
+  // panel shading: a soft dark band along the bottom and a highlight along the top, as on a painted steel side
+  if (o.shade !== false) { const gr = x.createLinearGradient(0, 0, 0, cv.height); gr.addColorStop(0, 'rgba(255,255,255,.10)'); gr.addColorStop(0.12, 'rgba(255,255,255,0)'); gr.addColorStop(0.8, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.22)'); x.fillStyle = gr; x.fillRect(0, 0, cv.width, cv.height); }
+  x.globalCompositeOperation = 'destination-in'; x.fillStyle = '#000'; x.beginPath(); for (const c of cl) { c.forEach(([u, v], i) => { const [X, Y] = P(u, v); if (i) x.lineTo(X, Y); else x.moveTo(X, Y); }); x.closePath(); } x.fill('evenodd');
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+  return { tex, u0, v0, w: u1 - u0, h: v1 - v0 };
+};
+// two planes carrying a decal, one on each side face (z = ±z). One geometry, drawn from both sides: every point of the side keeps the
+// drawing's pixel for its own position, so the cab stays at the cab end on both faces.
+C3D.decalPlanes = (d, z, own, parent) => {
+  if (!d) return []; const mat = own(new THREE.MeshStandardMaterial({ map: own(d.tex), transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, roughness: 0.55, metalness: 0.1 }));
+  const geo = own(new THREE.PlaneGeometry(d.w, d.h)); geo.translate(d.u0 + d.w / 2, d.v0 + d.h / 2, 0);
+  return [1, -1].map((s) => { const m = new THREE.Mesh(geo, mat); m.position.z = s * z; m.renderOrder = 2; m.receiveShadow = true; parent.add(m); return m; });
+};
 // axle positions for m axles between the rear end u0 and the cab end u1: a steering group behind the cab, a drive group at the rear
 C3D.axlesFor = (m, u0, u1, truck) => {
   const f = Math.min(m - 1, Math.max(1, Math.round(m * (truck ? 0.4 : 0.5)))), xs = [];
@@ -6333,7 +8086,7 @@ C3D.model = (p) => {
       const uc = (ws[gi] + ws[gi + 1]) / 2; let d = m - ws.length, s;
       if (d > 0) { const nw = ws.slice(0, gi + 1); for (let k = 1; k <= d; k++) nw.push(ws[gi] + pitch * k); s = d * pitch; ws = nw.concat(ws.slice(gi + 1).map(u => u + s)); }
       else { d = Math.min(-d, gi); s = -d * pitch; ws = ws.slice(0, gi + 1 - d).concat(ws.slice(gi + 1).map(u => u + s)); }
-      if (Math.abs(s) > 1e-6) { // the same shift in the outline: a flat strip is opened up (or cut out) at the cut
+      if (Math.abs(s) > 1e-6) { M.cut = { uc, s }; // the same shift in the outline: a flat strip is opened up (or cut out) at the cut
         const y = (u) => C3D.profAt(top, u), nt = []; for (const q of top) if (q[0] < uc + Math.min(0, s) - 1e-6) nt.push(q);
         if (s > 0) nt.push([uc, y(uc)], [uc + s, y(uc)]); else nt.push([uc + s, y(uc + s)], [uc + s, y(uc)]); for (const q of top) if (q[0] >= uc) nt.push([q[0] + s, q[1]]); top = nt; u1 += s; }
     }
@@ -6382,11 +8135,11 @@ C3D.buildCrane = (p) => {
   const g = { disp: [] }; const own = (x) => (g.disp.push(x), x); const root = new THREE.Group(); g.root = root;
   const M = C3D.model(p), W = M.W, wr = M.wr, deck = M.deck, lift = 0.12, dr = M.cad ? p.dr : null; g.M = M; g.cad = !!dr;
   const col = p.paint || '#f5c400', mat = (o) => own(C3D.mat(o));
-  const paint = mat({ color: col, metalness: 0.1, roughness: 0.38, envMapIntensity: 0.55 });
-  const paintDk = mat({ color: '#' + new THREE.Color(col).multiplyScalar(0.66).getHexString(), metalness: 0.15, roughness: 0.5, envMapIntensity: 0.5 });
+  const paint = C3D.edged(own(new THREE.MeshPhysicalMaterial({ color: C3D.lin(col), metalness: 0.08, roughness: 0.5, clearcoat: 0.45, clearcoatRoughness: 0.3, envMapIntensity: 0.45 }))); // v11: clear-coated crane paint, outlined
+  const paintDk = C3D.edged(mat({ color: '#' + new THREE.Color(col).multiplyScalar(0.66).getHexString(), metalness: 0.15, roughness: 0.5, envMapIntensity: 0.5 }));
   const steel = mat({ color: '#31353b', metalness: 0.6, roughness: 0.46 });
   const frame = mat({ color: '#1b1e22', metalness: 0.3, roughness: 0.72 });
-  const cw = mat({ color: '#464b52', metalness: 0.32, roughness: 0.58 });
+  const cw = C3D.edged(mat({ color: '#464b52', metalness: 0.32, roughness: 0.58 }));
   const glass = mat({ color: '#0a141d', metalness: 0.95, roughness: 0.05, envMapIntensity: 1.6 });
   const tyre = mat({ color: '#0f1011', metalness: 0, roughness: 0.96 });
   const rim = mat({ color: '#c6ccd2', metalness: 0.9, roughness: 0.3 });
@@ -6406,10 +8159,26 @@ C3D.buildCrane = (p) => {
     for (const s of [-1, 1]) { const m4 = car.xf([u, yc, s * trk], [s * Math.PI / 2, 0, 0], [1, 1, 1]); car.geo(tyre, tyreG, m4); car.geo(rim, rimG, m4); }
   }
   tyreG.dispose(); rimG.dispose();
+  { // v11: mudguards over the tyres, side steps and the deck handrails
+    const fend = new THREE.CylinderGeometry(wr + 0.12, wr + 0.12, 0.62, 18, 1, true, Math.PI * 0.65, Math.PI * 0.7); // the arc over the top of the tyre
+    for (const u of M.axles) for (const s of [-1, 1]) car.geo(frame, fend, car.xf([u, yc, s * trk], [Math.PI / 2, 0, 0], [1, 1, 1]));
+    fend.dispose();
+    const ys = deck + 0.95; const rail = [u0 + 0.6, Math.min(u1 - 3.0, u0 + (u1 - u0) * 0.62)];
+    for (const s of [-1, 1]) { car.cyl(chrome, 0.025, rail[1] - rail[0], [(rail[0] + rail[1]) / 2, ys, s * (Wb / 2 - 0.05)], 'x', 6); for (let u = rail[0]; u <= rail[1] + 1e-6; u += Math.max(1.2, (rail[1] - rail[0]) / 6)) car.cyl(chrome, 0.02, 0.95, [u, deck + 0.48, s * (Wb / 2 - 0.05)], 'y', 6); }
+  }
   // body: the CAD outline from the cab to the tail, bottom cut away over the tyres
   const flatBot = (t) => (t > 3.0 ? 0.85 : Math.max(0.95, Math.min(t - 0.5, deck - 0.5)));
   const bot = []; for (let u = u1; u >= u0 - 1e-6; u -= 0.1) { const t = C3D.profAt(top, u); let b = flatBot(t); for (const a of M.axles) { const ra = wr + 0.1, du = u - a; if (Math.abs(du) < ra) b = Math.max(b, yc + Math.sqrt(ra * ra - du * du)); } bot.push([u, Math.min(b, t - 0.07)]); }
   car.poly(paint, top.concat(bot), -Wb / 2, Wb / 2, 0.025);
+  // v11: the drawing's own line-work on both sides of the carrier (and, below, the superstructure and every boom section)
+  let upItems = null;
+  if (dr) {
+    const A0 = C3D.cadOf(dr), sg = A0.sgn, cut = M.cut; const body = typeof cleanBody === 'function' ? cleanBody(dr) : dr.body; const carItems = []; upItems = [];
+    for (const it of body) { const fl = it[2]; let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (let i = 0; i < fl.length; i += 2) { a = Math.min(a, fl[i]); c = Math.max(c, fl[i]); b = Math.min(b, fl[i + 1]); d = Math.max(d, fl[i + 1]); }
+      const cx = (a + c) / 200, cy = (b + d) / 200; (cx >= M.up.x0 - 0.1 && cx <= M.up.x1 + 0.1 && cy > deck + 0.08 ? upItems : carItems).push(it); }
+    const cu = (x) => { let u = sg * x; if (cut && u >= cut.uc) u += cut.s; return u; };
+    try { C3D.decalPlanes(C3D.cadDecal([{ items: carItems, pal: dr.pal, xf: (x, y) => [cu(x), y] }], top.concat(bot)), Wb / 2 + 0.012, own, root); } catch (e) { console.error(e); }
+  }
   // cab
   const roof = Math.max(C3D.profAt(top, u1 - 0.8), C3D.profAt(top, u1 - 1.3), C3D.profAt(top, u1 - 2.0)), sill = Math.max(roof - 1.2, 1.35); let cabBack = u1 - 2.4;
   for (let u = u1 - 1.2; u > u1 - 3.4; u -= 0.05) if (C3D.profAt(top, u) < roof - 0.3) { cabBack = u; break; }
@@ -6442,16 +8211,25 @@ C3D.buildCrane = (p) => {
   U.poly(cw, region(x0, xc, cwCap, 0), -(W - 0.3) / 2, (W - 0.3) / 2, 0.02);
   for (let y = cwB + 0.55; y < cwCap - 0.2; y += 0.55) { let xl = x0; while (xl < xc && tA(xl) < y) xl += 0.05; U.box(frame, [xc - xl, 0.035, W - 0.3 + 0.03], [(xl + xc) / 2, y, 0]); }
   // body, then the front: the lower deck at full width and the operator's cab beside the boom
-  const xCab = Math.max(M.pivX + 1.6, x1 - 2.2), sillU = 0.95;
+  const xCab = Math.max(M.pivX + 1.6, x1 - 2.2), sillU = 0.95; g.cabPt = [x1 - 0.35, sillU + 1.5, -Wu / 2 - 0.2]; // v11: the operator's eye, in the superstructure's frame
   U.poly(paint, region(xc, xCab, 99, 0), -Wu / 2, Wu / 2, 0.025);
   U.poly(paint, region(xCab, x1, sillU, 0), -Wu / 2, Wu / 2, 0.025);
   { const ct = C3D.profClip(uT, xCab, x1); if (Math.max(...ct.map(q => q[1])) > sillU + 0.4) { const cp = ct.map(q => [q[0], Math.max(q[1], sillU + 0.05)]).concat([[x1, sillU], [xCab, sillU]]); const cwid = 1.35, zc0 = -Wu / 2, zc1 = zc0 + cwid; U.poly(paint, cp, zc0, zc1, 0.025);
       const cx = (xCab + x1) / 2, cyy = (Math.max(...ct.map(q => q[1])) + sillU) / 2, win = cp.map(q => [cx + (q[0] - cx) * 0.8, cyy + (q[1] - cyy) * 0.7]); U.poly(glass, win, zc0 - 0.015, zc0 + 0.012); U.poly(glass, win, zc1 - 0.012, zc1 + 0.015);
       const fa = ct[ct.length - 1], ym = Math.max(...ct.map(q => q[1])), fb = ct.slice().reverse().find(q => q[1] >= ym - 0.12) || fa; if (fa && fb && x1 - fb[0] > 0.1 && fb[1] - fa[1] > 0.3) { const dx = x1 - fb[0], dy = fa[1] - fb[1], L = Math.hypot(dx, dy); if (L > 0.3) U.box(glass, [L, 0.03, cwid - 0.15], [(x1 + fb[0]) / 2 + (-dy / L) * 0.02, (fa[1] + fb[1]) / 2 + (dx / L) * 0.02, (zc0 + zc1) / 2], [0, 0, Math.atan2(dy, dx)]); } } }
+  // v11: the main hoist drum (rope wound on it) at the back of the superstructure, and a handrail on top
+  { const xd = Math.max(x0 + 1.2, xc + 0.6), yd = Math.min(tA(xd) + 0.35, g.ph + 0.2); U.cyl(steel, 0.42, Wu * 0.55, [xd, yd, 0], 'z', 22); U.cyl(frame, 0.47, 0.06, [xd, yd, Wu * 0.28], 'z', 22); U.cyl(frame, 0.47, 0.06, [xd, yd, -Wu * 0.28], 'z', 22);
+    const yt = Math.max(...uT.filter(q => q[0] > xc && q[0] < xCab).map(q => q[1]), 1.5) + 0.9; for (const s of [-1, 1]) { U.cyl(chrome, 0.025, Math.max(0.5, xCab - xc - 0.4), [(xc + xCab) / 2, yt, s * (Wu / 2 - 0.1)], 'x', 6); } }
   // boom foot: cheek plates and pin
   const bw = 0.9 * (p.D || 1.4), pvl = g.ph; for (const s of [-1, 1]) U.box(paintDk, [0.7, 1.1, 0.12], [M.pivX + 0.25, pvl - 0.15, s * (bw / 2 + 0.16)]);
   U.cyl(steel, 0.11, bw + 0.6, [M.pivX, pvl, 0], 'z', 12);
   U.build(up, { disp: g.disp });
+  if (dr && upItems && upItems.length) { // superstructure line-work: on the full-width body both sides; the operator's cab side also gets the cab
+    try { const xf = (x, y) => [x, y - deck]; const bodyClip = [region(xc, xCab, 99, 0), region(xCab, x1, sillU, 0)];
+      const one = (clips, z) => { const d = C3D.cadDecal([{ items: upItems, pal: dr.pal, xf }], clips); if (!d) return; const mat = own(new THREE.MeshStandardMaterial({ map: own(d.tex), transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, roughness: 0.55, metalness: 0.1 }));
+        const geo = own(new THREE.PlaneGeometry(d.w, d.h)); geo.translate(d.u0 + d.w / 2, d.v0 + d.h / 2, 0); const m = new THREE.Mesh(geo, mat); m.position.z = z; m.renderOrder = 2; up.add(m); };
+      one(bodyClip, Wu / 2 + 0.012); const ct = C3D.profClip(uT, xCab, x1); const cabClip = ct.map(q => [q[0], Math.max(q[1], sillU + 0.05)]).concat([[x1, sillU], [xCab, sillU]]); one(bodyClip.concat([cabClip]), -Wu / 2 - 0.012);
+    } catch (e) { console.error(e); } }
   // ---------- telescopic boom ----------
   const boom = new THREE.Group(); boom.position.set(M.pivX, pvl, 0); up.add(boom); g.boom = boom;
   const secs = [], n = p.n || 5; let tipN = 0, tipR = 0.35;
@@ -6466,8 +8244,12 @@ C3D.buildCrane = (p) => {
   g.secs = []; g.drSecs = secs; g.tipN = tipN; g.tipR = tipR;
   secs.forEach((s, i) => {
     const w = s.d * 0.88, geo = own(C3D.prismX(w, s.d, Math.min(w, s.d) * 0.2)); const sec = new THREE.Mesh(geo, paint); sec.castShadow = sec.receiveShadow = true; sec.position.y = s.q; boom.add(sec);
+    { const eg = own(new THREE.EdgesGeometry(geo, 20)); sec.add(new THREE.LineSegments(eg, C3D.edgeMat())); }
     let colr = null; if (i < n - 1) { colr = new THREE.Mesh(C3D._ub, steel); colr.castShadow = true; colr.scale.set(0.42, s.d * 1.05, w * 1.05); colr.position.y = s.q; boom.add(colr); }
-    g.secs.push({ sec, col: colr, d: s.d, w });
+    let dec = null; // v11: the section's own CAD line-work on both side faces
+    if (dr && dr.secs[i]?.items?.length) { try { const ds = dr.secs[i], d = C3D.cadDecal([{ items: ds.items, pal: dr.pal, xf: (x, y) => [x - s.s0, y] }], [[0, s.q - s.d / 2], [s.len, s.q - s.d / 2], [s.len, s.q + s.d / 2], [0, s.q + s.d / 2]], { ppm: 120, lw: 0.03 });
+      if (d) { dec = new THREE.Group(); C3D.decalPlanes(d, w / 2 + 0.01, own, dec); boom.add(dec); } } catch (e) { console.error(e); } }
+    g.secs.push({ sec, col: colr, d: s.d, w, dec });
   });
   if (p.livery) { // company lettering on both faces of the base section
     const tex = own(C3D.textTex(p.livery, { color: C3D.lum(p.paint || '#f5c400') > 0.55 ? '#111111' : '#ffffff' }));
@@ -6500,7 +8282,7 @@ C3D.pose = (g, st, world) => {
   const th = st.theta * Math.PI / 180; g.upper.rotation.y = st.slew * Math.PI / 180; g.boom.rotation.z = th;
   if (dr) { // sections slide exactly as the 2D elevation draws them (cadSections)
     const L = st.L || (p.Lmin + st.fr.reduce((a, f) => a + f * p.E, 0)), cs = cadSections(dr, L, st.fr); K = cs.k; const starts = [], lens = [];
-    g.secs.forEach(({ sec, col, d }, i) => { const s = g.drSecs[i], L0 = s.len * K, x0 = (s.s0 + cs.D[i]) * K; starts.push(x0); lens.push(L0); sec.scale.x = L0; sec.position.x = x0; if (col) col.position.x = x0 + L0 - 0.21; });
+    g.secs.forEach(({ sec, col, d, dec }, i) => { const s = g.drSecs[i], L0 = s.len * K, x0 = (s.s0 + cs.D[i]) * K; starts.push(x0); lens.push(L0); sec.scale.x = L0; sec.position.x = x0; if (col) col.position.x = x0 + L0 - 0.21; if (dec) { dec.position.x = x0; dec.scale.x = K; } });
     lay = { starts, lens, tip: (dr.tip[0] + cs.D[cs.D.length - 1]) * K, k: 1, foot: 0, head: 0, n: starts.length };
   } else {
     const spec = { n: p.n, lens: p.lens, lo: 0.3, E: p.E, foot: p.foot, head: p.head }; lay = boomLayout(spec, st.L || (p.Lmin + st.fr.reduce((a, f) => a + f * p.E, 0)), st.fr); K = lay.k;
@@ -6582,7 +8364,7 @@ C3D.paramsFor = (crane, plan, calc, livery) => {
   const sp = typeof outSpans === 'function' ? outSpans(crane, plan ? outExtOf(plan) : { left: 'full', right: 'full' }) : null;
   return { Lc: num(crane.carrierLen, 15), W: num(crane.width, 2.9), axles: Math.max(2, Math.round(num(crane.axles, 6))), outT: num(crane.outTrans, 8), outL: num(crane.outLong, 8), outEx: num(crane.outEx, 0), tail: num(crane.tail, 5),
     pivX: dr ? dr.pivot[0] : num(crane.pivotX, -1.5), pivH: dr ? dr.pivot[1] : num(crane.pivotH, 3.2), D: b ? Math.max(0.8, b.qb - b.qa) : spec.D, qc: b ? (b.qa + b.qb) / 2 : null,
-    paint: crane.tint || !dr ? (crane.color || '#f5c400') : (isLightFill(b?.fill) ? b.fill : '#f2f2f2'), n: spec.n, lens: spec.lens, E: spec.E, foot: spec.foot, head: spec.head, Lmin: spec.Lmin, Lmax: spec.Lmax,
+    paint: crane.color || '#f5c400', /* v11: the fleet colour (the drawings' pale fills made the 3D look washed out) */ n: spec.n, lens: spec.lens, E: spec.E, foot: spec.foot, head: spec.head, Lmin: spec.Lmin, Lmax: spec.Lmax,
     cwt, cwtR: cmax > 0 ? Math.max(0.25, Math.min(1, cwt / cmax)) : 1, livery, truck: /truck/i.test(crane.type || ''), mat: matDims(plan?.matSize)[0], falls: Math.max(2, Math.round(num(plan?.falls, 4))),
     dr, dkey: dr ? String(crane.drawing || '') : '', ...(sp ? { oTL: sp.yL, oTR: sp.yR } : {}) };
 };
@@ -6685,16 +8467,35 @@ C3D.twin = (host0, opts = {}) => {
   const coarse = window.matchMedia('(pointer: coarse)').matches; const dprMax = Math.min(window.devicePixelRatio || 1, 2); let dpr = dprMax;
   const r = C3D.makeRenderer(host, { aa: !coarse || dprMax < 2, exposure: 1.0, maxDpr: dprMax, shadows: true });
   r.domElement.classList.add('twin-cv');
-  const scene = new THREE.Scene(); scene.background = C3D.gradTex([[0, '#0b0f15'], [0.55, '#18212b'], [1, '#2a3440']]); scene.fog = new THREE.Fog(C3D.lin('#1f2833'), 220, 700);
+  const scene = new THREE.Scene(); scene.background = C3D.lin('#9fb9d4'); scene.fog = new THREE.Fog(C3D.lin('#c9d3dc'), 260, 1400);
+  { // v11: an evening sky dome with the sun's glow (game-like light, still readable)
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 32, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
+      uniforms: { top: { value: C3D.lin('#2f5d93') }, mid: { value: C3D.lin('#8fb3d8') }, hor: { value: C3D.lin('#f3d9b5') }, sun: { value: new THREE.Vector3(-0.45, 0.55, 0.7).normalize() } },
+      vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
+      fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 hor; uniform vec3 sun; varying vec3 vD; void main(){ float h = max(vD.y, 0.); vec3 c = mix(hor, mid, smoothstep(0., .22, h)); c = mix(c, top, smoothstep(.22, .9, h)); float s = max(dot(vD, sun), 0.); c += vec3(1., .82, .55) * (pow(s, 420.) * 3. + pow(s, 12.) * .35); if (vD.y < 0.) c = mix(hor, vec3(.55,.5,.44), smoothstep(0., .06, -vD.y)); gl_FragColor = vec4(c, 1.); }' }));
+    sky.renderOrder = -10; sky.frustumCulled = false; scene.add(sky); scene.userData.sky = sky; }
   const cam = new THREE.PerspectiveCamera(38, W0() / H0(), 0.3, 3000);
-  scene.add(new THREE.HemisphereLight(C3D.lin('#c4d6ee'), C3D.lin('#3a3128'), 0.7)); const envRT = C3D.envMap(r, 'dark'); scene.environment = envRT.texture;
-  const sun = new THREE.DirectionalLight(C3D.lin('#fff0d8'), 1.45); sun.position.set(-70, 120, 80); sun.castShadow = true; sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048); sun.shadow.bias = -0.0004;
+  scene.add(new THREE.HemisphereLight(C3D.lin('#d6e6f7'), C3D.lin('#7a6448'), 0.5)); const envRT = C3D.envMap(r, 'light'); scene.environment = envRT.texture;
+  const sun = new THREE.DirectionalLight(C3D.lin('#ffe2bc'), 1.75); sun.position.set(-70, 95, 110); sun.castShadow = true; sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048); sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.03; scene.add(sun.target);
   Object.assign(sun.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, near: 10, far: 420 }); scene.add(sun);
-  const fill = new THREE.DirectionalLight(C3D.lin('#8fb6ff'), 0.35); fill.position.set(80, 40, -60); scene.add(fill);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), C3D.mat({ color: '#3a4048', roughness: 0.95 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  const grid = new THREE.GridHelper(400, 80, C3D.lin('#5e7891'), C3D.lin('#465564')); grid.position.y = 0.02; grid.material.transparent = true; grid.material.opacity = 0.55; scene.add(grid);
+  const fill = new THREE.DirectionalLight(C3D.lin('#9cc0ff'), 0.4); fill.position.set(80, 40, -60); scene.add(fill);
+  // v11: desert ground, a concrete hardstand under the crane, a faint planning grid
+  const gTex = C3D.noiseTex('#b59f7c', 26, 256, { seed: 11 }); gTex.repeat.set(300, 300);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ map: gTex, color: C3D.lin('#d8c6a4'), roughness: 0.98 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const hTex = C3D.noiseTex('#a7a49d', 18, 256, { seed: 5, cracks: 5, joints: true }); hTex.repeat.set(12, 12);
+  const hard = new THREE.Mesh(new THREE.CircleGeometry(30, 64), new THREE.MeshStandardMaterial({ map: hTex, color: C3D.lin('#cfcac0'), roughness: 0.9 })); hard.rotation.x = -Math.PI / 2; hard.position.y = 0.012; hard.receiveShadow = true; scene.add(hard);
+  const grid = new THREE.GridHelper(400, 80, C3D.lin('#6b5a3e'), C3D.lin('#7d6c4f')); grid.position.y = 0.02; grid.material.transparent = true; grid.material.opacity = 0.16; grid.material.depthWrite = false; scene.add(grid);
+  // the exclusion zone round the tail swing: red / white posts with a chain (rebuilt when the tail changes)
+  const barrier = new THREE.Group(); scene.add(barrier); const bPostM = C3D.mat({ map: C3D.stripeTex('#d01f1f', '#f4f4f4'), roughness: 0.6 }), chainM = new THREE.LineBasicMaterial({ color: C3D.lin('#c4161c') });
+  const buildBarrier = (rad) => { while (barrier.children.length) { const c = barrier.children.pop(); c.geometry?.dispose(); } const n = Math.max(10, Math.round(2 * Math.PI * rad / 2.4)); const pg = new THREE.CylinderGeometry(0.05, 0.06, 1.0, 8); const im = new THREE.InstancedMesh(pg, bPostM, n); const m4 = new THREE.Matrix4(); const pts = [];
+    for (let i = 0; i < n; i++) { const a = 2 * Math.PI * i / n; m4.makeTranslation(rad * Math.cos(a), 0.5, rad * Math.sin(a)); im.setMatrixAt(i, m4); const b = 2 * Math.PI * (i + 1) / n; for (let k = 0; k < 4; k++) { const t0 = a + (b - a) * k / 4, t1 = a + (b - a) * (k + 1) / 4, sag = (q) => 0.88 - 0.12 * Math.sin(Math.PI * q); pts.push(rad * Math.cos(t0), sag(k / 4), rad * Math.sin(t0), rad * Math.cos(t1), sag((k + 1) / 4), rad * Math.sin(t1)); } }
+    im.castShadow = true; barrier.add(im); const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); barrier.add(new THREE.LineSegments(lg, chainM)); };
   const site = new THREE.Group(), dyn = new THREE.Group(), tand = new THREE.Group(); scene.add(site, dyn, tand);
   // shared materials (made once — the old twin made new ones on every update and never freed them)
+  const facade = C3D.facadeTex(); const facadeMats = new Map(); // one material per façade size (the windows keep their size on any building)
+  const facadeMat = (len, hgt, dep) => { const k = [Math.round(len), Math.round(hgt), Math.round(dep)].join('x'); let m = facadeMats.get(k); if (m) return m;
+    const side = (w) => { const t = facade.clone(); t.needsUpdate = true; t.repeat.set(Math.max(1, w / 4), Math.max(1, hgt / 3.4)); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.82, metalness: 0.05 }); };
+    const roof = C3D.mat({ color: '#8f8a80', roughness: 0.95 }); m = [side(dep), side(dep), roof, roof, side(len), side(len)]; facadeMats.set(k, m); return m; };
   const M = { conc: C3D.mat({ color: '#8a9097', roughness: 0.9 }), dark: C3D.mat({ color: '#454b52', roughness: 0.7 }), tm: C3D.mat({ color: '#d4a51e', metalness: 0.4, roughness: 0.5 }), cont: C3D.mat({ color: '#2f6fb3', roughness: 0.6, metalness: 0.4 }), box: C3D.mat({ color: '#9b7bc6' }), shed: C3D.mat({ color: '#c8b48c' }), trunk: C3D.mat({ color: '#5a3a1e' }), leaf: C3D.mat({ color: '#2f6b2f', roughness: 1 }), load: C3D.mat({ color: '#9aa1a8', metalness: 0.1, roughness: 0.85 }) };
   const ringM = (col, op) => new THREE.MeshBasicMaterial({ color: C3D.lin(col), transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false });
   const ringR = new THREE.Mesh(new THREE.BufferGeometry(), ringM('#4fe0ff', 0.9)), ringT = new THREE.Mesh(new THREE.BufferGeometry(), ringM('#ffb81c', 0.85));
@@ -6706,7 +8507,12 @@ C3D.twin = (host0, opts = {}) => {
   // camera: `to` is where the gestures put it, `orb` eases toward it
   const to = { az: -0.75, el: 0.42, dist: 90, tx: 10, ty: 12, tz: 0 }; const orb = { ...to }; let phS = 0, easing = false;
   const applyCam = () => { cam.position.set(orb.tx + orb.dist * Math.cos(orb.el) * Math.cos(orb.az), orb.ty + orb.dist * Math.sin(orb.el), orb.tz + orb.dist * Math.cos(orb.el) * Math.sin(orb.az)); cam.lookAt(orb.tx, orb.ty, orb.tz); };
-  const go = (snap) => { if (snap || reduceMotion3()) { Object.assign(orb, to); applyCam(); } easing = !snap; dirty = true; };
+  const go = (snap) => { if (camMode !== 'orbit') return; if (snap || reduceMotion3()) { Object.assign(orb, to); applyCam(); } easing = !snap; dirty = true; };
+  // v11: the operator's seat — the camera sits in the superstructure cab and looks at the hook (drag to look round, wheel / pinch to zoom)
+  let camMode = 'orbit'; const look = { yaw: 0, pitch: 0, fov: 58 };
+  const placeCab = () => { if (!g?.cabPt) return; const p = new THREE.Vector3(...g.cabPt); g.upper.localToWorld(p); const t = g.hook.position.clone(); t.y = Math.max(1, t.y - 3);
+    const d = t.sub(p).normalize(); const az = Math.atan2(d.z, d.x) + look.yaw, el = Math.max(-1.2, Math.min(1.3, Math.asin(d.y) + look.pitch));
+    cam.position.copy(p); cam.lookAt(p.x + Math.cos(el) * Math.cos(az), p.y + Math.sin(el), p.z + Math.cos(el) * Math.sin(az)); if (cam.fov !== look.fov) { cam.fov = look.fov; cam.updateProjectionMatrix(); } dirty = true; };
   function reduceMotion3() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   // ---- gestures ----
   const el = r.domElement; el.style.touchAction = 'none'; const ptrs = new Map(); let drag = null, pinch = null, lastTap = 0, moving = false;
@@ -6718,7 +8524,7 @@ C3D.twin = (host0, opts = {}) => {
     if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, o: { ...to } }; drag = null; return; }
     const now = performance.now(); if (now - lastTap < 300 && e.pointerType !== 'mouse') { framed = false; opts.onReframe?.(); lastTap = 0; return; } lastTap = now;
     if (e.button === 0 && !e.shiftKey && hitPad(e)) { drag = { kind: 'pad', y: pad.position.y }; el.style.cursor = 'grabbing'; return; }
-    drag = { kind: e.button === 2 || e.shiftKey ? 'pan' : 'orbit', x: e.clientX, y: e.clientY, o: { ...to } };
+    drag = { kind: e.button === 2 || e.shiftKey ? 'pan' : 'orbit', x: e.clientX, y: e.clientY, o: { ...to }, lk: { ...look } };
   });
   el.addEventListener('pointermove', (e) => {
     if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -6731,6 +8537,7 @@ C3D.twin = (host0, opts = {}) => {
     if (!drag) return;
     if (drag.kind === 'pad') { const w = groundAtPtr(e, drag.y); if (w) opts.onPad(w.x + orbBase.cx, -w.z + orbBase.cy, 'move'); return; }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (camMode === 'cab') { look.yaw = drag.lk.yaw + dx * 0.004; look.pitch = Math.max(-0.9, Math.min(0.9, drag.lk.pitch - dy * 0.004)); placeCab(); return; }
     if (drag.kind === 'pan') { const s = to.dist / 600; to.tx = drag.o.tx - dx * Math.sin(to.az) * s; to.tz = drag.o.tz + dx * Math.cos(to.az) * s; to.ty = Math.max(0, drag.o.ty + dy * s); }
     else { to.az = drag.o.az + dx * 0.006; to.el = Math.max(0.03, Math.min(1.5, drag.o.el + dy * 0.005)); }
     go();
@@ -6738,7 +8545,7 @@ C3D.twin = (host0, opts = {}) => {
   const up = (e) => { ptrs.delete(e.pointerId); if (drag?.kind === 'pad') { opts.onPad?.(0, 0, 'end'); el.style.cursor = ''; } if (ptrs.size < 2) pinch = null; drag = null; if (!ptrs.size) moving = false; };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('contextmenu', (e) => e.preventDefault());
   el.addEventListener('dblclick', () => { framed = false; opts.onReframe?.(); });
-  el.addEventListener('wheel', (e) => { e.preventDefault(); to.dist = Math.max(12, Math.min(600, to.dist * Math.exp(e.deltaY * 0.0012))); go(); }, { passive: false });
+  el.addEventListener('wheel', (e) => { e.preventDefault(); if (camMode === 'cab') { look.fov = Math.max(20, Math.min(80, look.fov * Math.exp(e.deltaY * 0.001))); placeCab(); return; } to.dist = Math.max(12, Math.min(600, to.dist * Math.exp(e.deltaY * 0.0012))); go(); }, { passive: false });
   const orbBase = { cx: 0, cy: 0 };                                                    // plan point at the scene origin (the lead crane)
   // ---- size, render loop, quality governor ----
   const resize = () => { const w = W0(), h = H0(); r.setSize(w, h, false); cam.aspect = w / Math.max(1, h); cam.updateProjectionMatrix(); dirty = true; };
@@ -6785,7 +8592,7 @@ C3D.twin = (host0, opts = {}) => {
         if (o.type === 'towercrane' && num(o.jib) > 0) { const jb = C3D.lattice(num(o.jib), 1.5, 1.2, M.tm, { bay: 2, r: 0.05, taper: 0.3 }); jb.position.y = hh + 0.5; m.add(jb); }
         m.position.y = e.b; place(m, num(o.x)); }
       else { const mat = o.type === 'container' ? M.cont : o.type === 'trailer' || o.type === 'truck' ? M.dark : o.type === 'box' ? M.box : o.type === 'shed' ? M.shed : M.conc;
-        m = C3D.box(len, hgt, dep, mat); m.position.y = e.b + hgt / 2; place(m, (e.x0 + e.x1) / 2); }
+        m = C3D.box(len, hgt, dep, o.type === 'building' && hgt > 2 ? facadeMat(len, hgt, dep) : mat); m.position.y = e.b + hgt / 2; place(m, (e.x0 + e.x1) / 2); }
       site.add(m);
     }
     for (const en of plan.env || []) { if (en.view !== 'plan' || en.hidden) continue; const gm = typeof ENV_CACHE !== 'undefined' ? ENV_CACHE[en.id] : null; if (!gm) continue; const f = envXf(en);
@@ -6805,7 +8612,7 @@ C3D.twin = (host0, opts = {}) => {
     gg.state.loadSize = [Math.max(0.6, num(load.l, 2)), Math.max(0.3, num(load.h, 1.5)), Math.max(0.6, num(load.l, 2) * 0.6)]; gg.state.rig = res.rigH || 3;
     { const tk = (load.tackles || []).find(t => t && t.type === 'sling') || (load.tackles || []).find(t => t) || null; let si = null; try { si = typeof SLING_INFO === 'function' && tk ? SLING_INFO(tk) : null; } catch {}
       gg.state.slingCol = (si && (si.colour || si.color)) || '#d13b2a'; let lg = Math.round(num(tk?.legs, 0)); if (!(lg > 0)) { try { lg = typeof slingInfo === 'function' ? num(slingInfo(load)?.legs, 0) : 0; } catch { lg = 0; } } gg.state.legs = Math.max(1, Math.min(4, lg || 4)); }
-    gg.state.empty = !!res.empty; gg.state.hookY = res.empty && res.hookY != null ? res.hookY + 0.95 : res.landY + num(load.h, 1.5) + (res.rigH || 3) + 0.95 + 0.5;
+    gg.state.empty = !!res.empty; gg.state.hookY = (res.empty && res.hookY != null ? res.hookY + 0.95 : res.landY + num(load.h, 1.5) + (res.rigH || 3) + 0.95 + 0.5) + num(res.lift, 0);
     gg.root.rotation.y = carHd * D2R; C3D.pose(gg, gg.state, scene);
   };
   const api = {
@@ -6821,7 +8628,9 @@ C3D.twin = (host0, opts = {}) => {
       // rings, landing pad, labels — moved in place
       const dir = new THREE.Vector3(Math.cos(sp.boom * D2R), 0, -Math.sin(sp.boom * D2R));
       if (Math.abs(res.R - lastR) > 0.004) { lastR = res.R; ringGeo(ringR, res.R, 0.14, 180); } ringR.position.y = 0.05;
-      const tl = num(crane.tail, 5); if (tl !== lastTail) { lastTail = tl; ringGeo(ringT, tl, 0.09, 96); } ringT.position.y = 0.05;
+      const tl = num(crane.tail, 5); if (tl !== lastTail) { lastTail = tl; ringGeo(ringT, tl, 0.09, 96); buildBarrier(tl + 1.0); } ringT.position.y = 0.05;
+      { const ext = Math.max(30, res.R + 12, (geo.tip?.y || 20) * 0.8); const sc = sun.shadow.camera; if (Math.abs(sc.right - ext) > 1) { Object.assign(sc, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 600 }); sc.updateProjectionMatrix(); }
+        sun.target.position.set(dir.x * res.R * 0.4, 0, dir.z * res.R * 0.4); sun.position.set(sun.target.position.x - 70, 95, sun.target.position.z + 110); }
       const T = res.tandem; const padOn = !T;
       pad.visible = padDot.visible = padHit.visible = padOn;
       pad.position.set(dir.x * res.R, res.landY + 0.06, dir.z * res.R); padDot.position.copy(pad.position); padHit.position.copy(pad.position); padHit.scale.setScalar(Math.max(1.6, res.R * 0.07));
@@ -6852,18 +8661,21 @@ C3D.twin = (host0, opts = {}) => {
       for (const [k, ex] of extra) if (!seen.has(k)) { ex.g.root.visible = ex.g.hook.visible = ex.g.rope.visible = ex.g.slings.visible = ex.g.load.visible = false; }
       { const reach = Math.max(20, res.R, (geo.tip?.y || 20), ...(T ? T.picks.map(p => Math.hypot(p.base.x - sp.cx, p.base.y - sp.cy) * 0.6) : []));
         api._auto = { dist: reach * 2.0, az: Math.PI / 2 - phS * D2R - 0.75, el: 0.36, tx: res.R * 0.45 * dir.x, tz: res.R * 0.45 * dir.z, ty: Math.max(6, (geo.tip?.y || 20) * 0.38) }; }
-      if (!framed) { Object.assign(to, api._auto); go(!api._shown); framed = true; api._shown = true; }
+      if (!framed && camMode === 'orbit') { Object.assign(to, api._auto); go(!api._shown); framed = true; api._shown = true; }
+      if (camMode === 'cab') placeCab();
       dirty = true;
     },
     reframe() { framed = false; dirty = true; },
+    mode: () => camMode,
     look(c) { Object.assign(to, c); go(true); },                                          // put the camera somewhere exact ({ az, el, dist, tx, ty, tz })
     zoom(f) { to.dist = Math.max(12, Math.min(600, to.dist / f)); go(); },
-    view(kind) { const a0 = Math.PI / 2 - num(phS) * D2R; if (kind === 'side') { to.az = a0; to.el = 0.04; } else if (kind === 'top') { to.az = a0; to.el = 1.5; } else { to.az = a0 - 0.75; to.el = 0.36; } go(); },
+    view(kind) { if (kind === 'cab') { camMode = 'cab'; look.yaw = 0; look.pitch = 0; easing = false; placeCab(); return; } if (camMode !== 'orbit') { camMode = 'orbit'; cam.fov = 38; cam.updateProjectionMatrix(); Object.assign(orb, to); applyCam(); }
+      const a0 = Math.PI / 2 - num(phS) * D2R; if (kind === 'side') { to.az = a0; to.el = 0.04; } else if (kind === 'top') { to.az = a0; to.el = 1.5; } else { to.az = a0 - 0.75; to.el = 0.36; } go(); },
     // move the canvas into another box (full view ↔ the small window); the scene and the WebGL context stay
     mount(h2) { if (!h2 || h2 === host) return; host = h2; h2.appendChild(r.domElement); ro.disconnect(); ro = new ResizeObserver(resize); ro.observe(h2); resize(); dirty = true; },
     host: () => host,
     // a still for the PDF: rendered once at the size asked, then the screen size is put back
-    snapshot(w = 1600, h = 1000, auto) { const ow = W0(), oh = H0(), od = dpr, keep = { ...orb }; Object.assign(orb, auto && api._auto ? api._auto : to); applyCam(); r.setPixelRatio(1); r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); r.render(scene, cam); const url = r.domElement.toDataURL('image/jpeg', 0.9); if (auto) { Object.assign(orb, keep); applyCam(); } r.setPixelRatio(od); r.setSize(ow, oh, false); cam.aspect = ow / Math.max(1, oh); cam.updateProjectionMatrix(); dirty = true; return url; },
+    snapshot(w = 1600, h = 1000, auto) { const ow = W0(), oh = H0(), od = dpr, keep = { ...orb }; Object.assign(orb, auto && api._auto ? api._auto : to); applyCam(); r.setPixelRatio(1); r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); r.render(scene, cam); const url = r.domElement.toDataURL('image/jpeg', 0.9); if (auto) { Object.assign(orb, keep); applyCam(); if (camMode === 'cab') placeCab(); } r.setPixelRatio(od); r.setSize(ow, oh, false); cam.aspect = ow / Math.max(1, oh); cam.updateProjectionMatrix(); dirty = true; return url; },
     stats: () => ({ dpr, ema: Math.round(ema * 10) / 10, calls: r.info.render.calls, tris: r.info.render.triangles, geos: r.info.memory.geometries, tex: r.info.memory.textures }),
     dispose() { alive = false; cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener('visibilitychange', vis); try { C3D.disposeCrane(g); for (const ex of extra.values()) C3D.disposeCrane(ex.g); for (const k of Object.keys(labels)) dropLabel(k); disposeTree(site); C3D.disposeScene(scene); envRT.dispose(); r.dispose(); r.forceContextLoss(); } catch {} r.domElement.remove(); }
   };
@@ -7131,12 +8943,12 @@ function sceneMoveDrag(e) {
   } else if (d.kind === 'step') plan.site.stepX = r2(Math.max(0.5, snap(w.x)));
   else if (d.kind === 'pcrane') { plan.sitePlan = { ...(plan.sitePlan || {}), cx: r2(snap(num(O.sp.cx) + dx)), cy: r2(snap(num(O.sp.cy) + dy)) }; }
   else if (d.kind === 'pload') { // dragging the load swings the whole crane: the carrier turns so the boom stays on the chosen lift side
-    const sp = sitePlanState(plan, load); const ang = Math.round(Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D); const off = SIDE_OFFSET[sp.side];
+    const sp = sitePlanState(plan, load); const ang = Math.round(Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D); const off = typeof slewOf === 'function' ? slewOf(load) : SIDE_OFFSET[sp.side];
     plan.sitePlan = { ...(plan.sitePlan || {}), rot: Math.round(normDeg(ang)), carrierRot: Math.round(normDeg(ang - off)) };
     setRadius(load, Math.hypot(w.x - sp.cx, w.y - sp.cy));
   } else if (d.kind === 'pcar') { // dragging the cab end turns the carrier; the boom follows to the same side (sitePlan.rot is kept in step for older code)
     const sp = sitePlanState(plan, load); const ch = Math.round(normDeg(Math.atan2(w.y - sp.cy, w.x - sp.cx) * R2D));
-    plan.sitePlan = { ...(plan.sitePlan || {}), carrierRot: ch, rot: Math.round(normDeg(ch + SIDE_OFFSET[sp.side])) };
+    plan.sitePlan = { ...(plan.sitePlan || {}), carrierRot: ch, rot: Math.round(normDeg(ch + (typeof slewOf === 'function' ? slewOf(load) : SIDE_OFFSET[sp.side]))) };
   }
   Scene.hooks.edited('drag');
 }
@@ -7680,8 +9492,9 @@ function normalizePlan(p) {
     side0 = sideFromHeadings(num(out.sitePlan.rot), num(out.sitePlan.carrierRot));
     out.sitePlan.carrierRot = r2(normDeg(num(out.sitePlan.rot) - SIDE_OFFSET[side0]));
   }
-  out.loads.forEach(l => { l.side = legacySide ? side0 : sideOf(l); });
+  out.loads.forEach(l => { l.side = legacySide ? side0 : sideOf(l); if (!hasSlew(l)) l.slew = ''; else l.slew = r2(normDeg(num(l.slew))); l.hoist = num(l.hoist, 0) > 0 ? r2(num(l.hoist)) : 0; }); // v11: any slew angle, hoist (cab controls)
   out.sheetRows = { hide: {}, show: {}, custom: [], ov: {}, ...(p.sheetRows || {}) };
+  out.docs = p.docs && typeof p.docs === 'object' ? { ...p.docs } : {}; // v11: documentation for the report (v7/docs.js)
   // outriggers (v8): beams per side and hand-typed leg loads are per crane; plans from before v8 have neither → full legs, nothing typed
   const legs = (o) => { o.outExt = { left: 'full', right: 'full', ...(o.outExt && typeof o.outExt === 'object' ? o.outExt : {}) }; o.padMan = o.padMan && typeof o.padMan === 'object' ? { ...o.padMan } : {}; };
   legs(out); out.cranes.forEach(legs);

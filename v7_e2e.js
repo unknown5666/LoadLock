@@ -15,7 +15,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok(!(await ev(() => authCheck('Saad', '911'))), 'wrong code refused');
   await p.click('.lg-u[data-u="Saad"]'); await p.fill('#lgPass', '786'); await p.click('#lgGo'); await p.waitForTimeout(3000);
   ok(await ev(() => !document.body.classList.contains('locked') && authUser() === 'Saad'), 'signed in as Saad');
-  await ev(() => { LS.set('lp.coach7', true); LS.set('lp.new10', true); document.getElementById('coach')?.remove(); });
+  await ev(() => { LS.set('lp.coach7', true); LS.set('lp.new11', true); document.getElementById('coach')?.remove(); });
 
   // reach dial: + button moves the radius by 0.5 m, typed value sticks
   const R0 = await ev(() => state.calc.loads[0].R);
@@ -160,6 +160,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok(await ev(() => Array.isArray(state.plan.reportInc) && !state.plan.reportInc.includes(REPORT_SECTIONS[0].id)), 'a part can be unticked');
   await p.click('#sheet .sh-back'); await p.waitForTimeout(500);
   ok(await ev(() => V7.sheet.kind === 'print'), 'Back returns to Share & print');
+  await ev(() => { V7.docsOk = true; }); // v11: skip the documentation gate (v11_e2e.js tests it)
   await p.click('#sheet [data-sa="xbuild"][data-kind="rams"]'); await p.waitForSelector('#sheet .xc[data-kind="rams"] [data-sa="xsave"]', { timeout: 90000 });
   const inc = await ev(() => ({ asked: window.__bi[window.__bi.length - 1], want: state.plan.reportInc }));
   ok(JSON.stringify(inc.asked) === JSON.stringify(inc.want), 'the report was built with the chosen parts: ' + JSON.stringify(inc.asked));
@@ -175,9 +176,9 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await ev(() => closeSheet(true));
   // What's new in 10: one card with a Got it button
   await ev(() => openSheet('new10')); await p.waitForTimeout(400);
-  ok(await ev(() => document.querySelectorAll('#sheet .it.nw').length >= 6 && /Locked PDFs/.test(document.querySelector('#sheet').textContent)), "What's new in 10 lists the changes");
+  ok(await ev(() => document.querySelectorAll('#sheet .it.nw').length >= 6 && /Drive the crane/.test(document.querySelector('#sheet').textContent)), "What's new in 11 lists the changes");
   await p.click('#sheet [data-sa="new10ok"]'); await p.waitForTimeout(300); ok(await ev(() => !V7.sheet), 'Got it closes the card');
-  ok(await ev(() => APP_VERSION === '10.0'), 'version is 10.0');
+  ok(await ev(() => APP_VERSION === '11.0'), 'version is 11.0');
 
   // PDF download
   const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 90000 }), ev(() => exportPDF('A1'))]);

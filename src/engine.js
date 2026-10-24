@@ -140,7 +140,19 @@ function lookupCap(parsed, ci, R, mode = 'conservative') {
   const hi = pts.find(p => p[0] > R); const lo = [...pts].reverse().find(p => p[0] < R);
   if (mode === 'interpolate' && lo && hi) return { cap: r2(lo[1] + (hi[1] - lo[1]) * (R - lo[0]) / (hi[0] - lo[0])), row: R, interp: true };
   if (mode === 'curve' && lo && hi) return { cap: r2(curveCap(pts, R)), row: R, interp: true, curve: true };
-  return { cap: hi[1], row: hi[0], rounded: true };
+  // v11: a column that is not falling here (a few Liebherr columns rise at the steepest radii): the lower neighbour, never the higher one
+  return lo && lo[1] < hi[1] ? { cap: lo[1], row: lo[0], rounded: true, lower: true } : { cap: hi[1], row: hi[0], rounded: true };
+}
+// v11: jib charts printed against the MAIN-BOOM ANGLE instead of the radius (SANY / Zoomlion truck cranes: "working angle" rows).
+// Conservative: the row at the next angle DOWN (a flatter boom carries less); steeper than the top row → the top row's value; flatter than
+// the lowest row → not allowed.
+function lookupCapAngle(parsed, ci, ang) {
+  if (!parsed || ci == null || ci < 0 || ci >= parsed.cols.length) return { cap: null, why: 'No chart column selected' };
+  const pts = parsed.rows.filter(r => r[ci + 1] != null).map(r => [r[0], r[ci + 1]]); if (!pts.length) return { cap: null, why: 'Column has no values' };
+  const min = pts[0][0], max = pts[pts.length - 1][0];
+  if (!(ang >= min - 1e-9)) return { cap: null, why: `Main boom at ${(+ang).toFixed(1)}° is flatter than this jib chart allows (lowest ${min}°)` };
+  if (ang >= max - 1e-9) return { cap: pts[pts.length - 1][1], row: max, angle: true };
+  const lo = [...pts].reverse().find(p => p[0] <= ang + 1e-9); return { cap: lo[1], row: lo[0], angle: true, rounded: Math.abs(lo[0] - ang) > 1e-6 };
 }
 // v9 curve fit between chart radii: a monotone cubic (Fritsch–Carlson / PCHIP) through the column, so the curve bends the way a load chart
 // does instead of cutting straight across. Never more than the straight line between the two neighbouring points, never less than the next
@@ -423,6 +435,7 @@ function computeLoad(plan, crane, load, settings) {
   const capAt = (Rq) => {
     if (load.capOverride !== '' && load.capOverride != null && num(load.capOverride) > 0) return { cap: num(load.capOverride), manual: true };
     if (!parsed && !G.manual && res.dutyWhy) return { cap: null, why: res.dutyWhy };
+    if (parsed && chartDef?.rowsBy === 'angle') return lookupCapAngle(parsed, ci, g.theta); // v11: rows are main-boom angles
     if (G.manual) return num(plan.attach?.swl) > 0 ? { cap: num(plan.attach.swl), manual: true, jib: true } : { cap: null, why: 'Enter the jib SWL from the ' + (G.manual === 'fly' ? 'fly-jib' : 'luffing-jib') + ' load chart' };
     if (parsed && chartDef.kind === 'main' && boomOv > 0 && col && Math.abs(boomOv - col.L) > 0.05) {
       // boom between chart columns → take the lower capacity of the bracketing lengths
@@ -500,7 +513,7 @@ function computeLoad(plan, crane, load, settings) {
   const lim = num(S.utilMax, 85), warn = num(S.utilWarn, 75);
   if (res.cap == null) res.checks.push({ s: 'fail', t: 'Chart capacity', m: capInfo.why || 'No capacity' });
   else {
-    const note = capInfo.jib ? ' (jib SWL entered manually)' : capInfo.manual ? ' (entered manually)' : capInfo.wind ? ` (read at ${(R + res.wind.dR).toFixed(2)} m — the wind pushes the load ${res.wind.dR.toFixed(2)} m out)` : capInfo.between ? ` (lower of ${capInfo.between.join(' / ')} m columns)` : capInfo.rounded ? ` (taken at ${capInfo.row} m — next chart radius up)` : capInfo.curve ? ' (curve fit between chart radii)' : capInfo.interp ? ' (interpolated)' : '';
+    const note = capInfo.jib ? ' (jib SWL entered manually)' : capInfo.manual ? ' (entered manually)' : capInfo.wind ? ` (read at ${(R + res.wind.dR).toFixed(2)} m — the wind pushes the load ${res.wind.dR.toFixed(2)} m out)` : capInfo.between ? ` (lower of ${capInfo.between.join(' / ')} m columns)` : capInfo.angle ? ` (main boom at ${(+g.theta).toFixed(1)}°: read at the ${capInfo.row}° row${capInfo.rounded ? ', next angle down' : ''})` : capInfo.rounded ? ` (taken at ${capInfo.row} m — next chart radius up)` : capInfo.curve ? ' (curve fit between chart radii)' : capInfo.interp ? ' (interpolated)' : '';
     res.checks.push({ s: res.util > 100 ? 'fail' : res.util > lim ? 'fail' : res.util > warn ? 'warn' : 'ok', t: 'Capacity utilisation', m: `${res.util.toFixed(2)}% of ${res.cap.toFixed(2)} t${note}${daf ? ` — with DAF ${daf} (${design.toFixed(2)} t design load)` : ''}` + (res.util > lim && res.util <= 100 ? ` — over the ${lim}% limit` : res.util > warn && res.util <= lim ? ` — critical lift (> ${warn}%)` : '') });
   }
   if (jd || rope) res.checks.push({ s: 'info', t: 'Deductions', m: [jd ? `folded jib ${jd.toFixed(2)} t` : '', rope ? `hoist rope ${rope.toFixed(2)} t (${falls} falls × ${ropeLen.toFixed(1)} m × ${ropeKgM} kg/m)` : ''].filter(Boolean).join(' and ') + ' counted in the hook load, as the load chart asks' });
