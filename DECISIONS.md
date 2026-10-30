@@ -9,7 +9,7 @@ Calls made while building, including the owner's answers.
 - **Typed-over values:** the typed value prints unmarked and wins in the report, including its % and verdict. The app itself still shows a warning.
 - **Over 100 %:** red warning only. Exports stay open.
 - **Report pages:** permit, briefing and emergency come after risk when on. Data panel and fitted A1 are on by default.
-- **Exclusion zone:** radius + half the load + 2 m. Barrier: tail swing + 1 m. Both can be typed in `plan.site.exR` and `plan.site.barrierR`, which have no screen field yet.
+- **Exclusion zone:** radius + half the load + 2 m. Barrier: tail swing + 1 m. Both can be typed under Site, Zones.
 - **Sign-in:** left as it is.
 
 ## Made during the build
@@ -30,5 +30,6 @@ Calls made while building, including the owner's answers.
 - **Limits:** colours fixed at 75 and 90 %. The interpolation choice and limit fields are gone from Settings.
 
 ## Open risks
+- The push to GitHub needs the owner's sign-in; see the release notes in chat.
 - The GitHub repo is public, including charts, code and sign-in hashes. The owner set sign-in aside; making the repo private takes one setting.
 - Typed values that clear an over-limit lift print with no mark. The plan's history is only what the app warns about on screen.
