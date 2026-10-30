@@ -113,6 +113,12 @@ function wizCheck() {
   if (w.step === 3 && !(n('R') > 0)) return 'Type the working radius.';
   return '';
 }
+// the shortest boom whose chart column reaches the radius and carries the load; else the column that carries the most there
+function wizPickBoom() {
+  const p = state.plan, crane = curCrane(), l = p.loads[0]; let d = applyDuty({ quiet: true }); const ch = crane?.charts?.[+p.chartIdx]; const pr = ch && ch.kind === 'main' ? getChart(ch) : null; if (!pr) return d;
+  const need = num(l.w) * (1 + (l.contOn === false ? 0 : num(l.cont) / 100)) + num(l.hb) + num(l.tk); const rows = pr.cols.map((c, i) => ({ L: c.L, cap: lookupCap(pr, i, num(l.R)).cap })).filter(x => x.cap != null).sort((a, b) => a.L - b.L);
+  const pick = rows.find(x => x.cap >= need) || rows.reduce((a, b) => (!a || b.cap > a.cap ? b : a), null); if (pick) d = applyDuty({ L: pick.L, quiet: true }); return d;
+}
 function wizFinish() {
   const w = V7.wiz; const n = (k, d = 0) => { const v = parseFloat(String(w[k]).replace(',', '.')); return isFinite(v) ? v : d; };
   const client = { company: w.company.trim(), logo: w.logo, accent: w.accent, address: w.address, contact: w.contact, phone: w.phone, email: w.email, project: w.project, site: w.site, ref: w.ref };
@@ -127,7 +133,7 @@ function wizFinish() {
   wizApplySections(p, w.sections || wizPreselect(w));
   V7.wiz = null; closeSheet(true); openPlan(p); setCrane(w.craneId);
   if (w.cwt !== '') state.plan.cwt = num(w.cwt);
-  applyDuty({ quiet: true }); toast('Plan built. Check the numbers, then share it.');
+  wizPickBoom(); toast('Plan built. Check the numbers, then share it.');
 }
 if (typeof document !== 'undefined') {
   document.addEventListener('input', (e) => { const t = e.target; if (t.dataset?.w && V7.wiz) V7.wiz[t.dataset.w] = t.value; if (t.dataset?.pf) { const pf = {}; pf[t.dataset.pf] = t.value; profileSave(pf); } if (t.dataset?.cl && state.plan) { state.plan.client = { ...(state.plan.client || {}), [t.dataset.cl]: t.value }; if (t.dataset.cl === 'company') state.plan.meta.client = t.value; if (t.dataset.cl === 'project') state.plan.meta.project = t.value; if (t.dataset.cl === 'ref') state.plan.meta.drawingNo = t.value; markDirty(); } });

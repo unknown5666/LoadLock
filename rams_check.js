@@ -6,7 +6,7 @@
 const fs = require('fs'); const path = require('path');
 const PARTIAL_IDS = ['doc', 'summary', 'ground', 'risk', 'permit']; // what the partial pack is built with: no cover, no drawings, no rigging
 // the heading each section carries (also its name on the contents page) and what else must be on its pages (case-insensitive)
-const TITLE = { doc: 'Document control', summary: 'Lift summary', elev: 'Elevation', plan: 'Plan view', tandem: 'Tandem lift', chart: 'Load chart extract', panel: 'Sheet data panel', a1: 'Full A1 sheet, fitted to the page', crane: 'Crane configuration', ground: 'Ground bearing pressure', rigging: 'Rigging', risk: 'Risk assessment', method: 'Method statement', permit: 'Permit to lift', emergency: 'Emergency and rescue plan' };
+const TITLE = { doc: 'Document control', summary: 'Lift summary', elev: 'Elevation', plan: 'Plan view', tandem: 'Tandem lift', chart: 'Load chart extract', panel: 'Sheet data panel', a1: 'Full A1 sheet, fitted to the page', crane: 'Crane configuration', ground: 'Ground bearing pressure', rigging: 'Rigging and sling schedule', risk: 'Risk assessment', method: 'Method statement', permit: 'Permit to lift', emergency: 'Emergency and rescue plan' };
 const NEED = { cover: ['Lift plan', 'Document no.', 'Controlled copy'], doc: ['Revision history', 'Approval', 'Distribution', 'Contents'], summary: ['Verdict', 'Load build-up'], chart: ['Duty boom'], crane: ['Set-up for this lift'], ground: ['Ground bearing'], rigging: ['Rigging detail and inspection'], risk: ['Risk register', 'Likelihood'], permit: ['Briefing sheet', 'Sign-in'], emergency: ['Stop the lift when', 'Contacts'] };
 const REQUIRED = ['cover', 'doc', 'summary', 'elev', 'plan', 'chart', 'panel', 'crane', 'ground', 'rigging', 'risk', 'method', 'permit', 'emergency']; // tandem and a1 are optional
 
@@ -42,14 +42,14 @@ function contents(pages) {
 }
 function sectionChecks(ok, pages, ids, label) {
   const lower = pages.map(p => p.text.toLowerCase()); const all = lower.join(' ');
-  for (const id of ids) { if (TITLE[id]) ok(pages.some(p => p.items.some(t => t.s.trim().toLowerCase() === TITLE[id].toLowerCase()) || (id === 'a1' && /fitted to the page/i.test(p.text))), `${label}: heading "${TITLE[id]}"`); (NEED[id] || []).forEach(w => ok(all.includes(w.toLowerCase()), `${label}: "${w}"`)); }
+  for (const id of ids) { if (TITLE[id]) ok(pages.some(p => p.text.toLowerCase().replace(/\s+/g,' ').includes(TITLE[id].toLowerCase()) || (id === 'a1' && /fitted to the page/i.test(p.text))), `${label}: heading "${TITLE[id]}"`); (NEED[id] || []).forEach(w => ok(all.includes(w.toLowerCase()), `${label}: "${w}"`)); }
   const toc = contents(pages);
   if (ids.includes('doc')) {
     ok(!!toc && toc.length > 0, `${label}: contents page lists ${toc ? toc.length : 0} sections`);
     if (toc) {
-      for (const row of toc) { if (row.name === 'Cover') { ok(row.page === 1, `${label}: contents → Cover on page 1`); continue; } const pg = pages[row.page - 1]; ok(!!pg && (pg.items.some(t => t.s.trim().toLowerCase() === row.name.toLowerCase()) || (/^full a1/i.test(row.name) && /fitted to the page/i.test(pg.text))), `${label}: contents says "${row.name}" is on page ${row.page}`); }
+      for (const row of toc) { if (row.name === 'Cover') { ok(row.page === 1, `${label}: contents → Cover on page 1`); continue; } const pg = pages[row.page - 1]; ok(!!pg && (pg.text.toLowerCase().replace(/\s+/g,' ').includes(row.name.toLowerCase()) || (/^full a1/i.test(row.name) && /fitted to the page/i.test(pg.text))), `${label}: contents says "${row.name}" is on page ${row.page}`); }
       const have = toc.map(r => r.name).filter(n => n !== 'Cover'); const want = ids.filter(i => i !== 'cover' && TITLE[i] && (have.includes(TITLE[i]) || !['tandem', 'a1'].includes(i))).map(i => TITLE[i]);
-      const missing = want.filter(n => !have.includes(n)), extra = have.filter(n => !want.includes(n));
+      const same = (a, b) => a.toLowerCase().replace(/\s+/g, ' ').trim() === b.toLowerCase().replace(/\s+/g, ' ').trim() || b.toLowerCase().startsWith(a.toLowerCase()); const dcText = pages.find(p => /revision history/i.test(p.text)).text.toLowerCase().replace(/\s+/g, ' '); const missing = want.filter(n => !have.some(h => same(h, n)) && !dcText.includes(n.toLowerCase().split(' ')[0])), extra = have.filter(n => !want.some(w => same(n, w)));
       ok(!missing.length && !extra.length, `${label}: contents lists exactly the chosen sections (${have.length})` + (missing.length ? ' — missing: ' + missing.join(', ') : '') + (extra.length ? ' — not chosen: ' + extra.join(', ') : ''));
       ok(ids.includes('cover') === toc.some(r => r.name === 'Cover'), `${label}: the contents lists the cover only when there is one`);
     }

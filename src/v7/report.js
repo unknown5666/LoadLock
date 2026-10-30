@@ -264,7 +264,7 @@ function rpSecDoc(c, sec, idx) {
   const ny = Math.max(by + 1, y + 3 + 4.6 + (toc.length + 1) * 5.4) + 7;
   pg.P.rect(RP_X0, ny, 1.5, 17, { fill: RP_C.acc, stroke: 'none', layer: 'RAMS' });
   rpLabel(pg, RP_X0 + 5, ny + 3.4, 'Controlled copy', { color: RP_C.ink });
-  rpPara(pg, RP_X0 + 5, ny + 8.2, 'This copy is controlled while it carries the revision in the footer and the Appointed Person\'s signature above. A printed or forwarded copy is uncontrolled: check its revision against the current issue before anyone lifts from it. ' + (rpSecNo(c, 'crane') ? `Crane maker documents listed in section ${rpPad(rpSecNo(c, 'crane'))} are reference only.` : '') + '', 2.3, 160, { color: RP_C.ink, maxLines: 4 });
+  rpPara(pg, RP_X0 + 5, ny + 8.2, 'This copy is controlled while it carries the revision in the footer and the Appointed Person\'s signature above. A printed or forwarded copy is uncontrolled: check its revision against the current issue before anyone lifts from it.', 2.3, 160, { color: RP_C.ink, maxLines: 4 });
   return pg;
 }
 // ---------- 2 · lift summary ----------
@@ -280,7 +280,7 @@ function rpSecSummary(c, sec) {
   rpHead(pg, c, 'Overview', 'Lift summary', c.util == null ? 'No chart capacity at this radius.' : `${fmt(c.util, 1)}% of the ${T ? 'tandem limit' : 'chart'} at ${fmt(r.R, 1)} m. ${c.nF ? c.nF + ' red' : 'No red'} and ${c.nW ? c.nW + ' amber' : 'no amber'} item${c.nW === 1 ? '' : 's'}.`);
   // hero: utilisation
   let y = 49; const h1 = rpCol(0, 5); rpLabel(pg, h1.x, y, T ? 'Worst crane against the tandem limit' : 'Utilisation of the chart', { maxW: h1.w });
-  rpArcGauge(pg, h1.x + h1.w / 2 - 2, y + 28, (h1.w - 12) / 2, c.util); rpDisp(pg, h1.x + h1.w / 2 - 2, y + 27, c.util != null ? fmt(c.util, 1) + '%' : '—', 11, { anchor: 'middle', color: rpUtilCol(c.util) });
+  rpArcGauge(pg, h1.x + h1.w / 2 - 2, y + 33, (h1.w - 18) / 2, c.util); rpDisp(pg, h1.x + h1.w / 2 - 2, y + 32, c.util != null ? fmt(c.util, 1) + '%' : '—', 11, { anchor: 'middle', color: rpUtilCol(c.util) });
   rpPara(pg, h1.x, y + 43, T ? `Each crane may use ${T.derate}% of its own chart. The busiest uses ${fmt(T.maxUtil, 1)}%.` : r.cap != null ? `Design load ${t2(r.design)} against ${t2(r.netCap)} net. Gross chart capacity ${t2(r.cap)} at ${fmt(r.R, 2)} m.` : 'The chart gives no capacity at this radius.', 2.4, h1.w - 6, { color: RP_C.grey, maxLines: 3 });
   const gp = g ? gbpTxt(g.press).split(' ') : null; const wl = rpWindLimit(c); const th = r.geo?.theta;
   const stats = [['Load', fmt(r.W, 2), 't', r.contOn && r.contW ? `+ ${fmt(r.contW, 2)} t margin` : 'no margin added'], ['Total hook load', fmt(r.design ?? r.total, 2), 't', r.daf ? `incl. DAF ${r.daf.toFixed(2)}` : 'load, hook, tackle'], ['Radius', fmt(r.R, 1), 'm', `over the ${SIDE_WORD[sideOf(l)]}`],
@@ -406,7 +406,6 @@ function rpSecCrane(c, sec) {
     const anyCad = shown.some(d => d.kind === 'cad'); const tr = rpTable(pg, RP_X0, y, anyCad ? [{ w: 22, t: 'Type' }, { w: 90, t: 'Document' }, { w: 26, t: 'Source' }, { w: 30, t: 'Fit' }] : [{ w: 24, t: 'Type' }, { w: 108, t: 'Document' }, { w: 36, t: 'Source' }], shown.map(d => anyCad ? [{ t: rpDocKind(d), bold: true }, d.name, d.source || '', { t: d.kind === 'cad' ? (match[d.match] || '') : '', color: RP_C.grey }] : [{ t: rpDocKind(d), bold: true }, d.name, d.source || '']), { rh: 5.2, fs: 2.3 }); y = tr.y + 4;
     if (docs.length > shown.length) { rpTx(pg, RP_X0 + 1.3, y, `and ${docs.length - shown.length} more in the Fleet page`, 2.1, { color: RP_C.grey }); y += 4; }
   }
-  rpPara(pg, RP_X0 + 1.3, y + 1.5, "Third-party documents are reference only. Check every value against the manufacturer's chart for the exact machine before a lift.", 2.2, 166, { color: RP_C.grey });
   if (crane.imgDims) { // v11: the maker's dimension drawing on a landscape page of its own, as large as it goes (never stretched)
     const p2 = rpNewPage(c, sec, { land: true, head: true, cont: true });
     rpLabel(p2, 10, 22.6, `${rpPad(sec.no)}  ·  Equipment`); rpDisp(p2, 10, 34, 'Crane dimensions', 11.5, { maxW: 150 });
@@ -726,13 +725,14 @@ function rpSecMethod(c, sec) {
 function rpSecPanel(c, sec) {
   let pg = rpNewPage(c, sec); const pg0 = pg; const blocks = sheetBlocks(c.plan, c.calc, c.S); const ovs = (c.calc.sheetOv || []).length;
   const nRows = blocks.reduce((a, b) => a + b.rows.length, 0);
-  rpHead(pg, c, 'Drawings', 'Sheet data panel', `${nRows} values, as the A1 sheet prints them.Change a value in the plan and the sheet and this page follow.`);
+  rpHead(pg, c, 'Drawings', 'Sheet data panel', `${nRows} values, as the A1 sheet prints them. Change a value in the plan and the sheet and this page follow.`);
   const total = blocks.reduce((a, b) => a + 11 + b.rows.length * 5, 0); const half = total / 2; const colX = [RP_X0, RP_X0 + 87], colW = 81; let col = 0, y = 49; const sentence = (s) => { const t = String(s || '').toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); };
   const newCol = () => { if (col === 0) { col = 1; y = 49; } else { pg = rpNewPage(c, sec, { cont: true }); rpHead(pg, c, 'Drawings', 'Sheet data panel, continued', ''); col = 0; y = 49; } };
   for (const b of blocks) {
     if (y + 9 + 5 > 274 || (col === 0 && y - 49 > half * 0.55 && pg === pg0)) newCol();
     const hd = String(b.head || 'DATA').replace(/^M\./, '').replace(/DATA(\d)$/, 'DATA'); rpInk(pg, colX[col], colX[col] + colW, y, 0.5); rpLabel(pg, colX[col], y + 4.6, hd, { color: RP_C.ink, size: 2.0 }); y += 7;
     for (const r of b.rows) {
+      if (/^(N\/A|—|-)?$/i.test(String(r.v ?? '').trim())) continue;
       if (y + 5 > 274) { newCol(); rpLabel(pg, colX[col], y + 4.6, hd + ' (cont.)', { color: RP_C.grey, size: 1.8 }); y += 7; }
       const lab = sentence(r.label), v = String(r.v ?? ''); rpTx(pg, colX[col] + 0.6, y + 3.4, lab, 2.25, { color: RP_C.grey, maxW: 42 }); rpTx(pg, colX[col] + colW - 0.6, y + 3.4, v, 2.4, { bold: true, anchor: 'end', maxW: 36, color: r.ov ? RP_C.warn : RP_C.ink }); rpHair(pg, colX[col], colX[col] + colW, y + 5); y += 5;
     }
@@ -840,7 +840,7 @@ const REPORT_SECTIONS = [
 const RP_DEFS = [
   { id: 'cover', name: 'Cover' }, { id: 'doc', name: 'Document control' }, { id: 'summary', name: 'Lift summary', fn: rpSecSummary }, { id: 'crane', name: 'Crane configuration', fn: rpSecCrane },
   { id: 'chart', name: 'Load chart extract', fn: rpSecChart, when: (c) => !!(c.ch && getChart(c.ch)?.cols?.length) }, { id: 'plan', name: 'Plan view', fn: rpSecPlanView }, { id: 'elev', name: 'Elevation', fn: rpSecElev },
-  { id: 'tandem', name: 'Tandem lift', fn: rpSecTandem, when: (c) => !!c.T }, { id: 'ground', name: 'Ground bearing pressure', fn: rpSecGround, when: (c) => !!(c.O || c.g) }, { id: 'rigging', name: 'Rigging', fn: rpSecRigging },
+  { id: 'tandem', name: 'Tandem lift', fn: rpSecTandem, when: (c) => !!c.T }, { id: 'ground', name: 'Ground bearing pressure', fn: rpSecGround, when: (c) => !!(c.O || c.g) }, { id: 'rigging', name: 'Rigging and sling schedule', fn: rpSecRigging },
   { id: 'method', name: 'Method statement', fn: rpSecMethod }, { id: 'risk', name: 'Risk assessment', fn: rpSecRisk }, { id: 'permit', name: 'Permit to lift', fn: rpSecPermit }, { id: 'emergency', name: 'Emergency and rescue plan', fn: rpSecEmergency },
   { id: 'panel', name: 'Sheet data panel', fn: rpSecPanel, when: () => typeof sheetBlocks === 'function' }, { id: 'a1', name: 'Full A1 sheet, fitted to the page', fn: rpSecA1, when: () => typeof buildSheet === 'function' }, { id: 'signoff', name: 'Sign-off', fn: rpSecSignoff }
 ];
