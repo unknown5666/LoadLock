@@ -1,4 +1,4 @@
-// FHE Lift Planner — offline cache. Written into public/sw.js by build.py (the version changes with every build, so phones take new
+// Offline cache. Written into public/sw.js by build.py (the version changes with every build, so phones take new
 // releases on the next visit). The app page: network first (4 s), the cached copy when there is no signal. The pinned libraries and
 // fonts: cache first. Map tiles and weather are never cached here — they need the internet when asked for.
 const VER = '__VER__', CACHE = 'fhe-lp-' + VER, CDN = __CDN__;

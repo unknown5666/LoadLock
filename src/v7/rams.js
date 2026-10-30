@@ -60,7 +60,7 @@ async function buildReport(o = {}) {
   stage.innerHTML = '';
   progressStep(0.94, 'Locking and finishing…');
   if (typeof pdfFinish === 'function') pdfFinish(doc, { title: 'RAMS — ' + fileBase(), docNo: rp.docNo, subject: 'Risk assessment and method statement' });
-  else doc.setProperties({ title: 'RAMS — ' + fileBase(), subject: 'Risk assessment and method statement', creator: 'FHE Lift Planner ' + APP_VERSION });
+  else doc.setProperties({ title: 'RAMS — ' + fileBase(), subject: 'Risk assessment and method statement', author: pdfSafe(profileOf().name) });
   const blob = doc.output('blob'); const ms = Math.round(performance.now() - t0);
   state.lastRams = { ms, bytes: blob.size, pages: pages.length, shot: !!shot, docNo: rp.docNo, ids: rp.ids }; // read by the end-to-end test
   return { blob, filename: fileBase() + ' RAMS.pdf', pages: pages.length, docNo: rp.docNo, ids: rp.ids, ms, shot: !!shot };

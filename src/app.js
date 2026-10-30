@@ -33,7 +33,7 @@ function withImgs(c) {
   else if (!c.dimsSchematic && c.dimsImg && typeof DIMS_IMG !== 'undefined' && DIMS_IMG[c.dimsImg]) o.imgDims = DIMS_IMG[c.dimsImg];
   return o;
 }
-function settingsEff() { const s = { ...DEFAULT_SETTINGS, ...state.settings }; if (s.logoId) s.logoImg = '/_blob/' + s.logoId; else if (s.logoData) s.logoImg = s.logoData; return s; }
+function settingsEff() { const s = { ...DEFAULT_SETTINGS, ...state.settings }; if (s.logoId) s.logoImg = '/_blob/' + s.logoId; else if (s.logoData) s.logoImg = s.logoData; return typeof brandOverlay === 'function' ? brandOverlay(s) : s; }
 function livery() { const S = settingsEff(); return S.boomLivery === false ? '' : (S.boomText || S.company || ''); }
 const BRAND_COL = { liebherr: '#f5c400', demag: '#f3c300', tadano: '#e4342b', sany: '#d7182a', zoomlion: '#1d6fd1', xcmg: '#f2a900', grove: '#d22630', manitowoc: '#d22630' };
 function brandCol(c) { const m = String(c?.make || '').toLowerCase(); for (const k in BRAND_COL) if (m.includes(k)) return BRAND_COL[k]; return c?.color || '#7d8a96'; }
@@ -160,17 +160,17 @@ async function exportPDF(paper = 'A1') {
     stage.innerHTML = '';
     progressStep(0.94, 'Locking and finishing…');
     if (typeof pdfFinish === 'function') pdfFinish(doc, { title: fileBase(), docNo: sheetDocNo(), subject: 'Crane lifting plan' + (paper === 'A3' ? ' (A3)' : ' (A1)') });
-    else doc.setProperties({ title: fileBase(), creator: 'FHE Lift Planner' });
+    else doc.setProperties({ title: fileBase() });
     await offerFile(fileBase() + (paper === 'A3' ? ' (A3)' : '') + '.pdf', doc.output('blob'));
   } catch (e) { console.error(e); if (typeof shareFail === 'function') shareFail(e); toast('PDF export failed: ' + e.message); }
   finally { if (btn) btn.classList.remove('busy'); }
 }
-function sheetDocNo() { const m = state.plan?.meta || {}; return String(m.drawingNo || m.sheetNo || '').trim() || ('FHE-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(state.plan?.id || state.plan?.name || 'plan').replace(/[^\w]/g, '').slice(-4).toUpperCase()); }
+function sheetDocNo() { const m = state.plan?.meta || {}; return String(m.drawingNo || m.sheetNo || '').trim() || ((typeof docPrefix === 'function' ? docPrefix() : 'LP') + '-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(state.plan?.id || state.plan?.name || 'plan').replace(/[^\w]/g, '').slice(-4).toUpperCase()); }
 async function exportDXF() {
   await ensureEnvLoaded(state.plan);
   const { P, scale } = currentSheet(); const S = scale ? scale.N : 100;
   const dxf = toDXF(P, S);
-  const readme = `FHE Lift Planner — ${fileBase()}\r\n\r\nOpen the .dxf in AutoCAD (File > Open, type DXF), then SAVEAS .dwg.\r\nThe whole A1 sheet is drawn in model space at 1:${S}.\r\nThe elevation view is therefore true size in millimetres: measure it directly.\r\nTo plot: PLOT > A1 landscape > scale 1:${S} (1 mm = ${S} units), or Fit to paper.\r\nLayers: DIM / DIMTEXT (red/green dimensions), CRANE, BOOM, JIB, HOOK, LOAD, RIGGING, BUILDING, VEHICLE, CONTAINER, STRUCTURE, CLIENT-DWG, SITE-CRANE, SITE-RADIUS, GROUND, TABLE, CHART, NOTES, FRAME, TITLE.\r\nRaster images (load chart / crane sheet / logo / client PDF or photo) are not embedded: an IMAGE_FRAME rectangle marks where to IMAGEATTACH them.\r\n`;
+  const readme = `${fileBase()}\r\n\r\nOpen the .dxf in AutoCAD (File > Open, type DXF), then SAVEAS .dwg.\r\nThe whole A1 sheet is drawn in model space at 1:${S}.\r\nThe elevation view is therefore true size in millimetres: measure it directly.\r\nTo plot: PLOT > A1 landscape > scale 1:${S} (1 mm = ${S} units), or Fit to paper.\r\nLayers: DIM / DIMTEXT (red/green dimensions), CRANE, BOOM, JIB, HOOK, LOAD, RIGGING, BUILDING, VEHICLE, CONTAINER, STRUCTURE, CLIENT-DWG, SITE-CRANE, SITE-RADIUS, GROUND, TABLE, CHART, NOTES, FRAME, TITLE.\r\nRaster images (load chart / crane sheet / logo / client PDF or photo) are not embedded: an IMAGE_FRAME rectangle marks where to IMAGEATTACH them.\r\n`;
   if (window.JSZip) {
     const z = new window.JSZip(); z.file(fileBase() + '.dxf', dxf); z.file('README.txt', readme);
     await offerFile(fileBase() + ' (DXF).zip', await z.generateAsync({ type: 'blob', compression: 'DEFLATE' }));
@@ -212,7 +212,7 @@ const F = {
 function normalizePlan(p) {
   const b = blankPlan();
   const out = { ...b, ...p, meta: { ...b.meta, ...(p.meta || {}) }, site: { ...b.site, ...(p.site || {}) }, outrigger: { ...b.outrigger, ...(p.outrigger || {}) }, rigging: { ...b.rigging, ...(p.rigging || {}) }, sitePlan: { enabled: false, cx: 0, cy: 0, rot: 0, carrierRot: '', ...(p.sitePlan || {}) } };
-  out.site.obstacles = out.site.obstacles || [];
+  out.site.obstacles = out.site.obstacles || []; out.client = { ...(p.client || {}) }; out.opt = { ...(p.opt || {}) }; if (typeof identityMeta === 'function') identityMeta(out);
   out.env = (p.env || []).filter(e => e && e.id);
   out.attach = { type: 'none', jibLen: 16, offset: 15, boomAngle: 83, swl: '', ...(p.attach || {}) };
   out.tele = { mode: 'auto', fr: [], ...(p.tele || {}) };

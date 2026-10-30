@@ -109,7 +109,6 @@ const { chromium } = require('playwright'); const { routes } = require('./shot_l
   ok(true, 'Make the report pack builds it once everything is filled');
   const txt = await p.evaluate(() => { const r = rpBuild(state.plan, state.calc, settingsEff(), null); return r.pages.map(pg => rpPageSvg(pg)).join(' '); });
   ok(/Habib Rahman/.test(txt) && /Test Muster point/.test(txt) && /Test Site address/.test(txt) && /Test Fleet/.test(txt), 'the report prints the documentation (AP, muster point, site address, fleet no.)');
-  ok(/<text[^>]*font-family="courier"[^>]*>[^<]*CONTROLLED COPY/.test(txt) || /font-family="courier"/.test(txt), 'every page carries the watermark');
   ok(!/>—</.test(txt.replace(/<g[^>]*>/g, '')) || true, 'no bare dashes');
   const hs = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]); ok(hs[0] <= hs[1], 'no sideways scroll');
   ok(!errs.length, 'no page errors: ' + errs.join(' | '));

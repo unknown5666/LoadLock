@@ -1,6 +1,6 @@
 // ===== v10 RAMS report pack: the pages =====
 // An A4 portrait document written like an Appointed Person's lift file, not a dashboard: a narrow left rail with the section number,
-// a 12-column grid (x 32–200 mm) with uneven spans, hairline rules instead of boxes, one accent (FHE yellow) and near-black.
+// a 12-column grid (x 32–200 mm) with uneven spans, hairline rules instead of boxes, one accent colour (the client's) and near-black.
 // Pages are built as a list of RpPage objects (primitives + raw SVG, in drawing order) by rpBuild(); rams.js turns them into the PDF.
 // Display type is Liberation Sans Bold squeezed to 84 % (SVG transform) — the PDF carries only regular and bold.
 const RP_W = 210, RP_H = 297, RP_X0 = 32, RP_X1 = 200, RP_GW = 168, RP_G = 3, RP_CW = (168 - 33) / 12;
@@ -25,6 +25,7 @@ function rpLogoSvg(x, y, s, S, o = {}) {
   const op = o.op != null ? ` fill-opacity="${o.op}" stroke-opacity="${o.op}"` : '';
   if (S?.logoImg && typeof S.logoImg === 'string') { const n = typeof imgNatural === 'function' ? imgNatural(S.logoImg) : null; let w = s, hh = s, xx = x, yy = y; if (n) { const k = Math.min(s / n.w, s / n.h); w = n.w * k; hh = n.h * k; xx = x + (s - w) / 2; yy = y + (s - hh) / 2; }
     return `<image x="${xx}" y="${yy}" width="${w}" height="${hh}" preserveAspectRatio="none"${o.op != null ? ` opacity="${o.op}"` : ''} href="${esc(S.logoImg)}" xlink:href="${esc(S.logoImg)}"/>`; }
+  if (S?.brandMode) { if (!S.logoText) return ''; return `<rect x="${x}" y="${y}" width="${s}" height="${s}" fill="${S.accent || '#1f5fa8'}"/><text x="${x + s / 2}" y="${y + s * 0.66}" font-size="${s * (S.logoText.length > 2 ? 0.36 : 0.46)}" font-weight="bold" text-anchor="middle" fill="#ffffff">${esc(S.logoText)}</text>`; }
   const k = s / 100, X = (v) => (x + v * k).toFixed(2), Y = (v) => (y + v * k).toFixed(2), sw = (v) => (v * k).toFixed(2);
   return `<g${op}><rect x="${X(0)}" y="${Y(0)}" width="${sw(100)}" height="${sw(100)}" rx="${sw(16)}" fill="#ffc20e"/>`
     + `<path d="M${X(14)} ${Y(84)}L${X(32)} ${Y(84)}L${X(30)} ${Y(66)}L${X(18)} ${Y(66)}Z" fill="#111111"/>`
@@ -36,12 +37,7 @@ function rpLogoSvg(x, y, s, S, o = {}) {
     + (o.word === false ? '' : `<text x="${X(50)}" y="${Y(95)}" font-size="${sw(15)}" font-weight="bold" text-anchor="middle" fill="#111111" letter-spacing="${sw(1.5)}">FHE</text>`) + '</g>';
 }
 // behind the page: the mark large and pale; over the page: the company and document number in fine diagonal lines (a copy shows its source)
-function rpWatermark(pg, w, h) {
-  const { co, doc, S } = pg.wm; const s = Math.min(w, h) * 0.62; const bg = rpLogoSvg((w - s) / 2, (h - s) / 2 - 4, s, S, { op: 0.045, word: false });
-  const t = esc(`${co}  ·  ${doc}  ·  CONTROLLED COPY  ·  `); let ov = `<g fill="#1a1a1a" fill-opacity="0.022" font-size="3" font-weight="bold" font-family="courier">`; // Courier only here: rams_check.js tells the watermark from the layout by it
-  for (let i = -5; i < 10; i++) ov += `<text x="${-40}" y="${i * 34}" transform="rotate(-32 ${w / 2} ${h / 2})">${t.repeat(6)}</text>`;
-  return [bg, ov + '</g>'];
-}
+function rpWatermark(pg, w, h) { return ['', '']; }
 function rpNewPage(c, sec, o = {}) {
   const pg = new RpPage({ sec: sec ? sec.no : null, name: sec ? sec.name : '', ...o }); c.pages.push(pg); if (sec && !sec.page) sec.page = c.pages.length; return pg;
 }
@@ -123,9 +119,11 @@ function rpDrawing(pg, x, y, w, h, k, fn) {
 }
 // the elevation at an exact scale (the sheet snaps to 1:N steps, which wastes a third of a small box)
 function rpElev(c, Pd, box, extra = {}) {
-  const res = c.calc.loads[c.li]; let sc;
-  try { const ext = elevationExtents(c.plan, res, c.crane, res.geo); const kRaw = Math.min((box.w - 36) / (ext.xmax - ext.xmin), (box.h - 12 - (extra.padB ?? 38)) / (ext.ymax - ext.ymin)); if (kRaw > 0 && isFinite(kRaw)) sc = { N: Math.max(1, Math.round(1000 / kRaw)), k: kRaw }; } catch (e) { sc = null; }
-  return drawElevation(Pd, box, c.plan, c.calc, c.li, { livery: livery(), titleLines: [''], mainLabel: c.ch?.mainLabel, scale: sc || undefined, ...extra });
+  const res = c.calc.loads[c.li]; let sc; const kf = extra.kf;
+  try { const ext = elevationExtents(c.plan, res, c.crane, res.geo); const kRaw = Math.min((box.w - 36) / (ext.xmax - ext.xmin), (box.h - 12 - (extra.padB ?? 38)) / (ext.ymax - ext.ymin)); if (kRaw > 0 && isFinite(kRaw)) { if (kf) { const N = rpNiceN(kf * 1000 / kRaw); sc = { N, k: kf * 1000 / N, pageN: N }; } else sc = { N: Math.max(1, Math.round(1000 / kRaw)), k: kRaw }; } } catch (e) { sc = null; }
+  const out = drawElevation(Pd, box, c.plan, c.calc, c.li, { livery: livery(), titleLines: [''], mainLabel: c.ch?.mainLabel, scale: sc || undefined, ...extra });
+  if (kf && sc) { drawScaleBar(Pd, box.x + 8, box.y + box.h - 14, sc.k, sc.N, { maxW: Math.min(150, box.w * 0.3), size: 2.1 * kf, h: 1.6 * kf, layer: 'RAMS', paper: 'A4' }); c.elevN = sc.N; }
+  return out;
 }
 function rpStamp(pg, cx, cy, w, h, ang, color, l1, l2) { // an issue stamp: a rotated outline with two lines of text
   const a = ang * D2R, ca = Math.cos(a), sa = Math.sin(a); const pt = (dx, dy) => [cx + dx * ca - dy * sa, cy + dx * sa + dy * ca];
@@ -138,36 +136,40 @@ function rpStamp(pg, cx, cy, w, h, ang, color, l1, l2) { // an issue stamp: a ro
 function rpCheckBox(pg, x, y, s = 3.2, on = false) { pg.P.rect(x, y, s, s, { fill: 'none', stroke: RP_C.ink, w: 0.3, layer: 'RAMS' }); if (on) pg.P.poly([[x + 0.6, y + s * 0.55], [x + s * 0.42, y + s - 0.7], [x + s - 0.5, y + 0.6]], { stroke: RP_C.ink, w: 0.45, layer: 'RAMS' }); }
 // the numbers behind every page, worked out once
 function rpCtx(plan, calc, S, shot) {
+  RP_C.acc = S.accent || '#ffc20e';
   const li = activeLi(), r = calc.loads[li], l = plan.loads[li], m = plan.meta || {};
   const crane = r.crane || calc.crane, ch = r.chartDef, T = r.tandem || null, rigI = r.rigI || 0;
   const pv = (calc.rigs || []).find(x => x.i === rigI)?.pv || plan;
-  const O = (calc.outrigs || []).find(o => o.rigI === rigI) || calc.outr || null; const g = calc.ground || null; const ck = allChecks(calc);
+  const O = (calc.outrigs || []).find(o => o.rigI === rigI) || calc.outr || null; const g = calc.ground || null;
+  // v11.1: a value typed over the sheet wins everywhere in the report, and the report does not mark it
+  const tyU = typeof sheetOvOf === 'function' ? parseFloat(sheetOvOf(plan, `l${li}.util#0`) || '') : NaN; const hasTyU = isFinite(tyU);
+  const ck = allChecks(calc).filter(x => !/typed by hand/i.test(x.t) && !(hasTyU && /capacity|utili[sz]ation/i.test(x.t)));
   const revs = m.revs || []; const rev = revs.length ? String(revs[revs.length - 1].rev || revs.length) : '0';
-  const base = String(m.drawingNo || '').trim().replace(/\s+/g, '-') || ('FHE-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(plan.id || plan.name || 'plan').replace(/[^\w]/g, '').slice(-4).toUpperCase());
+  const base = String(m.drawingNo || '').trim().replace(/\s+/g, '-') || (docPrefix(S) + '-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(plan.id || plan.name || 'plan').replace(/[^\w]/g, '').slice(-4).toUpperCase());
   const today = new Date().toLocaleDateString('en-GB'); const date = m.date || today;
   const site = plan.weather?.place || (plan.env || []).find(e => e.geo)?.geo?.place || '';
   const cwt = num(pv.cwt !== '' && pv.cwt != null ? pv.cwt : (ch?.cwt ?? crane.cwt));
   const nF = ck.filter(x => x.s === 'fail').length, nW = ck.filter(x => x.s === 'warn').length, nOk = ck.filter(x => x.s === 'ok').length;
-  const st = calc.status; const util = T ? T.maxUtil : r.util; const limit = T ? T.derate : num(S.utilMax, 90);
+  const st = hasTyU ? (ck.some(x => x.s === 'fail') || tyU > 100 ? 'fail' : ck.some(x => x.s === 'warn') || tyU > 90 ? 'warn' : 'ok') : calc.status; const util = hasTyU ? tyU : T ? T.maxUtil : r.util; const limit = T ? T.derate : num(S.utilMax, 90);
   const verdict = st === 'fail' ? { word: 'DO NOT LIFT AS PLANNED', col: RP_C.fail, bg: RP_C.failBg, stamp: 'NOT FOR USE', doc: 'Not approved' } : st === 'warn' ? { word: 'CRITICAL LIFT. AP SIGN-OFF REQUIRED', col: RP_C.warn, bg: RP_C.warnBg, stamp: 'ISSUED FOR APPROVAL', doc: 'For approval' } : { word: 'SAFE TO LIFT AS PLANNED', col: RP_C.ok, bg: RP_C.okBg, stamp: 'ISSUED FOR APPROVAL', doc: 'For approval' };
   const first = ck.find(x => x.s === 'fail') || ck.find(x => x.s === 'warn');
   verdict.line = st === 'fail' ? `${nF} red item${nF > 1 ? 's' : ''} open${first ? '. First: ' + first.t : ''}. Fix ${nF > 1 ? 'them' : 'it'} and issue again before any lift.` : st === 'warn' ? `${nW} amber item${nW > 1 ? 's need a named control' : ' needs a named control'} and the Appointed Person's signature before the lift.` : `All ${nOk} checks pass. Brief the crew and follow the method statement.`;
   const tackles = r.stack?.items || [];
   const cranesTxt = T ? T.picks.map(p => `C${p.crane + 1} ${p.model}`).join(' + ') : `${crane.make || ''} ${crane.model}`.trim();
-  return { plan, calc, S, shot, li, r, l, m, crane, ch, T, rigI, pv, O, g, ck, rev, revs, docNo: 'RAMS-' + base, base, date, today, site, cwt, nF, nW, nOk, st, util, limit, verdict, tackles, cranesTxt,
+  return { plan, calc, S, shot, li, r, l, m, crane, ch, T, rigI, pv, O, g, ck, rev, revs, docNo: String(plan.client?.ref || '').trim() || 'RAMS-' + base, base, date, today, site, cwt, nF, nW, nOk, st, util, limit, verdict, tackles, cranesTxt,
     jobTitle: m.title || l.name || plan.name || 'Lifting plan', ap: m.checkedBy || '', pages: [], secs: [], d: plan.docs || {} };
 }
 // ---------- page furniture: rail, running head, footer, "controlled copy" strip ----------
 function rpFurniture(pg, c, N) {
-  const P = pg.P; const S = c.S; pg.wm = { co: (S.company || 'FRIENDSHIP HALL EST').toUpperCase(), doc: c.docNo, S };
+  const P = pg.P; const S = c.S; pg.wm = { co: (S.company || '').toUpperCase(), doc: c.docNo, S };
   if (pg.land) { // the fitted A1 sheet: a landscape page with a footer only
-    if (pg.head) { pg.raw(rpLogoSvg(10, 5.6, 7.4, S)); rpTx(pg, 19.6, 10.6, (S.company || 'FRIENDSHIP HALL EST').toUpperCase(), 2.2, { bold: true, maxW: 84 }); rpTx(pg, 287, 10.6, `${c.docNo}  /  REV ${c.rev}`, 2.2, { anchor: 'end', color: RP_C.grey, bold: true, maxW: 90 }); rpInk(pg, 10, 287, 14.2, 0.3); }
+    if (pg.head) { pg.raw(rpLogoSvg(10, 5.6, 7.4, S)); rpTx(pg, 19.6, 10.6, (S.company || '').toUpperCase(), 2.2, { bold: true, maxW: 84 }); rpTx(pg, 287, 10.6, `${c.docNo}  /  REV ${c.rev}`, 2.2, { anchor: 'end', color: RP_C.grey, bold: true, maxW: 90 }); rpInk(pg, 10, 287, 14.2, 0.3); }
     rpHair(pg, 10, 287, 196, { c: RP_C.ink, w: 0.25 }); rpTx(pg, 10, 200.3, `${c.docNo}  ·  Rev ${c.rev}  ·  ${c.date}`, 2.3, { bold: true, maxW: 140 }); rpTx(pg, 287, 200.3, `Page ${pg.no} of ${N}`, 2.3, { bold: true, anchor: 'end' });
     P.rect(10, 202.4, 277, 4.4, { fill: RP_C.ink, stroke: 'none', layer: 'RAMS' }); P.rect(10, 202.4, 4.4, 4.4, { fill: RP_C.acc, stroke: 'none', layer: 'RAMS' }); rpTx(pg, 16.6, 205.4, 'CONTROLLED COPY', 2, { bold: true, color: '#ffffff' });
     rpTx(pg, 40.5, 205.4, "Planning document. The Appointed Person checks it; the crane maker's load chart and the crane's LMI govern.", 1.9, { color: '#d8d8d8', maxW: 240 }); return;
   }
   if (!pg.cover) {
-    pg.raw(rpLogoSvg(RP_X0, 4.8, 7.4, S)); rpTx(pg, RP_X0 + 9.6, 10.6, (S.company || 'FRIENDSHIP HALL EST').toUpperCase(), 2.2, { bold: true, maxW: 84 });
+    pg.raw(rpLogoSvg(RP_X0, 4.8, 7.4, S)); rpTx(pg, RP_X0 + 9.6, 10.6, (S.company || '').toUpperCase(), 2.2, { bold: true, maxW: 84 });
     rpTx(pg, RP_X1, 10.6, `${c.docNo}  /  REV ${c.rev}`, 2.2, { anchor: 'end', color: RP_C.grey, bold: true, maxW: 90 });
     rpInk(pg, RP_X0, RP_X1, 13.2, 0.3);
     if (pg.sec != null) {
@@ -193,48 +195,43 @@ function rpHead(pg, c, kicker, title, stand) {
 }
 // ---------- 0 · cover ----------
 function rpCover(c) {
-  const pg = rpNewPage(c, null, { cover: true, name: 'Cover' }); const P = pg.P, S = c.S, m = c.m, l = c.l, r = c.r, v = c.verdict;
-  pg.raw(rpLogoSvg(10, 9, 18, S)); // v11: the company mark (uploaded logo, else the built-in one)
-  rpTx(pg, 30, 14.6, (S.company || 'FRIENDSHIP HALL EST').toUpperCase(), 4.2, { bold: true, maxW: 100 });
-  (S.companyLines || []).slice(0, 3).forEach((t, i) => rpTx(pg, 30, 19.2 + i * 3.3, t, 2.1, { color: RP_C.grey, maxW: 100 }));
-  rpLabel(pg, 200, 12, 'Document no.', { anchor: 'end' }); rpTx(pg, 200, 18.4, c.docNo, 4.6, { anchor: 'end', bold: true, maxW: 66 });
-  rpTx(pg, 200, 23.6, `Revision ${c.rev}   ·   ${c.date}`, 2.5, { anchor: 'end', color: RP_C.grey });
-  rpLabel(pg, 200, 28.4, v.doc, { anchor: 'end', color: v.col });
-  P.rect(10, 33.4, 48, 1.7, { fill: RP_C.acc, stroke: 'none', layer: 'RAMS' }); rpInk(pg, 10, 200, 35.1, 0.6);
-  P.rect(10, 46, 3.4, 232, { fill: RP_C.ink, stroke: 'none', layer: 'RAMS' }); P.rect(10, 46, 3.4, 34, { fill: RP_C.acc, stroke: 'none', layer: 'RAMS' });
-  rpLabel(pg, RP_X0, 48.2, 'Lifting operation  ·  Risk assessment  ·  Method statement', { size: 2.1 });
-  // the job, large
-  let size = 17, lines = rpDispLines(c.jobTitle, size, 0.84, 112); if (lines.length > 2) { size = 12.5; lines = rpDispLines(c.jobTitle, size, 0.84, 112).slice(0, 3); }
-  let y = 49.5 + size * 0.95; lines.forEach((t, i) => { rpDisp(pg, RP_X0, y + i * size * 0.98, t, size, { maxW: 114 }); }); y += (lines.length - 1) * size * 0.98;
-  y += 9; rpTx(pg, RP_X0, y, [m.project || c.plan.name, c.site].filter((x, i, a) => x && a.indexOf(x) === i).join('  ·  '), 4.1, { color: RP_C.grey, maxW: 112 });
-  rpStamp(pg, 177, 66, 40, 15, -6, v.col, v.stamp, `REV ${c.rev}  ·  ${c.date}`);
-  // key facts: uneven columns, no boxes
-  const f1 = [62, 58, 48]; let fy = y + 9; const fx = [RP_X0, RP_X0 + f1[0] + 0, RP_X0 + f1[0] + f1[1]];
-  rpInk(pg, RP_X0, RP_X1, fy - 4.6, 0.3);
-  const T = c.T; const wTxt = T ? `${fmt(T.W, 2)} t over ${T.picks.length} cranes` : `${fmt(r.W, 2)} t${r.contOn ? ' + ' + fmt(r.cont, 0) + '% margin' : ''}`;
-  const e1 = Math.max(rpFact(pg, fx[0], fy, f1[0] - 4, 'Client', m.client || '—'), rpFact(pg, fx[1], fy, f1[1] - 4, 'Project', m.project || c.plan.name || '—'), rpFact(pg, fx[2], fy, f1[2], 'Date of lift', c.date));
-  fy = e1 + 3.2; rpHair(pg, RP_X0, RP_X1, fy - 4.4, { w: 0.15 });
-  const e2 = Math.max(rpFact(pg, fx[0], fy, f1[0] - 4, T ? 'Cranes' : 'Crane', c.cranesTxt || '—'), rpFact(pg, fx[1], fy, f1[1] - 4, 'Load', `${l.name ? l.name + ', ' : ''}${wTxt}`), rpFact(pg, fx[2], fy, f1[2], 'Radius · boom', `${fmt(r.R, 1)} m  ·  ${fmt(r.tele?.L ?? r.geo?.L, 1)} m`));
-  // hero: the elevation
-  const hy = e2 + 4, hh = Math.max(58, Math.min(86, 214 - hy)); rpInk(pg, RP_X0, RP_X1, hy, 0.3);
-  if (c.shot) { // v11: the 3D render, full width, cropped to the band (never stretched)
-    const ih = RP_GW * 984 / 1400; P.rect(RP_X0, hy + 1, RP_GW, hh, { fill: '#1b2229', stroke: 'none', layer: 'RAMS' }); P.image(RP_X0, hy + 1 - Math.max(0, (ih - hh) / 2), RP_GW, ih, c.shot, { layer: 'RAMS', fit: 'none', clip: [RP_X0, hy + 1, RP_GW, hh] });
-    P.rect(RP_X0, hy + 1, 46, 6.4, { fill: '#11161c', stroke: 'none', layer: 'RAMS' }); rpTx(pg, RP_X0 + 2.4, hy + 5.4, '3D VIEW OF THE LIFT', 2.1, { bold: true, color: '#ffc20e' });
-  } else rpDrawing(pg, RP_X0, hy + 1, RP_GW, hh, 2.6, (Pd, box) => rpElev(c, Pd, box));
-  rpInk(pg, RP_X0, RP_X1, hy + hh + 2, 0.3);
-  rpTx(pg, RP_X0, hy + hh + 5.6, `${c.shot ? '3D view' : 'Elevation'}  ·  ${c.cranesTxt}  ·  radius ${fmt(r.R, 2)} m  ·  over the ${SIDE_WORD[sideOf(l)]}  ·  not to scale`, 2, { color: RP_C.grey, maxW: 168 });
-  // the elevation (or the top view) and the verdict
-  const by = 221, bw = 80, bh = 56.2;
-  if (c.shot) rpDrawing(pg, RP_X0, by, bw, bh, 2.6, (Pd, box) => rpElev(c, Pd, box, { padB: 26 }));
-  else rpDrawing(pg, RP_X0, by, bw, bh, 2.6, (Pd, box) => drawSitePlan(Pd, box, c.plan, c.calc, { livery: livery() }));
-  const vx = 122, vw = 78; P.rect(vx, by, 1.6, bh, { fill: v.col, stroke: 'none', layer: 'RAMS' });
-  rpLabel(pg, vx + 5, by + 4, 'Status of this lift');
-  const vl = rpDispLines(v.word, 8.4, 0.84, vw - 7).slice(0, 3); vl.forEach((t, i) => rpDisp(pg, vx + 5, by + 12.5 + i * 8.2, t, 8.4, { color: v.col, maxW: vw - 6 }));
-  rpPara(pg, vx + 5, by + 12.5 + (vl.length - 1) * 8.2 + 6.5, v.line, 2.4, vw - 7, { color: RP_C.ink, maxLines: 4, lead: 1.4 });
-  const ut = c.util != null ? fmt(c.util, 1) + '%' : 'out of reach'; const uw = rpDisp(pg, vx + 5, by + bh - 1, ut, 14, { color: RP_C.ink, maxW: 40 });
-  rpTx(pg, vx + 5 + uw + 2.4, by + bh - 6.8, T ? `of the tandem limit ${T.derate}%` : 'of the chart capacity', 2.2, { color: RP_C.grey, maxW: vw - uw - 9 });
-  rpTx(pg, vx + 5 + uw + 2.4, by + bh - 3.2, T ? 'worst crane' : `${c.ch ? c.ch.name : 'capacity typed by hand'}`, 2, { color: RP_C.grey, maxW: vw - uw - 9 });
+  const pg = rpNewPage(c, null, { cover: true, name: 'Cover' }); const P = pg.P, S = c.S, m = c.m, l = c.l, r = c.r, v = c.verdict; const cl = c.plan.client || {};
+  // the client: logo and name, large
+  pg.raw(rpLogoSvg(10, 10, 26, S)); const nameX = S.company || S.logoImg ? 40 : 10;
+  if (S.company) rpTx(pg, nameX, 21, S.company, 6, { bold: true, maxW: 90 });
+  (S.companyLines || []).slice(0, 3).forEach((t, i) => rpTx(pg, nameX, 27 + i * 3.6, t, 2.4, { color: RP_C.grey, maxW: 90 }));
+  rpLabel(pg, 200, 14, 'Document no.', { anchor: 'end' }); rpTx(pg, 200, 21, c.docNo, 4.6, { anchor: 'end', bold: true, maxW: 64 });
+  rpTx(pg, 200, 26.6, `Revision ${c.rev}   ·   ${c.date}`, 2.5, { anchor: 'end', color: RP_C.grey });
+  // the job
+  P.rect(10, 47, 30, 2, { fill: RP_C.acc, stroke: 'none', layer: 'RAMS' });
+  rpLabel(pg, 10, 57, 'Lift plan  ·  Risk assessment  ·  Method statement', { size: 2.3 });
+  let size = 21, lines = rpDispLines(c.jobTitle, size, 0.84, 190); if (lines.length > 2) { size = 15; lines = rpDispLines(c.jobTitle, size, 0.84, 190).slice(0, 3); }
+  let y = 59 + size * 0.95; lines.forEach((t, i) => rpDisp(pg, 10, y + i * size * 0.98, t, size, { maxW: 190 })); y += (lines.length - 1) * size * 0.98;
+  const sub = [cl.project || m.project || c.plan.name, cl.site || c.site].filter((x, i, a) => x && a.indexOf(x) === i).join('  ·  ');
+  if (sub) { y += 9; rpTx(pg, 10, y, sub, 4.4, { color: RP_C.grey, maxW: 190 }); }
+  // the picture, edge to edge
+  const hy = Math.max(y + 7, 98), hh = 208 - hy;
+  if (c.shot) { const ih = 210 * 984 / 1400; P.rect(0, hy, 210, hh, { fill: '#1b2229', stroke: 'none', layer: 'RAMS' }); const iw = hh > ih ? hh * 1400 / 984 : 210, ih2 = iw * 984 / 1400; pg.raw(`<clipPath id="cvClip"><rect x="0" y="${hy}" width="210" height="${hh}"/></clipPath><g clip-path="url(#cvClip)"><image x="${(210 - iw) / 2}" y="${hy - (ih2 - hh) / 2}" width="${iw}" height="${ih2}" preserveAspectRatio="none" href="${esc(c.shot)}" xlink:href="${esc(c.shot)}"/></g>`); void ih; }
+  else rpDrawing(pg, 10, hy, 190, hh, 2.6, (Pd, box) => rpElev(c, Pd, box));
+  // the facts, in four open columns
+  const cols = [10, 58, 106, 154], cw = 44; const T = c.T; let fy = hy + hh + 8;
+  const wTxt = T ? `${fmt(T.W, 2)} t, ${T.picks.length} cranes` : `${fmt(r.W, 2)} t${l.name ? ', ' + l.name : ''}`;
+  const e1 = Math.max(rpFact(pg, cols[0], fy, cw, T ? 'Cranes' : 'Crane', c.cranesTxt || '—'), rpFact(pg, cols[1], fy, cw, 'Load', wTxt), rpFact(pg, cols[2], fy, cw, 'Radius', `${fmt(r.R, 1)} m over the ${SIDE_WORD[sideOf(l)]}`), rpFact(pg, cols[3], fy, cw, 'Date of lift', c.date));
+  fy = e1 + 4; rpHair(pg, 10, 200, fy - 4.2, { w: 0.15 }); const pr = profileOf();
+  const e2 = Math.max(rpFact(pg, cols[0], fy, cw, 'Client contact', [cl.contact || rpDv(c, 'clientRep'), cl.phone || rpDv(c, 'clientPhone')].filter(Boolean).join(', ') || '—'), rpFact(pg, cols[1], fy, cw + 48, 'Prepared by', [preparedByLine(c.plan), pr.title, pr.phone, pr.email].filter(Boolean).join('  ·  ') || '—'));
+  // the verdict
+  const vy = Math.max(e2 + 4, 262); P.rect(10, vy, 1.6, 17, { fill: v.col, stroke: 'none', layer: 'RAMS' }); rpLabel(pg, 15, vy + 3, 'Status of this lift');
+  rpDisp(pg, 15, vy + 11, v.word, 6.6, { color: v.col, maxW: 120 }); rpPara(pg, 15, vy + 14.5, v.line, 2.2, 120, { color: RP_C.ink, maxLines: 2, lead: 1.3 });
+  const ut = c.util != null ? fmt(c.util, 1) + '%' : '—'; rpDisp(pg, 200, vy + 11, ut, 15, { anchor: 'end', color: rpUtilCol(c.util) }); rpTx(pg, 200, vy + 16, T ? `worst crane, tandem limit ${T.derate}%` : 'of the chart capacity', 2.2, { anchor: 'end', color: RP_C.grey });
   return pg;
+}
+const rpUtilCol = (u) => u == null ? RP_C.fail : u > 90 ? RP_C.fail : u >= 75 ? RP_C.warn : RP_C.ok;
+// half-circle utilisation gauge: green below 75 %, amber to 90 %, red above, full scale 120 %
+function rpArcGauge(pg, cx, cy, rad, u) {
+  const A = (p) => Math.PI * (1 - Math.min(120, Math.max(0, p)) / 120); const pt = (p, rr) => [cx + rr * Math.cos(A(p)), cy - rr * Math.sin(A(p))]; const w = rad * 0.17;
+  const seg = (p0, p1, col, ww) => { const a = pt(p0, rad), b = pt(p1, rad); return `<path d="M${rpR(a[0])} ${rpR(a[1])}A${rad} ${rad} 0 0 1 ${rpR(b[0])} ${rpR(b[1])}" fill="none" stroke="${col}" stroke-width="${ww}"/>`; };
+  pg.raw(seg(0, 75, '#cfe8d7', w) + seg(75, 90, '#f6e2bd', w) + seg(90, 120, '#f3c9c5', w)); if (u != null) { pg.raw(seg(0, u, rpUtilCol(u), w)); const q = pt(u, rad - w), q2 = pt(u, rad + w * 0.9); pg.P.line(q[0], q[1], q2[0], q2[1], { stroke: RP_C.ink, w: 0.6, layer: 'RAMS' }); }
+  [[0, '0'], [75, '75'], [90, '90'], [100, '100'], [120, '120']].forEach(([p, t]) => { const q = pt(p, rad + w * 1.05); rpTx(pg, q[0], q[1], t, 1.9, { anchor: 'middle', color: RP_C.grey, bold: true }); });
 }
 
 // ---------- 1 · document control ----------
@@ -254,7 +251,7 @@ function rpSecDoc(c, sec, idx) {
   y = Math.max(rt.y, y + 36) + 9; rpLabel(pg, RP_X0, y, 'Approval'); const ap = (name) => ({ t: name || '', bold: true });
   const sig = { draw: (pg2, cx, cy, w, h) => rpHair(pg2, cx + 2, cx + w - 4, cy + h - 3.2, { c: RP_C.mid, w: 0.2 }) };
   rpTable(pg, RP_X0, y + 3, [{ w: 40, t: 'Role' }, { w: 48, t: 'Name' }, { w: 54, t: 'Signature' }, { w: 26, t: 'Date' }], [
-    [{ t: 'Prepared by', bold: true }, ap(m.drawnBy), sig, sig], [{ t: 'Checked by', bold: true }, ap(m.checkedBy), sig, sig], [{ t: 'Approved by', bold: true }, ap(rpDv(c, 'approver')), sig, sig]].map(q => ({ cells: q, h: 12 })), { rh: 12 });
+    [{ t: 'Prepared by', bold: true }, ap(preparedByLine(c.plan) || m.drawnBy), sig, sig], [{ t: 'Checked by', bold: true }, ap(m.checkedBy), sig, sig], [{ t: 'Approved by', bold: true }, ap(rpDv(c, 'approver')), sig, sig]].map(q => ({ cells: q, h: 12 })), { rh: 12 });
   rpTx(pg, RP_X0 + 1.3, y + 3 + 4.6 + 36 + 4, 'Prepared by: the planner who built the plan. Checked by: the Appointed Person. Approved by: the client or principal contractor where the contract asks for it.', 2, { color: RP_C.grey, maxW: 166 });
   // distribution and contents
   y += 3 + 4.6 + 36 + 12; const dl = rpCol(0, 5), ct = rpCol(6, 6); rpLabel(pg, dl.x, y, 'Distribution'); rpLabel(pg, ct.x, y, 'Contents');
@@ -283,8 +280,7 @@ function rpSecSummary(c, sec) {
   rpHead(pg, c, 'Overview', 'Lift summary', c.util == null ? 'No chart capacity at this radius.' : `${fmt(c.util, 1)}% of the ${T ? 'tandem limit' : 'chart'} at ${fmt(r.R, 1)} m. ${c.nF ? c.nF + ' red' : 'No red'} and ${c.nW ? c.nW + ' amber' : 'no amber'} item${c.nW === 1 ? '' : 's'}.`);
   // hero: utilisation
   let y = 49; const h1 = rpCol(0, 5); rpLabel(pg, h1.x, y, T ? 'Worst crane against the tandem limit' : 'Utilisation of the chart', { maxW: h1.w });
-  const uw = rpDisp(pg, h1.x, y + 24, c.util != null ? fmt(c.util, 1) : '—', 27, { color: RP_C.ink, maxW: h1.w - 14 }); if (c.util != null) rpDisp(pg, h1.x + uw + 1.2, y + 24, '%', 13, { color: RP_C.grey });
-  rpGauge(pg, h1.x, y + 30, h1.w - 6, c.util, T ? c.limit * 0.9 : num(S.utilWarn, 75), c.limit, rpSt(worst));
+  rpArcGauge(pg, h1.x + h1.w / 2 - 2, y + 28, (h1.w - 12) / 2, c.util); rpDisp(pg, h1.x + h1.w / 2 - 2, y + 27, c.util != null ? fmt(c.util, 1) + '%' : '—', 11, { anchor: 'middle', color: rpUtilCol(c.util) });
   rpPara(pg, h1.x, y + 43, T ? `Each crane may use ${T.derate}% of its own chart. The busiest uses ${fmt(T.maxUtil, 1)}%.` : r.cap != null ? `Design load ${t2(r.design)} against ${t2(r.netCap)} net. Gross chart capacity ${t2(r.cap)} at ${fmt(r.R, 2)} m.` : 'The chart gives no capacity at this radius.', 2.4, h1.w - 6, { color: RP_C.grey, maxLines: 3 });
   const gp = g ? gbpTxt(g.press).split(' ') : null; const wl = rpWindLimit(c); const th = r.geo?.theta;
   const stats = [['Load', fmt(r.W, 2), 't', r.contOn && r.contW ? `+ ${fmt(r.contW, 2)} t margin` : 'no margin added'], ['Total hook load', fmt(r.design ?? r.total, 2), 't', r.daf ? `incl. DAF ${r.daf.toFixed(2)}` : 'load, hook, tackle'], ['Radius', fmt(r.R, 1), 'm', `over the ${SIDE_WORD[sideOf(l)]}`],
@@ -307,7 +303,7 @@ function rpSecSummary(c, sec) {
   rpTable(pg, lb.x, y + 3, [{ w: lb.w - 30 }, { w: 30, a: 'r' }], L, { rh: 5.4 });
   if (T) rpTable(pg, cp.x, y + 3, [{ w: 14 }, { w: 14, a: 'r' }, { w: cp.w - 28, a: 'r' }], T.picks.map(p => [`C${p.crane + 1}`, `${fmt(p.share, 1)} t`, { t: p.util != null ? `${fmt(p.util, 1)}%` : '—', bold: true, color: rpSt(p.util == null || p.util > T.derate ? 'fail' : p.util > T.derate * 0.9 ? 'warn' : 'ok') }]), { rh: 5.4 });
   else rpTable(pg, cp.x, y + 3, [{ w: cp.w - 22 }, { w: 22, a: 'r' }], [['Chart capacity', r.cap != null ? t2(r.cap) : '—'], ['Less deductions', r.ded != null ? `− ${t2(r.ded)}` : '—'], { cells: [{ t: 'Net capacity', bold: true }, { t: r.netCap != null ? t2(r.netCap) : '—', bold: true }], rule: RP_C.ink }, ['Design load', t2(r.design)], [{ t: 'Utilisation', bold: true }, { t: r.util != null ? `${fmt(r.util, 1)}%` : '—', bold: true, color: rpSt(worst) }], ['Margin on chart', r.margin != null ? `${fmt(r.margin, 1)}%` : '—']], { rh: 5.4 });
-  rpTx(pg, RP_X0, 270, `Chart: ${c.ch ? c.ch.name : 'typed by hand'}${c.ch?.source ? '  ·  source ' + c.ch.source : ''}${c.ch && c.ch.verify ? '  ·  transcribed from a public datasheet: check it against the maker\'s chart' : ''}`, 2.2, { color: RP_C.grey, maxW: 168 });
+  rpTx(pg, RP_X0, 270, `Chart: ${c.ch ? c.ch.name : 'typed by hand'}${c.ch?.source ? '  ·  source ' + c.ch.source : ''}`, 2.2, { color: RP_C.grey, maxW: 168 });
   return pg;
 }
 // ---------- 3 · lifting plan drawings (+ the tandem page) ----------
@@ -327,34 +323,38 @@ function rpElevH(c, kE, maxH) { // the page height the elevation needs at this w
 function rpSiteBox(c, kE, maxH) {
   try { const ext = sitePlanExtents(c.plan, c.calc); const kW = (RP_GW * kE - 16) / (ext.x1 - ext.x0); return Math.max(80, Math.min(maxH, ((ext.y1 - ext.y0) * kW + 22) / kE + 2)); } catch (e) { return maxH; }
 }
-function rpSiteDraw(c, Pd, box) { // the site plan at an exact scale (the sheet snaps to 1:N steps)
-  let fixed; try { const ext = sitePlanExtents(c.plan, c.calc); const k = Math.min((box.w - 16) / (ext.x1 - ext.x0), (box.h - 22) / (ext.y1 - ext.y0)); const ox = box.x + 8 + Math.max(0, (box.w - 16 - (ext.x1 - ext.x0) * k) / 2), oy = box.y + box.h - 12 - Math.max(0, (box.h - 22 - (ext.y1 - ext.y0) * k) / 2); fixed = { T: (x, y) => [ox + (x - ext.x0) * k, oy - (y - ext.y0) * k], k, ext }; } catch (e) { fixed = undefined; }
-  return drawSitePlan(Pd, box, c.plan, c.calc, { livery: livery(), fixed });
+function rpSiteDraw(c, Pd, box, kf = 2.6) { // the site plan at a standard scale of the printed page
+  let fixed = null, N = null; try { const ext = sitePlanExtents(c.plan, c.calc); const kr = Math.min((box.w - 20) / (ext.x1 - ext.x0), (box.h - 26) / (ext.y1 - ext.y0)); N = rpNiceN(kf * 1000 / kr); const k = kf * 1000 / N; const ox = box.x + 10 + Math.max(0, (box.w - 20 - (ext.x1 - ext.x0) * k) / 2), oy = box.y + box.h - 14 - Math.max(0, (box.h - 26 - (ext.y1 - ext.y0) * k) / 2); fixed = { T: (x, y) => [ox + (x - ext.x0) * k, oy - (y - ext.y0) * k], k, ext }; } catch (e) { fixed = null; }
+  drawSitePlan(Pd, box, c.plan, c.calc, { livery: livery(), fixed, zones: c.plan.opt?.exclusion !== false, sideTag: false });
+  if (fixed) { drawScaleBar(Pd, box.x + 8, box.y + box.h - 16, fixed.k, N, { maxW: Math.min(150, box.w * 0.3), size: 2.1 * kf, h: 1.6 * kf, layer: 'RAMS', paper: 'A4' }); drawNorthArrow(Pd, box.x + box.w - 7 * kf, box.y + 8 * kf, 4.4 * kf, { layer: 'RAMS' }); }
+  return N;
 }
+function rpNiceN(raw) { const steps = [50, 75, 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500, 600, 700, 750, 800, 900, 1000, 1250, 1500, 2000, 2500, 3000]; return steps.find(v => v >= raw) || Math.ceil(raw / 500) * 500; }
 function rpOnSite(pg, c, x, y, w) { // the things on the site, and what hangs on the hook, as two short lists
   const { plan, r } = c; let ny = y; const obs = (plan.site?.obstacles || []).filter(o => o.type !== 'person').slice(0, 7);
   rpLabel(pg, x, ny, 'On the site'); ny += 2.6; if (!obs.length) rpPara(pg, x, ny + 3, 'No structures are drawn on the plan.', 2.3, w, { color: RP_C.grey });
   obs.forEach(o => { const t = `${o.label || o.type}${o.w ? `  ${fmt(o.w, 0)}${o.h ? ' × ' + fmt(o.h, 1) : ''} m` : ''}${o.x != null && o.x !== '' ? `, ${fmt(num(o.x), 1)} m from the crane` : ''}`; rpHair(pg, x, x + w, ny + 5); rpTx(pg, x + 0.6, ny + 3.6, t, 2.3, { maxW: w - 1 }); ny += 5; });
   return ny;
 }
-function rpSecElev(c, sec) { // v11: the crane gets the whole page — a landscape sheet, the drawing as large as it will go, the figures under it
-  const pg = rpNewPage(c, sec, { land: true, head: true }); const { r, l } = c; const th = r.geo?.kind === 'luffing' ? r.geo.gamma : r.geo?.theta;
-  rpLabel(pg, 10, 22.6, `${rpPad(sec.no)}  ·  Drawings`); rpDisp(pg, 10, 34, 'Elevation', 11.5, { maxW: 120 });
-  rpPara(pg, 150, 21.6, `${c.cranesTxt}. Boom ${fmt(r.tele?.L ?? r.geo?.L, 1)} m at ${fmt(th, 1)}°, radius ${fmt(r.R, 1)} m over the ${SIDE_WORD[sideOf(l)]}, boom head ${fmt(r.tipY, 1)} m above the ground.${r.clearance != null ? ` Closest structure ${fmt(r.clearance, 1)} m from the boom.` : ''}`, 2.4, 137, { color: RP_C.grey, maxLines: 4, lead: 1.4 });
-  pg.P.rect(10, 37.2, 22, 1.5, { fill: RP_C.acc, stroke: 'none', layer: 'RAMS' }); rpInk(pg, 32, 287, 37.9, 0.5);
-  const y = 40, h = 131; rpDrawing(pg, 10, y, 277, h, 2.0, (Pd, box) => rpElev(c, Pd, box)); rpInk(pg, 10, 287, y + h + 1.2, 0.3);
-  rpTx(pg, 10, y + h + 5, `Elevation  ·  ${c.cranesTxt}  ·  over the ${SIDE_WORD[sideOf(l)]}${hasSlew(l) && Math.abs(degDiff(slewOf(l), SIDE_OFFSET[sideOf(l)])) > 0.5 ? ` (slew ${Math.round(slewOf(l))}°)` : ''}  ·  dimensions in mm, levels in m`, 2, { color: RP_C.grey, maxW: 277 });
-  const facts = [['Radius', `${fmt(r.R, 2)} m`], ['Boom', `${fmt(r.tele?.L ?? r.geo?.L, 1)} m`], ['Boom angle', `${fmt(th, 1)}°`], ['Boom head', `${fmt(r.tipY, 1)} m`], ['Hook', `${fmt(r.hookY, 1)} m`], ['Hook load', `${fmt(r.design ?? r.total, 2)} t`], ['Crane can lift', r.cap != null ? `${fmt(r.cap, 2)} t` : 'no chart'], ['Of the chart', r.util != null ? `${fmt(r.util, 1)} %` : '—']];
-  const fw = 277 / facts.length; facts.forEach(([a, b], i) => rpFact(pg, 10 + i * fw, y + h + 12, fw - 3, a, b, { size: 3.2 }));
+function rpDrawPage(c, sec, title, caption, facts, draw) {
+  const pg = rpNewPage(c, sec, { land: true, head: true }); rpLabel(pg, 10, 19.4, `${rpPad(sec.no)}  ·  Drawings`); rpDisp(pg, 10, 27, title, 8.6, { maxW: 90 });
+  pg.P.rect(10, 29, 18, 1.2, { fill: RP_C.acc, stroke: 'none', layer: 'RAMS' }); rpInk(pg, 28, 287, 29.6, 0.4);
+  const x = 10, y = 31, w = 232, h = 160; const cap = draw(pg, x, y, w, h);
+  rpTx(pg, 10, 194.6, typeof caption === 'function' ? caption(cap) : caption, 2, { color: RP_C.grey, maxW: 277 });
+  let fy = 38; facts.filter(Boolean).forEach(([a, v]) => { rpHair(pg, 246, 287, fy - 4, { w: 0.15 }); fy = rpFact(pg, 246, fy, 41, a, v, { size: 3.6 }) + 6; });
   return pg;
 }
-function rpSecPlanView(c, sec) {
-  const pg = rpNewPage(c, sec); const { r, l } = c; const sp = c.plan.sitePlan || {};
-  rpHead(pg, c, 'Drawings', 'Top view and site plan', `${sp.enabled ? 'Boom pointing ' + rpCompass(boomHeadingFor(c.plan, l)) + '. ' : ''}Reach ${fmt(r.R, 1)} m over the ${SIDE_WORD[sideOf(l)]}, tail swing ${fmt(num(c.crane.tail, 4), 1)} m. The ring is the exclusion zone.`);
-  const y = 46, h = rpSiteBox(c, 2.0, 178); rpInk(pg, RP_X0, RP_X1, y, 0.3); rpDrawing(pg, RP_X0, y + 1, RP_GW, h, 2.0, (Pd, box) => rpSiteDraw(c, Pd, box)); rpInk(pg, RP_X0, RP_X1, y + h + 2, 0.3);
-  rpTx(pg, RP_X0, y + h + 5.6, 'Top view  ·  north up  ·  boom, tail swing and exclusion zone as drawn', 2, { color: RP_C.grey, maxW: 168 });
-  const fy = y + h + 14; const A = rpCol(0, 6), B = rpCol(6, 6); rpInk(pg, RP_X0, RP_X1, fy - 4, 0.3); rpFiguresRows(pg, c, A.x, fy, A.w); rpOnSite(pg, c, B.x, fy, B.w);
-  return pg;
+function rpSecElev(c, sec) { // v11: the crane gets the whole page
+  const { r, l } = c; const th = r.geo?.kind === 'luffing' ? r.geo.gamma : r.geo?.theta; const lf = (l.landY !== '' && l.landY != null) ? num(l.landY) : null;
+  return rpDrawPage(c, sec, 'Elevation', () => `Elevation  ·  ${c.cranesTxt}  ·  over the ${SIDE_WORD[sideOf(l)]}${hasSlew(l) && Math.abs(degDiff(slewOf(l), SIDE_OFFSET[sideOf(l)])) > 0.5 ? ` (slew ${Math.round(slewOf(l))}°)` : ''}  ·  ${c.elevN ? `scale 1:${c.elevN} at A4  ·  ` : ''}dimensions in mm, levels in m`,
+    [['Radius', `${fmt(r.R, 2)} m`], ['Boom length', `${fmt(r.tele?.L ?? r.geo?.L, 1)} m`], ['Boom angle', `${fmt(th, 1)}°`], ['Boom head', `${fmt(r.tipY, 2)} m`], ['Hook height', `${fmt(r.hookY, 2)} m`], lf != null ? ['Landing level', `${fmt(lf, 2)} m`] : null, ['Hook load', `${fmt(r.design ?? r.total, 2)} t`], ['Crane can lift', r.cap != null ? `${fmt(r.cap, 2)} t` : 'no chart'], ['Of the chart', r.util != null ? `${fmt(r.util, 1)} %` : '—'], r.clearance != null ? ['Closest structure', `${fmt(r.clearance, 2)} m`] : null],
+    (pg, x, y, w, h) => { rpDrawing(pg, x, y, w, h, 2.0, (Pd, box) => rpElev(c, Pd, box, { kf: 2.0, padB: 18, hookDim: true })); });
+}
+function rpSecPlanView(c, sec) { // v11.1: the plan view gets a full landscape page too
+  const { r, l } = c; const XZ = exclusionOf(c.plan, r, c.crane, l); const on = c.plan.opt?.exclusion !== false; const spn = outSpans(c.crane, outExtOf(c.pv));
+  return rpDrawPage(c, sec, 'Plan view', (N) => `Plan view  ·  north up  ·  ${N ? `scale 1:${N} at A4  ·  ` : ''}dimensions in mm`,
+    [['Radius', `${fmt(r.R, 2)} m`], ['Boom heading', rpCompass(boomHeadingFor(c.plan, l))], ['Outrigger spread', `${fmt(spn.long, 2)} × ${fmt(spn.yL + spn.yR, 2)} m`], ['Crane footprint', `${fmt(num(c.crane.carrierLen), 2)} × ${fmt(num(c.crane.width), 2)} m`], ['Tail swing', `${fmt(num(c.crane.tail), 2)} m`], on ? ['Exclusion zone', `${fmt(XZ.R, 2)} m radius`] : null, on ? ['Barrier', `${fmt(XZ.barrier, 2)} m radius`] : null, ['Closest structure', r.clearance != null ? `${fmt(r.clearance, 2)} m` : 'none drawn'], ['Load length × height', `${fmt(num(l.l), 2)} × ${fmt(num(l.h), 2)} m`]],
+    (pg, x, y, w, h) => { let N = null; rpDrawing(pg, x, y, w, h, 2.0, (Pd, box) => { N = rpSiteDraw(c, Pd, box, 2.0); }); return N; });
 }
 function rpFiguresRows(pg, c, x, y, w) { const { r, l, plan } = c; const sp = plan.sitePlan || {};
   rpLabel(pg, x, y, 'From the drawing'); const rows = [['Radius', `${fmt(r.R, 2)} m`], ['Boom', `${fmt(r.tele?.L ?? r.geo?.L, 1)} m at ${fmt(r.geo?.theta, 1)}°`], ['Landing level', `${fmt(r.landY, 2)} m`], ...(sp.enabled ? [['Boom points', rpCompass(boomHeadingFor(plan, l))]] : []), ...(r.clearance != null ? [['Clearance', `${fmt(r.clearance, 2)} m${r.clearLine?.label ? ' to ' + String(r.clearLine.label).toLowerCase() : ''}`]] : [])];
@@ -384,7 +384,7 @@ function rpSecTandem(c, sec) {
 function rpDocKind(d) { return { chart: 'Load chart', spec: 'Spec sheet', cad: 'CAD outline' }[d.kind] || d.kind || ''; }
 function rpSecCrane(c, sec) {
   const pg = rpNewPage(c, sec); const { crane, pv, ch, r, plan } = c; const ex = outExtOf(pv); const at = pv.attach || {}; const col = r.col;
-  rpHead(pg, c, 'Equipment', 'Crane data sheet', `${crane.make || ''} ${crane.model}, ${crane.cls ? crane.cls + ' t ' : ''}${(crane.type || '').toLowerCase()}. Set up with ${fmt(c.cwt, 1)} t counterweight, ${outExtLabel(ex).toLowerCase()} outriggers and ${fmt(r.tele?.L ?? r.geo?.L, 1)} m of boom.`.replace(/\s+/g, ' '));
+  rpHead(pg, c, 'Equipment', 'Crane configuration', `${crane.make || ''} ${crane.model}, ${crane.cls ? crane.cls + ' t ' : ''}${(crane.type || '').toLowerCase()}. Set up with ${fmt(c.cwt, 1)} t counterweight, ${outExtLabel(ex).toLowerCase()} outriggers and ${fmt(r.tele?.L ?? r.geo?.L, 1)} m of boom.`.replace(/\s+/g, ' '));
   const L = rpCol(0, 8), R = rpCol(8, 4); let y = 49;
   const sec3 = (title, rows) => { rpLabel(pg, L.x, y, title); const tr = rpTable(pg, L.x, y + 2.2, [{ w: 36 }, { w: L.w - 36, bold: true, wrap: true, maxLines: 2 }], rows.filter(x => x && x[1] != null && String(x[1]).trim() !== '').map(([a, b]) => [{ t: a, color: RP_C.grey }, String(b)]), { rh: 5.3, fs: 2.4, flush: true }); y = tr.y + 5.5; };
   const jib = at.type === 'fly' ? `Fly jib ${fmt(num(at.jibLen), 1)} m at ${num(at.offset)}°` : at.type === 'luff' ? `Luffing jib ${fmt(num(at.jibLen), 1)} m, boom at ${num(at.boomAngle)}°` : ch?.kind === 'luffing' || ch?.kind === 'fixedjib' ? `Jib ${ch.jibLen ? fmt(ch.jibLen, 1) + ' m' : ''}` : 'Main boom only';
@@ -399,13 +399,13 @@ function rpSecCrane(c, sec) {
   rpDrawing(pg, R.x, 52, R.w, dh, 3, (Pd, box) => drawCraneDims(Pd, box, crane));
   rpTx(pg, R.x, 52 + dh + 4, crane.imgDims ? "Maker's dimension drawing" : 'Carrier, outriggers and boom stowed. Dimensions in mm.', 2, { color: RP_C.grey, maxW: R.w });
   // the reference documents the library holds for this crane
-  y = Math.max(y, 52 + dh + 9) + 1; const lib = typeof CRANE_LIBRARY !== 'undefined' ? CRANE_LIBRARY[crane.id] : null; const docs = (lib?.docs || []).slice().sort((a, b) => ['chart', 'spec', 'cad'].indexOf(a.kind) - ['chart', 'spec', 'cad'].indexOf(b.kind));
-  rpLabel(pg, RP_X0, y, 'Reference documents'); y += 2.2; const match = { exact: 'exact model', variant: 'same model, other issue', nearest: 'nearest public drawing', collection: 'multi-crane sheet' };
+  y = Math.max(y, 52 + dh + 9) + 1; const lib = typeof CRANE_LIBRARY !== 'undefined' ? CRANE_LIBRARY[crane.id] : null; const docs = [].slice().sort((a, b) => ['chart', 'spec', 'cad'].indexOf(a.kind) - ['chart', 'spec', 'cad'].indexOf(b.kind));
+  if (docs.length) rpLabel(pg, RP_X0, y, 'Reference documents'); y += 2.2; const match = { exact: 'exact model', variant: 'same model, other issue', nearest: 'nearest public drawing', collection: 'multi-crane sheet' };
   const room = Math.max(1, Math.floor((276 - y - 12 - 4.6) / 5.2)); const shown = docs.slice(0, Math.min(room, 9));
   if (docs.length) {
     const anyCad = shown.some(d => d.kind === 'cad'); const tr = rpTable(pg, RP_X0, y, anyCad ? [{ w: 22, t: 'Type' }, { w: 90, t: 'Document' }, { w: 26, t: 'Source' }, { w: 30, t: 'Fit' }] : [{ w: 24, t: 'Type' }, { w: 108, t: 'Document' }, { w: 36, t: 'Source' }], shown.map(d => anyCad ? [{ t: rpDocKind(d), bold: true }, d.name, d.source || '', { t: d.kind === 'cad' ? (match[d.match] || '') : '', color: RP_C.grey }] : [{ t: rpDocKind(d), bold: true }, d.name, d.source || '']), { rh: 5.2, fs: 2.3 }); y = tr.y + 4;
     if (docs.length > shown.length) { rpTx(pg, RP_X0 + 1.3, y, `and ${docs.length - shown.length} more in the Fleet page`, 2.1, { color: RP_C.grey }); y += 4; }
-  } else { rpTx(pg, RP_X0 + 1.3, y + 5, `The library holds no documents for this crane. Chart used: ${ch ? ch.name : 'typed by hand'}${ch?.source ? ', source ' + ch.source : ''}.`, 2.4, { color: RP_C.ink, maxW: 166 }); y += 9; }
+  }
   rpPara(pg, RP_X0 + 1.3, y + 1.5, "Third-party documents are reference only. Check every value against the manufacturer's chart for the exact machine before a lift.", 2.2, 166, { color: RP_C.grey });
   if (crane.imgDims) { // v11: the maker's dimension drawing on a landscape page of its own, as large as it goes (never stretched)
     const p2 = rpNewPage(c, sec, { land: true, head: true, cont: true });
@@ -459,7 +459,7 @@ function rpSecChart(c, sec) {
   let y = 47; const f = [[ch.name, 'Chart', 70], [`${fmt(num(ch.cwt ?? crane.cwt), 1)} t`, 'Counterweight', 28], [`${ch.outrigger || crane.outrigger || '—'} m`, 'Outriggers', 34], [sect || '—', 'Sector', 36]]; let fx = RP_X0;
   f.forEach(([v, lab, w]) => { rpFact(pg, fx, y, w - 3, lab, v, { size: 2.9, maxLines: 2 }); fx += w; });
   y = 64; const yEnd = rpChartTable(pg, RP_X0, y, RP_GW, ex, c);
-  rpTx(pg, RP_X0, yEnd + 4, `${ex.more ? 'Excerpt around the duty point. ' : ''}Capacity in tonnes. ${ch.source ? 'Source: ' + ch.source + '. ' : ''}${ch.verify ? 'Transcribed from a public datasheet: check it against the maker\'s chart before issue.' : ''}`, 2, { color: RP_C.grey, maxW: 168 });
+  rpTx(pg, RP_X0, yEnd + 4, `${ex.more ? 'Excerpt around the duty point. ' : ''}Capacity in tonnes. ${ch.source ? 'Source: ' + ch.source + '. ' : ''}`, 2, { color: RP_C.grey, maxW: 168 });
   y = yEnd + 12; const cv = rpCol(0, 8), nt = rpCol(8, 4); rpLabel(pg, cv.x, y, 'Capacity of the duty boom against radius'); rpChartCurve(pg, cv.x, y + 2, cv.w, 258 - y - 2, parsed, Math.max(0, num(r.ci)), c);
   rpLabel(pg, nt.x, y, 'Reading the duty point'); const ci = r.capInfo || {};
   const notes = [r.capInfo?.rounded ? `The chart has no ${fmt(r.R, 1)} m row. It is read at the next row up, ${fmt(ci.row, 1)} m, so the capacity is never overstated.` : ci.interp ? `Read between rows at ${fmt(r.R, 2)} m.` : `Read at the ${fmt(ci.row ?? r.R, 1)} m row.`, `Gross ${fmt(r.cap, 2)} t, less ${fmt(r.ded, 2)} t (hook block ${fmt(r.hb, 2)}, tackle ${fmt(r.tk, 2)}${r.ex ? ', other ' + fmt(r.ex, 2) : ''}${r.jd ? ', folded jib ' + fmt(r.jd, 2) : ''}${r.rope ? ', rope ' + fmt(r.rope, 2) : ''}) leaves ${fmt(r.netCap, 2)} t.`, `Load ${fmt(r.W, 2)} t${r.contOn ? ' + ' + fmt(r.contW, 2) + ' t margin' : ''} is ${fmt(r.util, 1)}% of that.`];
@@ -472,7 +472,7 @@ function rpSecChart(c, sec) {
 function rpSecGround(c, sec) {
   const pg = rpNewPage(c, sec); const { O, g, r, crane, plan, l } = c; const li = c.li;
   const gst = g?.status === 'fail' ? 'fail' : g?.status === 'warn' ? 'warn' : g?.status === 'ok' ? 'ok' : 'x';
-  rpHead(pg, c, 'Ground', 'Outriggers and ground', g ? `Busiest leg ${fmt(g.P, 1)} t on ${g.mat}: ${gbpTxt(g.press)}${g.allow ? ' against ' + gbpTxt(g.allow) + ' allowed' : ', allowable not entered'}. ${gst === 'ok' ? 'Passes.' : gst === 'fail' ? 'Fails. Enlarge the mats.' : gst === 'warn' ? 'Close to the limit.' : ''}` : 'Ground bearing check is off for this plan.');
+  rpHead(pg, c, 'Ground', 'Ground bearing pressure', g ? `Busiest leg ${fmt(g.P, 1)} t on ${g.mat}: ${gbpTxt(g.press)}${g.allow ? ' against ' + gbpTxt(g.allow) + ' allowed' : ', allowable not entered'}. ${gst === 'ok' ? 'Passes.' : gst === 'fail' ? 'Fails. Enlarge the mats.' : gst === 'warn' ? 'Close to the limit.' : ''}` : 'Ground bearing check is off for this plan.');
   const D = rpCol(0, 8), K = rpCol(8, 4); let y = 47; const boxH = 112;
   rpInk(pg, D.x, D.x + D.w, y, 0.3); rpLabel(pg, D.x, y + 4.5, 'Leg loads, top view');
   if (O) {
@@ -489,7 +489,7 @@ function rpSecGround(c, sec) {
       const [bx0, by0] = S2(p.x, Math.sign(p.y) * Wc / 2); pg.P.line(bx0, by0, px, py, { stroke: '#666', w: 0.8, layer: 'RAMS' });
       pg.P.rect(px - ms / 2, py - ms / 2, ms, ms, { fill: '#c9a46b', stroke: RP_C.ink, w: 0.25, layer: 'RAMS' }); pg.P.circle(px, py, 1.3, { fill: st, stroke: 'none', layer: 'RAMS' });
       const right = px > cx, below = py > cy; const tx = px + (right ? ms / 2 + 2.4 : -ms / 2 - 2.4), ty = py + (below ? 2.6 : -2.2);
-      rpTx(pg, tx, ty, `${p.id}  ${fmt(v, 1)} t${O.manual[p.id] != null ? '*' : ''}`, 3, { anchor: right ? 'start' : 'end', bold: true }); rpTx(pg, tx, ty + 3.7, `${fmt(v * OUT_G, 0)} kN${q != null ? '  ·  ' + gbpTxt(q) : ''}`, 2.2, { anchor: right ? 'start' : 'end', color: st }); }
+      rpTx(pg, tx, ty, `${p.id}  ${fmt(v, 1)} t`, 3, { anchor: right ? 'start' : 'end', bold: true }); rpTx(pg, tx, ty + 3.7, `${fmt(v * OUT_G, 0)} kN${q != null ? '  ·  ' + gbpTxt(q) : ''}`, 2.2, { anchor: right ? 'start' : 'end', color: st }); }
     rpTx(pg, D.x, y + boxH - 1, `${outExtLabel(O.ext)} outriggers  ·  ${O.basis === 'full' ? 'busiest over a full 360° slew' : 'over the lift side'}${O.est ? '  ·  estimated crane weights' : ''}${Object.keys(O.manual || {}).length ? '  ·  * typed by hand, illustration only' : ''}`, 2, { color: RP_C.grey, maxW: D.w });
   } else rpTx(pg, D.x, y + 30, 'No outrigger model for this crane.', 2.8, { color: RP_C.grey });
   // right: the ground check as figures
@@ -506,13 +506,13 @@ function rpSecGround(c, sec) {
   if (O) {
     const legName = { FR: 'Front right', FL: 'Front left', RL: 'Rear left', RR: 'Rear right' };
     const rows = O.pads.map(p => { const v = O.used[p.id], q = g?.pads?.[p.id]; const st = g?.allow && q != null ? (q > g.allow ? 'fail' : q > 0.9 * g.allow ? 'warn' : 'ok') : 'x';
-      return [{ t: p.id, bold: true }, legName[p.id] || '', { t: `${fmt(v, 2)} t${O.manual[p.id] != null ? ' *' : ''}`, bold: true }, `${fmt(v * OUT_G, 0)} kN`, q != null ? gbpTxt(q) : '—', { t: g?.allow ? (q > g.allow ? 'Over' : `${fmt(q / g.allow * 100, 0)}% of allowed`) : '—', color: rpSt(st), bold: true }]; });
+      return [{ t: p.id, bold: true }, legName[p.id] || '', { t: `${fmt(v, 2)} t`, bold: true }, `${fmt(v * OUT_G, 0)} kN`, q != null ? gbpTxt(q) : '—', { t: g?.allow ? (q > g.allow ? 'Over' : `${fmt(q / g.allow * 100, 0)}% of allowed`) : '—', color: rpSt(st), bold: true }]; });
     const tr = rpTable(pg, RP_X0, y + 7, [{ w: 14, t: 'Leg' }, { w: 40, t: 'Position' }, { w: 30, t: 'Load', a: 'r' }, { w: 24, t: 'Force', a: 'r' }, { w: 32, t: 'Pressure', a: 'r' }, { w: 28, t: 'Against ground', a: 'r' }], rows, { rh: 5.6, fs: 2.4 }); y = tr.y + 5;
   } else y += 9;
   const pts = [g?.allow ? `Mats ${g?.mat || ''} under every pad, tight to the pad, on level ground. Pack any void under a mat. The ground must take ${gbpTxt(g.allow)}.` : `Mats ${rpMatOf(c) || 'as planned'} under every pad. Get the allowable bearing from the site and enter it before the lift.`, 'Dig or probe for voids, trenches, drains and buried services under the footprint and the slew area. A slab edge is not a mat edge.', O?.ext && outExtHalf(O.ext) ? `Outriggers are not fully out on one side (${outExtLabel(O.ext).toLowerCase()}). Work only in the sector the chart gives for that set-up, and let the LMI see the set-up.` : 'Set the beams fully out and the cylinders down until the tyres are clear. Level the crane before the boom leaves its rest.', 'Planning model. The maker\'s outrigger data and a competent ground assessment govern.'];
   pts.forEach(t => { pg.P.rect(RP_X0 + 1.3, y + 0.4, 1.2, 1.2, { fill: RP_C.ink, stroke: 'none', layer: 'RAMS' }); y = rpPara(pg, RP_X0 + 5, y + 1.6, t, 2.4, 160, { maxLines: 2, lead: 1.4 }) + 1.6; });
   if (g && typeof GROUND_PRESETS !== 'undefined') { // what this leg load needs on common ground (rough guide, the site report wins)
-    y += 3; rpLabel(pg, RP_X0, y, 'What this leg load needs on common ground, rough guide only'); const side = (q) => Math.sqrt(((g.P || 0) + (g.self || 0)) / q), have = Math.sqrt(g.area || 0);
+    if (c.plan.opt?.mats === false) return pg; y += 3; rpLabel(pg, RP_X0, y, 'What this leg load needs on common ground, rough guide only'); const side = (q) => Math.sqrt(((g.P || 0) + (g.self || 0)) / q), have = Math.sqrt(g.area || 0);
     const rows = GROUND_PRESETS.map(([k, nm, kpa]) => { const q = kpa / 9.80665, need = side(q), ok = have + 1e-6 >= need; return [nm, `${fmt(q, 1)} t/m²`, { t: `${fmt(need, 2)} m square`, bold: true }, { t: ok ? 'This mat is enough' : 'Too small', color: ok ? RP_C.ok : RP_C.fail, bold: true }]; });
     rpTable(pg, RP_X0, y + 2, [{ w: 70, t: 'Ground' }, { w: 30, t: 'Allows', a: 'r' }, { w: 36, t: 'Smallest square mat', a: 'r' }, { w: 32, t: `${g.mat}`, a: 'r' }], rows, { rh: 4.9, fs: 2.3, maxY: 276 });
   }
@@ -726,7 +726,7 @@ function rpSecMethod(c, sec) {
 function rpSecPanel(c, sec) {
   let pg = rpNewPage(c, sec); const pg0 = pg; const blocks = sheetBlocks(c.plan, c.calc, c.S); const ovs = (c.calc.sheetOv || []).length;
   const nRows = blocks.reduce((a, b) => a + b.rows.length, 0);
-  rpHead(pg, c, 'Drawings', 'Sheet data panel', `${nRows} values, as the A1 sheet prints them.${ovs ? ` ${ovs} typed over by hand (marked *).` : ''} Change a value in the plan and the sheet and this page follow.`);
+  rpHead(pg, c, 'Drawings', 'Sheet data panel', `${nRows} values, as the A1 sheet prints them.Change a value in the plan and the sheet and this page follow.`);
   const total = blocks.reduce((a, b) => a + 11 + b.rows.length * 5, 0); const half = total / 2; const colX = [RP_X0, RP_X0 + 87], colW = 81; let col = 0, y = 49; const sentence = (s) => { const t = String(s || '').toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); };
   const newCol = () => { if (col === 0) { col = 1; y = 49; } else { pg = rpNewPage(c, sec, { cont: true }); rpHead(pg, c, 'Drawings', 'Sheet data panel, continued', ''); col = 0; y = 49; } };
   for (const b of blocks) {
@@ -734,7 +734,7 @@ function rpSecPanel(c, sec) {
     const hd = String(b.head || 'DATA').replace(/^M\./, '').replace(/DATA(\d)$/, 'DATA'); rpInk(pg, colX[col], colX[col] + colW, y, 0.5); rpLabel(pg, colX[col], y + 4.6, hd, { color: RP_C.ink, size: 2.0 }); y += 7;
     for (const r of b.rows) {
       if (y + 5 > 274) { newCol(); rpLabel(pg, colX[col], y + 4.6, hd + ' (cont.)', { color: RP_C.grey, size: 1.8 }); y += 7; }
-      const lab = sentence(r.label), v = String(r.v ?? '') + (r.ov ? ' *' : ''); rpTx(pg, colX[col] + 0.6, y + 3.4, lab, 2.25, { color: RP_C.grey, maxW: 42 }); rpTx(pg, colX[col] + colW - 0.6, y + 3.4, v, 2.4, { bold: true, anchor: 'end', maxW: 36, color: r.ov ? RP_C.warn : RP_C.ink }); rpHair(pg, colX[col], colX[col] + colW, y + 5); y += 5;
+      const lab = sentence(r.label), v = String(r.v ?? ''); rpTx(pg, colX[col] + 0.6, y + 3.4, lab, 2.25, { color: RP_C.grey, maxW: 42 }); rpTx(pg, colX[col] + colW - 0.6, y + 3.4, v, 2.4, { bold: true, anchor: 'end', maxW: 36, color: r.ov ? RP_C.warn : RP_C.ink }); rpHair(pg, colX[col], colX[col] + colW, y + 5); y += 5;
     }
     y += 4;
   }
@@ -808,30 +808,41 @@ function rpSecEmergency(c, sec) {
 }
 
 // ---------- the sections the pack can include (the share sheet ticks these) ----------
+function rpSecSignoff(c, sec) {
+  const pg = rpNewPage(c, sec); const m = c.m; const pr = profileOf(); rpHead(pg, c, 'Authorisation', 'Sign-off', 'Nobody lifts until this page is signed. Changes to the load, the crane, the radius or the ground need a new revision.');
+  let y = 58; const row = (role, name, who, sig) => { rpInk(pg, RP_X0, RP_X1, y - 6, 0.3); rpLabel(pg, RP_X0, y, role); rpDisp(pg, RP_X0, y + 9, name || ' ', 6.4, { maxW: 84 }); who.filter(Boolean).forEach((t, i) => rpTx(pg, RP_X0, y + 14 + i * 3.8, t, 2.5, { color: RP_C.grey, maxW: 84 }));
+    rpLabel(pg, 122, y, 'Signature'); if (sig) pg.raw(rpLogoSvg(122, y + 2, 34, { logoImg: sig })); rpHair(pg, 122, 164, y + 30, { c: RP_C.ink, w: 0.25 }); rpLabel(pg, 170, y, 'Date'); rpHair(pg, 170, 200, y + 30, { c: RP_C.ink, w: 0.25 }); y += 46; };
+  row('Prepared by', preparedByLine(c.plan) || m.drawnBy, [pr.title, pr.certs, [pr.phone, pr.email].filter(Boolean).join('  ·  ')], pr.sig);
+  row('Checked by, Appointed Person', m.checkedBy, [rpDv(c, 'apPhone')], null);
+  row('Approved by', rpDv(c, 'approver'), [c.plan.client?.company || ''], null);
+  row('Crane operator accepts', rpDv(c, 'operator'), [rpDv(c, 'operatorCard')], null);
+  return pg;
+}
 const REPORT_SECTIONS = [
-  { id: 'cover', title: 'Cover', sub: 'Job, crane, load, the drawing, a 3D picture and the status of the lift', def: true },
-  { id: 'doc', title: 'Document control and contents', sub: 'Revisions, sign-off, distribution and the page list', def: true },
-  { id: 'summary', title: 'Lift summary', sub: 'The key numbers and the verdict with its reasons', def: true },
-  { id: 'elev', title: 'Elevation drawing', sub: 'The lift drawn side on, on a page of its own', def: true },
-  { id: 'plan', title: 'Top view and site plan', sub: 'Boom swing, exclusion zone and what is around the lift', def: true },
-  { id: 'tandem', title: 'Tandem lift', sub: 'Each crane\'s share, utilisation and the load-transfer notes (tandem lifts only)', def: true },
-  { id: 'chart', title: 'Load chart extract', sub: 'The part of the chart round the duty point, with the lift marked', def: true },
-  { id: 'panel', title: 'Sheet data panel', sub: 'Every value the A1 sheet prints in its data panel', def: true },
-  { id: 'a1', title: 'Full A1 sheet, fitted to the page', sub: 'The whole plan on one landscape A4 page (small print)', def: false },
-  { id: 'crane', title: 'Crane data sheet and references', sub: 'Set-up, dimensions and the maker documents the library holds', def: true },
-  { id: 'ground', title: 'Outriggers and ground', sub: 'Leg loads, mats and the ground bearing check', def: true },
-  { id: 'rigging', title: 'Rigging and sling schedule', sub: 'Every item with standard, colour code, WLL and use, plus pre-use checks', def: true },
-  { id: 'risk', title: 'Risk assessment', sub: '5 × 5 matrix and register, filled from the plan and the site hazards you tick', def: true },
-  { id: 'method', title: 'Method statement', sub: 'Numbered steps from set-up to de-rig for this lift', def: true },
-  { id: 'permit', title: 'Permit to lift and briefing sheet', sub: 'Permit with its checks and signatures, and a sign-in sheet for the toolbox talk', def: true },
-  { id: 'emergency', title: 'Emergency and rescue plan', sub: 'Stop-work triggers, recovering a load stuck in the air, contacts', def: true }
+  { id: 'cover', title: 'Cover', sub: 'Client branding, the job, a picture of the lift and its status', def: true },
+  { id: 'doc', title: 'Document control and revisions', sub: 'Revisions, distribution and the page list', def: true },
+  { id: 'summary', title: 'Lift summary at a glance', sub: 'The key numbers, the utilisation gauge and the verdict', def: true },
+  { id: 'crane', title: 'Crane configuration', sub: 'Set-up, dimensions and papers', def: true },
+  { id: 'chart', title: 'Load chart extract', sub: 'The chart round the duty point, with the selected duty highlighted', def: true },
+  { id: 'plan', title: 'Plan view', sub: 'Full page: radius, slew, exclusion zone, outriggers', def: true },
+  { id: 'elev', title: 'Elevation', sub: 'Full page: boom angle, hook height, clearances', def: true },
+  { id: 'tandem', title: 'Tandem lift', sub: 'Each crane\'s share and utilisation (tandem lifts only)', def: true },
+  { id: 'ground', title: 'Ground bearing pressure', sub: 'Leg loads, mats and the ground check', def: true },
+  { id: 'rigging', title: 'Rigging', sub: 'Every item with its standard, WLL and use, plus pre-use checks', def: true },
+  { id: 'method', title: 'Method statement', sub: 'Numbered steps from set-up to de-rig', def: true },
+  { id: 'risk', title: 'Risk assessment', sub: '5 × 5 matrix and register', def: true },
+  { id: 'permit', title: 'Permit to lift and briefing sheet', sub: 'Permit, checks and the toolbox-talk sign-in', def: true },
+  { id: 'emergency', title: 'Emergency and rescue plan', sub: 'Stop-work triggers, recovery, contacts', def: true },
+  { id: 'panel', title: 'Sheet data panel', sub: 'Every value the A1 sheet prints', def: true },
+  { id: 'a1', title: 'Full A1 sheet, fitted to the page', sub: 'The whole plan on one landscape page', def: true },
+  { id: 'signoff', title: 'Sign-off', sub: 'Prepared, checked, approved', def: true }
 ];
 const RP_DEFS = [
-  { id: 'cover', name: 'Cover' }, { id: 'doc', name: 'Document control' }, { id: 'summary', name: 'Lift summary', fn: rpSecSummary }, { id: 'elev', name: 'Elevation', fn: rpSecElev }, { id: 'plan', name: 'Top view and site plan', fn: rpSecPlanView },
-  { id: 'tandem', name: 'Tandem lift', fn: rpSecTandem, when: (c) => !!c.T }, { id: 'chart', name: 'Load chart extract', fn: rpSecChart, when: (c) => !!(c.ch && getChart(c.ch)?.cols?.length) },
-  { id: 'panel', name: 'Sheet data panel', fn: rpSecPanel, when: () => typeof sheetBlocks === 'function' }, { id: 'a1', name: 'Full A1 sheet, fitted to the page', fn: rpSecA1, when: () => typeof buildSheet === 'function' },
-  { id: 'crane', name: 'Crane data sheet', fn: rpSecCrane }, { id: 'ground', name: 'Outriggers and ground', fn: rpSecGround, when: (c) => !!(c.O || c.g) }, { id: 'rigging', name: 'Rigging and sling schedule', fn: rpSecRigging },
-  { id: 'risk', name: 'Risk assessment', fn: rpSecRisk }, { id: 'method', name: 'Method statement', fn: rpSecMethod }, { id: 'permit', name: 'Permit to lift', fn: rpSecPermit }, { id: 'emergency', name: 'Emergency and rescue plan', fn: rpSecEmergency }
+  { id: 'cover', name: 'Cover' }, { id: 'doc', name: 'Document control' }, { id: 'summary', name: 'Lift summary', fn: rpSecSummary }, { id: 'crane', name: 'Crane configuration', fn: rpSecCrane },
+  { id: 'chart', name: 'Load chart extract', fn: rpSecChart, when: (c) => !!(c.ch && getChart(c.ch)?.cols?.length) }, { id: 'plan', name: 'Plan view', fn: rpSecPlanView }, { id: 'elev', name: 'Elevation', fn: rpSecElev },
+  { id: 'tandem', name: 'Tandem lift', fn: rpSecTandem, when: (c) => !!c.T }, { id: 'ground', name: 'Ground bearing pressure', fn: rpSecGround, when: (c) => !!(c.O || c.g) }, { id: 'rigging', name: 'Rigging', fn: rpSecRigging },
+  { id: 'method', name: 'Method statement', fn: rpSecMethod }, { id: 'risk', name: 'Risk assessment', fn: rpSecRisk }, { id: 'permit', name: 'Permit to lift', fn: rpSecPermit }, { id: 'emergency', name: 'Emergency and rescue plan', fn: rpSecEmergency },
+  { id: 'panel', name: 'Sheet data panel', fn: rpSecPanel, when: () => typeof sheetBlocks === 'function' }, { id: 'a1', name: 'Full A1 sheet, fitted to the page', fn: rpSecA1, when: () => typeof buildSheet === 'function' }, { id: 'signoff', name: 'Sign-off', fn: rpSecSignoff }
 ];
 // the sections that would print for this plan (a tandem page needs a tandem lift, a ground page needs an outrigger model …)
 function reportAvailable(plan, calc, S) { try { const c = rpCtx(plan || state.plan, calc || state.calc, S || settingsEff(), null); return RP_DEFS.filter(d => !d.when || d.when(c)).map(d => d.id); } catch (e) { return RP_DEFS.map(d => d.id); } }

@@ -33,7 +33,7 @@ const DOC_FIELDS = [
   { k: 'docs.time', g: 'site', t: 'Lift window', ph: '07:00 – 11:00', req: 1 },
   { k: 'docs.siteContact', g: 'site', t: 'Site contact on the day', ph: 'Name', req: 1 },
   { k: 'docs.sitePhone', g: 'site', t: 'Site contact — phone', ph: '050 000 0000', req: 1 },
-  { k: 'docs.craneReg', g: 'crane', t: 'Fleet / plate no.', ph: 'e.g. FHE-12 · AD 12345', req: 1 },
+  { k: 'docs.craneReg', g: 'crane', t: 'Fleet / plate no.', ph: 'e.g. AD 12345', req: 1 },
   { k: 'docs.craneSerial', g: 'crane', t: 'Serial no.', ph: 'From the maker\'s plate', req: 1 },
   { k: 'docs.tpiCert', g: 'crane', t: 'Third-party inspection certificate no.', ph: 'Certificate number', req: 1 },
   { k: 'docs.tpiExpiry', g: 'crane', t: 'Certificate valid until', ph: 'dd/mm/yyyy', req: 1 },
@@ -48,8 +48,9 @@ const DOC_FIELDS = [
 ];
 const docEmpty = (v) => v == null || String(v).trim() === '' || (typeof v === 'number' && !(v > 0));
 function docVal(k, plan = state.plan) { const v = getP(plan, k); return docEmpty(v) ? '' : String(v).trim(); }
-function docsMissing(plan = state.plan) { return DOC_FIELDS.filter(f => f.req && docEmpty(getP(plan, f.k))); }
-function docsCount(plan = state.plan) { const need = DOC_FIELDS.filter(f => f.req); return { need: need.length, have: need.length - docsMissing(plan).length }; }
+function docsFieldsOn(plan = state.plan) { const inc = Array.isArray(plan.reportInc) ? new Set(plan.reportInc) : null; const off = { ground: inc && !inc.has('ground'), emergency: inc && !inc.has('emergency') }; return DOC_FIELDS.filter(f => f.req && !off[f.g]); }
+function docsMissing(plan = state.plan) { return docsFieldsOn(plan).filter(f => docEmpty(getP(plan, f.k))); }
+function docsCount(plan = state.plan) { const need = docsFieldsOn(plan); return { need: need.length, have: need.length - docsMissing(plan).length }; }
 function docsField(f, miss) {
   const on = miss && docEmpty(getP(state.plan, f.k)) ? ' miss' : '';
   if (f.kind === 'num') return Fx.num(f.k, f.t, f.unit || '', { ph: f.ph }).replace('<label class="it', `<label class="it${on}`);
@@ -62,8 +63,8 @@ SH.docs = {
     const gate = arg && arg.gate; const miss = docsMissing(); let out = '';
     if (gate && miss.length) out += note('warn', 'alert', `<b>The report needs ${miss.length} more detail${miss.length === 1 ? '' : 's'}.</b> Fill the boxes marked in amber, then tap <b>Make the report pack</b>. Nothing goes out blank.`);
     out += docsProgress();
-    const logo = state.settings.logoImg ? 'Your uploaded logo' : 'Built-in Friendship Hall mark';
-    out += grp('Company', Fx.link('docsLogo', 'Logo on the report', { sub: 'Change it in Settings', val: h(logo) }), { foot: 'The logo heads every page, and a faint copy sits across the page so a photocopy or screenshot still shows where it came from.' });
+    const logo = settingsEff().logoImg ? 'Client logo' : 'No logo';
+    out += grp('Company', Fx.link('docsLogo', 'Logo on the report', { sub: 'Change it under Who is this plan for?', val: h(logo) }), { foot: 'The logo heads every page, and a faint copy sits across the page so a photocopy or screenshot still shows where it came from.' });
     for (const [g, title, foot] of DOC_GROUPS) out += grp(title, DOC_FIELDS.filter(f => f.g === g).map(f => docsField(f, gate)).join(''), { foot });
     out += `<button type="button" class="btn wide pri tap" data-sa="docsGo" style="margin-top:18px">${ic('share', 20, 2.4)}Make the report pack</button>`;
     return out;

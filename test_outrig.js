@@ -93,7 +93,7 @@ ok(c3.outr.illus && c3.outr.used.FL === 55 && c3.outr.manual.RR == null, 'typed 
 ok(c3.ground && c3.ground.src === 'illus' && Math.abs(c3.ground.P - 55) < 1e-9 && c3.ground.press === 55, 'ground uses the typed value and says it is an illustration');
 ok(c3.outr.checks.some(c => /ILLUSTRATION ONLY/.test(c.m) && c.s === 'warn'), 'illustration warning check');
 ok(c3.ground.status === 'fail', '55 t on a 1 m² mat over 20 t/m² → ground FAIL');
-const svg = X.toSVG(X.buildSheet(p3, c3, X.DEFAULT_SETTINGS).P, {}); ok(/ILLUSTRATIVE/.test(svg) && /NOT REAL CRANE DATA/.test(svg), 'sheet prints the illustration warning');
+const svg = X.toSVG(X.buildSheet(p3, c3, X.DEFAULT_SETTINGS).P, {}); ok(!/ILLUSTRATIVE/.test(svg) && !/NOT REAL CRANE DATA/.test(svg), 'v11.1: typed leg loads print as typed, unmarked');
 ok(/FL/.test(svg) && /LEG LOADS/.test(svg), 'sheet prints the leg loads');
 // sheet values typed over the calculated ones (Print → Change values on the sheet)
 { const p5 = clone(p3); p5.padMan = {}; p5.sheetRows = { ...(p5.sheetRows || {}), ov: { 'l0.cap#0': '99.5t', 'c0.crane#0': 'my crane', 'g.press': '12.0T/M²', 'l0.name#0': '' } };

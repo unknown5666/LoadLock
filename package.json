@@ -1,6 +1,6 @@
 {
   "name": "fhe-lift-planner",
-  "version": "11.0.0",
+  "version": "11.1.0",
   "private": true,
   "description": "FHE A1 crane lifting-plan studio \u2014 single-file HTML app",
   "scripts": {
