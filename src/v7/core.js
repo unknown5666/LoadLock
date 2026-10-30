@@ -1,7 +1,7 @@
 // ===== v7 core: icons, actions, refresh loop, undo history, views =====
 // The v7 interface keeps v6's engine, drawing and storage (app.js) and replaces every screen.
 
-const APP_VERSION = '11.0'; // v11 = the chart follows the set-up (boom, counterweight, Y-guy, jibs, library jib and LTM1650 charts), slew to any degree, cab controls with an LMI, CAD-faithful 3D with the operator's view, report with logo, watermark and the documentation it needs. shown on sign-in, More and Settings. v10 = front lifts, tandem in the drawings, sling detail, 12-page report pack, one-tap Share & print with AirDrop, locked PDFs, smoother motion (v9 = tandem lifts, Fit-Filter, wind on the load, satellite site map, RAMS pack, live 3D window, offline)
+const APP_VERSION = '11.1'; // v11 = the chart follows the set-up (boom, counterweight, Y-guy, jibs, library jib and LTM1650 charts), slew to any degree, cab controls with an LMI, CAD-faithful 3D with the operator's view, report with logo, watermark and the documentation it needs. shown on sign-in, More and Settings. v10 = front lifts, tandem in the drawings, sling detail, 12-page report pack, one-tap Share & print with AirDrop, locked PDFs, smoother motion (v9 = tandem lifts, Fit-Filter, wind on the load, satellite site map, RAMS pack, live 3D window, offline)
 
 // ---------- icons (24px grid, round caps; never emoji) ----------
 const IC = {

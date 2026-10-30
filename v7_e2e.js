@@ -178,7 +178,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await ev(() => openSheet('new10')); await p.waitForTimeout(400);
   ok(await ev(() => document.querySelectorAll('#sheet .it.nw').length >= 6 && /Drive the crane/.test(document.querySelector('#sheet').textContent)), "What's new in 11 lists the changes");
   await p.click('#sheet [data-sa="new10ok"]'); await p.waitForTimeout(300); ok(await ev(() => !V7.sheet), 'Got it closes the card');
-  ok(await ev(() => APP_VERSION === '11.0'), 'version is 11.0');
+  ok(await ev(() => APP_VERSION === '11.1'), 'version is 11.1');
 
   // PDF download
   const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 90000 }), ev(() => exportPDF('A1'))]);

@@ -434,6 +434,7 @@ function computeLoad(plan, crane, load, settings) {
   const dutyC = typeof dutyCheck === 'function' ? dutyCheck(plan, crane, chartDef, G) : null; res.dutyWhy = !chartDef && dutyC ? dutyC.m : '';
   const capAt = (Rq) => {
     if (load.capOverride !== '' && load.capOverride != null && num(load.capOverride) > 0) return { cap: num(load.capOverride), manual: true };
+    if (typeof planSetup === 'function' && chartDef && !G.manual) { const su = planSetup(plan); if ((su === 'retracted' || su === 'tyres') && chartSetup(chartDef) !== su) return { cap: null, why: `Chart not loaded: no chart for ${SETUP_WORD[su]} on the ${crane?.model || 'crane'}.`, notLoaded: true }; }
     if (!parsed && !G.manual && res.dutyWhy) return { cap: null, why: res.dutyWhy };
     if (parsed && chartDef?.rowsBy === 'angle') return lookupCapAngle(parsed, ci, g.theta); // v11: rows are main-boom angles
     if (G.manual) return num(plan.attach?.swl) > 0 ? { cap: num(plan.attach.swl), manual: true, jib: true } : { cap: null, why: 'Enter the jib SWL from the ' + (G.manual === 'fly' ? 'fly-jib' : 'luffing-jib') + ' load chart' };
@@ -479,7 +480,6 @@ function computeLoad(plan, crane, load, settings) {
   // v11: the chart has to be the one for the set-up on the crane (Y-guying, counterweight, jib) — duty.js. With no chart at all the
   // 'Chart capacity' check below already carries the reason.
   if (dutyC && chartDef && !capInfo.manual) res.checks.push(dutyC);
-  if (chartDef && chartDef.verify) res.checks.push({ s: 'warn', t: 'Load chart', m: 'This chart was transcribed from a public datasheet (' + (chartDef.source || 'unverified') + ') — check it against the crane\'s own chart before issuing' });
   if (G.tele.mode === 'manual' && !G.tele.locked) res.checks.push({ s: 'info', t: 'Telescoping', m: `Sections set by hand (${G.tele.fr.map(f => Math.round(f * 100)).join(' / ')} %) → ${G.tele.L} m boom. Capacity is read for that length; check the crane's telescoping sequence gives the same chart` });
   res.geo = g;
   // lift side: the selected chart must be valid for the side the load is lifted over (a hand-entered capacity is the user's own responsibility)
@@ -540,6 +540,7 @@ function computeLoad(plan, crane, load, settings) {
       res.clearance = r2(worst.clr);
       { const fx = worst.A.x + worst.t * (worst.B.x - worst.A.x), fy = worst.A.y + worst.t * (worst.B.y - worst.A.y), dx = worst.q.x - fx, dy = worst.q.y - fy, d = Math.hypot(dx, dy) || 1;
         res.clearLine = { x1: worst.q.x, y1: worst.q.y, x2: fx + dx / d * half, y2: fy + dy / d * half, clr: r2(worst.clr), label: worst.q.label }; }
+      { const lines = (plan.site?.obstacles || []).filter(o => o.type === 'pole' && o.live); if (lines.length) { const need = Math.max(...lines.map(o => num(o.safe, 0))); if (!(need > 0)) res.checks.push({ s: 'warn', t: 'Power lines', m: 'Enter the clearance the utility requires. Until then this lift is not cleared near the line.' }); else if (res.clearance != null && res.clearance < need) res.checks.push({ s: 'fail', t: 'Power lines', m: `Boom passes ${res.clearance.toFixed(1)} m from the nearest object; the utility requires ${need} m.` }); else res.checks.push({ s: 'ok', t: 'Power lines', m: `Utility clearance ${need} m kept.` }); } }
       const mc = num(S.minClearance, 1);
       res.checks.push({ s: worst.clr <= 0 ? 'fail' : worst.clr < mc ? 'warn' : 'ok', t: 'Boom clearance', m: worst.clr <= 0 ? `Boom hits the ${worst.q.label} — increase boom length or move the crane` : `${worst.clr.toFixed(2)} m to the ${worst.q.label} (min ${mc} m)` });
     }
@@ -615,7 +616,7 @@ function angleFromRadius(crane, chartDef, col, R, boomOv) {
 }
 
 // several cranes per plan: the top-level crane fields are the active crane; the others are parked in plan.cranes[i]
-const CRANE_KEYS = ['craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan', 'jibDed', 'ropeKgM', 'windTab'];
+const CRANE_KEYS = ['outSetup', 'craneId', 'chartIdx', 'colIdx', 'cwt', 'config', 'outriggerTxt', 'boomOverride', 'tele', 'attach', 'acc', 'falls', 'matSize', 'modelTxt', 'hookAllowance', 'wind', 'outExt', 'padMan', 'jibDed', 'ropeKgM', 'windTab'];
 function rigOf(plan, i) { const a = num(plan.activeCrane, 0); if (i === a || !plan.cranes?.[i]) return plan; return { ...plan, ...plan.cranes[i] }; }
 function rigIndexOf(plan, l) { const i = Math.round(num(l?.crane, 0)); return plan.cranes?.[i] || i === num(plan.activeCrane, 0) ? i : num(plan.activeCrane, 0); }
 function computePlan(plan, cranes, settings) {

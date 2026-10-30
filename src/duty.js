@@ -14,13 +14,17 @@ function chartFam(ch) {
   return { kind: ch?.kind || 'main', yguy: /Y/.test(cfg) || /\bguyed\b|y-guy/.test(nm), superlift: /SSL|SL$|SUPERLIFT/.test(cfg) || /superlift/.test(nm) };
 }
 // the boom length a jib chart is printed for, as the telescopic boom shows it (without the jib adapter)
+// v11.1: the outrigger set-up a chart is printed for: full, half (intermediate), retracted or on tyres. Saved in the plan as outExt (full / half per side) + outSetup.
+function chartSetup(ch) { if (ch?.setup) return ch.setup; const t = `${ch?.name || ''} ${ch?.outrigger || ''}`; return /tyres?|tires?|wheels?|rubber/i.test(t) ? 'tyres' : /retract/i.test(t) ? 'retracted' : /\bhalf\b|50\s*%|partial|intermediate|\bmid\b/i.test(t) ? 'half' : 'full'; }
+function planSetup(plan) { const s = plan?.outSetup; if (s === 'retracted' || s === 'tyres') return s; const e = plan?.outExt || {}; return e.left === 'half' || e.right === 'half' ? 'half' : 'full'; }
+const SETUP_WORD = { full: 'full outriggers', half: 'half outriggers', retracted: 'retracted outriggers', tyres: 'on tyres' };
 function jibMainL(ch) { return num(ch?.mainLabel) > 0 ? num(ch.mainLabel) : num(ch?.mainLen); }
 function chartCwt(ch) { const v = num(ch?.cwt, NaN); return Number.isFinite(v) && v > 0 ? v : null; }
 function dutyWant(plan, crane) {
   const at = plan?.attach || {}, a = plan?.acc || {}, av = crane?.acc || [];
   const kind = at.type === 'fly' ? 'fixedjib' : at.type === 'luff' ? 'luffing' : 'main';
   const cw = plan?.cwt !== '' && plan?.cwt != null && num(plan.cwt) > 0 ? num(plan.cwt) : null;
-  return { kind, ext: !!at.ext, yguy: !!a.yguy && (av.includes('yguy') || dutyHas(crane, { yguy: true })), superlift: !!a.superlift && av.includes('superlift'), cwt: cw, jibLen: num(at.jibLen, 0), offset: num(at.offset, 0), boomAngle: num(at.boomAngle, 83) };
+  return { kind, setup: planSetup(plan), ext: !!at.ext, yguy: !!a.yguy && (av.includes('yguy') || dutyHas(crane, { yguy: true })), superlift: !!a.superlift && av.includes('superlift'), cwt: cw, jibLen: num(at.jibLen, 0), offset: num(at.offset, 0), boomAngle: num(at.boomAngle, 83) };
 }
 function dutyHas(crane, f) { return (crane?.charts || []).some(ch => { const g = chartFam(ch); return Object.keys(f).every(k => g[k] === f[k]); }); }
 // every chart of the family the crane is rigged for
@@ -29,9 +33,10 @@ function dutyFamily(crane, want) {
   return out;
 }
 // the counterweights the charts of this family are printed for (heaviest first)
-function dutyCwts(crane, want) { return [...new Set(dutyFamily(crane, want).map(o => chartCwt(o.ch)).filter(v => v != null))].sort((a, b) => b - a); }
+function dutyCwts(crane, want) { const fam = dutyFamily(crane, want).filter(o => !want?.setup || chartSetup(o.ch) === want.setup); const out = [...new Set(fam.map(o => chartCwt(o.ch)).filter(v => v != null))].sort((a, b) => b - a); if (fam.some(o => num(o.ch?.cwt, NaN) === 0)) out.push(0); return out; }
 // the counterweight on the crane: typed, else the one of the chart in use, else the crane record's
 function dutyFitted(plan, crane) {
+  if (plan?.cwt === 0 || plan?.cwt === '0') return 0; // v11.1: no counterweight on: the 0 t chart, never a heavier one
   if (plan?.cwt !== '' && plan?.cwt != null && num(plan.cwt) > 0) return num(plan.cwt);
   const cur = crane?.charts?.[+plan?.chartIdx]; return chartCwt(cur) ?? (num(crane?.cwt) > 0 ? num(crane.cwt) : null);
 }
@@ -47,6 +52,8 @@ function resolveDuty(plan, crane, o = {}) {
   const want = dutyWant(plan, crane); const res = { kind: want.kind, chartIdx: -1, colIdx: 0, boomOverride: '', why: '', snapped: {}, want };
   const L = num(o.L, 0); res.L = L;
   let fam = dutyFamily(crane, want);
+  const onSetup = fam.filter(x => chartSetup(x.ch) === want.setup); res.setupMiss = fam.length > 0 && !onSetup.length; fam = onSetup;
+  if (!fam.length) { res.chartNotLoaded = true; if (res.setupMiss) { res.why = `Chart not loaded: the ${crane?.model || 'crane'} has no ${DUTY_WORD[want.kind]} chart for ${SETUP_WORD[want.setup]}.`; res.boomOverride = L > 0 ? L : ''; return res; } }
   if (!fam.length) { res.why = dutyNoChart(crane, want); res.boomOverride = L > 0 ? L : ''; return res; }
   // lift side first: a chart that covers it, when there is one
   const side = o.side || 'rear'; const cov = fam.filter(x => chartCoversSide(x.ch, side)); if (cov.length) fam = cov; else res.sideMiss = true;

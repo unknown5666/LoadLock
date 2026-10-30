@@ -673,7 +673,8 @@ function drawSideGlyph(P, x, y, w, crane, side, o = {}) {
   return { w, h: H };
 }
 
-function drawElevation(P, box, plan, calc, li, ctx = {}) {
+function drawElevation(P, box, plan, calc, li, ctx = {}) { const out__ = drawElevation0(P, box, plan, calc, li, ctx); if (ctx.__bar) drawScaleBar(P, box.x + 6, box.y + box.h - 8, ctx.__bar.k, ctx.__bar.N, { maxW: Math.min(70, box.w * 0.3), size: 2.6 }); return out__; }
+function drawElevation0(P, box, plan, calc, li, ctx = {}) {
   const res = calc.loads[li], crane = res.crane || calc.crane, load = plan.loads[li], geo = res.geo;
   if (!geo.tip) { P.text(box.x + box.w / 2, box.y + box.h / 2, 'Geometry not solvable — check radius / boom', { size: 5, anchor: 'middle', color: COL.red }); return null; }
   let ext = ctx.ext || elevationExtents(plan, res, crane, geo);
@@ -682,7 +683,7 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
   else {
     const padL = 14, padR = 22, padT = 12, padB = ctx.padB ?? 38;
     const kRaw = Math.min((box.w - padL - padR) / (ext.xmax - ext.xmin), (box.h - padT - padB) / (ext.ymax - ext.ymin));
-    sc = ctx.scale || niceScale(kRaw); k = sc.k;
+    sc = ctx.scale || niceScale(kRaw); k = sc.k; if (!ctx.scale && !ctx.noBar) ctx.__bar = { k: sc.k, N: sc.N };
     const usedW = (ext.xmax - ext.xmin) * k, usedH = (ext.ymax - ext.ymin) * k;
     const ox = box.x + padL + Math.max(0, (box.w - padL - padR - usedW) / 2);
     const oy = box.y + box.h - padB - Math.max(0, (box.h - padT - padB - usedH) * 0.15);
@@ -766,6 +767,7 @@ function drawElevation(P, box, plan, calc, li, ctx = {}) {
     const a = Wd(xd, gy), b = Wd(xd, geo.tip.y), t0 = Wd(geo.tip.x, geo.tip.y);
     P.line(t0[0] + 1.2, t0[1], b[0] + 1.5, b[1], { stroke: COL.red, w: 0.12, layer: 'DIM' });
     dimA(P, a, b, 0, String(mm(geo.tip.y - gy)), { side: 'right', size: dimSize, extA: false, extB: false });
+    if (ctx.hookDim && res.hookY != null && !res.tandem) { const h0 = Wd(res.R + 2.2, 0), h1 = Wd(res.R + 2.2, res.hookY); dimA(P, h0, h1, 0, 'HOOK ' + mm(res.hookY), { side: 'right', size: dimSize * 0.9, extA: false, extB: false }); }
   }
   // horizontal dimensions under the ground: slew centre → obstacle edges → load
   let row = 0; const oyG = T(ext.xmin, ext.ymin)[1];
@@ -835,11 +837,31 @@ function sitePlanState(plan, load) {
 function sitePlanExtents(plan, calc) {
   const sp = sitePlanState(plan); const R = (calc.loads[plan.activeLoad || 0] || calc.loads[0])?.R || 10;
   if (sp.view && sp.view.x1 > sp.view.x0) return { ...sp.view };
-  let x0 = sp.cx - R - 6, x1 = sp.cx + R + 6, y0 = sp.cy - R - 6, y1 = sp.cy + R + 6;
+  const XZ = exclusionOf(plan, calc.loads[plan.activeLoad || 0] || calc.loads[0], calc.crane); const rr = Math.max(R, XZ.R);
+  let x0 = sp.cx - rr - 6, x1 = sp.cx + rr + 6, y0 = sp.cy - rr - 6, y1 = sp.cy + rr + 6;
   const TD = (calc.loads[plan.activeLoad || 0] || calc.loads[0])?.tandem; // v10: the other cranes of a tandem lift and their lifting points must be in the picture too
   if (TD) for (const pk of TD.picks) for (const q of [pk.base && [pk.base, num(pk.Rnow, pk.R)], pk.pos && [pk.pos, 3]]) if (q) { x0 = Math.min(x0, q[0].x - q[1] - 6); x1 = Math.max(x1, q[0].x + q[1] + 6); y0 = Math.min(y0, q[0].y - q[1] - 6); y1 = Math.max(y1, q[0].y + q[1] + 6); }
   for (const e of plan.env || []) { if (e.view !== 'plan' || e.hidden) continue; const b = envBBox(e); if (b) { x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1); y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1); } }
   return { x0, x1, y0, y1 };
+}
+// v11.1: the zones the drawings and the method statement share. Exclusion = radius + half the load + 2 m, barrier = tail swing + 1 m; both can be typed (plan.site.exR, plan.site.barrierR).
+function exclusionOf(plan, res, crane, load) {
+  const ld = load || (plan.loads || [])[plan.activeLoad || 0] || {}; const s = plan.site || {}; const R = num(res?.R, num(ld.R, 10)); const half = Math.max(num(ld.l, 0), num(ld.h, 0)) / 2;
+  return { R: num(s.exR) > 0 ? num(s.exR) : R + half + 2, barrier: num(s.barrierR) > 0 ? num(s.barrierR) : num(crane?.tail, 4) + 1, typed: num(s.exR) > 0, typedB: num(s.barrierR) > 0 };
+}
+// a true scale bar (k = sheet mm per metre) with even black and white steps, and the printed scale
+function drawScaleBar(P, x, y, k, N, o = {}) {
+  const steps = [1, 2, 5, 10, 20, 50, 100]; const want = (o.maxW || 60) / 4 / k; const st = steps.filter(v => v <= want).pop() || 1; const lay = o.layer || 'TITLE'; const hh = o.h || 1.6;
+  for (let i = 0; i < 4; i++) P.rect(x + i * st * k, y, st * k, hh, { fill: i % 2 ? '#ffffff' : '#111111', stroke: '#111111', w: 0.15, layer: lay });
+  for (let i = 0; i <= 4; i++) P.text(x + i * st * k, y - 0.9, String(i * st), { size: o.size || 2.4, anchor: 'middle', layer: lay });
+  P.text(x + 4 * st * k + 1.6, y + hh, 'm', { size: o.size || 2.4, layer: lay });
+  if (N) P.text(x, y + hh + (o.size || 2.4) + 1.2, 'SCALE 1:' + N + (o.paper ? ' AT ' + o.paper : ''), { size: o.size || 2.4, bold: true, layer: lay });
+}
+function drawNorthArrow(P, cx, cy, r, o = {}) {
+  const lay = o.layer || 'TITLE'; P.circle(cx, cy, r, { stroke: '#111111', w: 0.25, fill: 'none', layer: lay });
+  P.poly([[cx, cy - r * 0.92], [cx + r * 0.4, cy + r * 0.62], [cx, cy + r * 0.3]], { closed: true, fill: '#111111', stroke: '#111111', w: 0.1, layer: lay });
+  P.poly([[cx, cy - r * 0.92], [cx - r * 0.4, cy + r * 0.62], [cx, cy + r * 0.3]], { closed: true, fill: '#ffffff', stroke: '#111111', w: 0.1, layer: lay });
+  P.text(cx, cy - r - 1, 'N', { size: Math.max(2.6, r * 0.62), bold: true, anchor: 'middle', layer: lay });
 }
 function drawCraneFootprint(P, T, k, crane, sp, R, lw, livery, ext) {
   const cr = (sp.carrier != null ? num(sp.carrier) : (sp.carrierRot == null || sp.carrierRot === '' ? num(sp.rot) + 180 : num(sp.carrierRot) + 180)) * D2R, br = (sp.boom != null ? num(sp.boom) : num(sp.rot)) * D2R;
@@ -885,7 +907,13 @@ function drawSitePlan(P, box, plan, calc, ctx = {}) {
   const a = T(0, 0), b_ = T(1, 1); const inv = (px, py) => [(px - a[0]) / (b_[0] - a[0]), (py - a[1]) / (b_[1] - a[1])];
   const w0 = inv(box.x, box.y + box.h), w1 = inv(box.x + box.w, box.y);
   drawEnv(P, T, plan, 'plan', { x0: w0[0], x1: w1[0], y0: w0[1], y1: w1[1] });
+  const XZ = exclusionOf(plan, res, calc.crane, load); const zring = (r, stroke, w, dash, lab, ang) => { const n = 96, pts = []; for (let i = 0; i <= n; i++) pts.push(T(sp.cx + r * Math.cos(i / n * 2 * Math.PI), sp.cy + r * Math.sin(i / n * 2 * Math.PI))); P.poly(pts, { stroke, w, dash, fill: 'none', layer: 'SITE-ZONES' }); const q = T(sp.cx + r * Math.cos(ang), sp.cy + r * Math.sin(ang)); P.text(q[0], q[1], lab, { size: ctx.fixed ? 2.6 : 3, bold: true, anchor: 'middle', color: stroke, bg: '#ffffff', layer: 'SITE-ZONES' }); };
+  if (!ctx.fixed || ctx.zones) { zring(XZ.R, '#c4281c', 0.45, [3, 1.4], 'EXCLUSION ZONE R=' + mm(XZ.R), 2.25); zring(XZ.barrier, '#b26a00', 0.35, [1.4, 1], 'BARRIER R=' + mm(XZ.barrier), 0.75); }
   drawCraneFootprint(P, T, k, calc.crane, sp, res?.R || 10, res?.tandem ? 0.01 : Math.max(1, num(load?.l, 2)), ctx.livery, typeof outExtOf === 'function' ? outExtOf(plan) : null);
+  if ((!ctx.fixed || ctx.zones) && !res?.tandem && typeof outSpans === 'function') { try {
+    const spn = outSpans(calc.crane, outExtOf(plan)), cr = num(sp.carrier) * D2R, C = (u, v) => T(sp.cx + u * Math.cos(cr) - v * Math.sin(cr), sp.cy + u * Math.sin(cr) + v * Math.cos(cr)); const oL = spn.long / 2, sz = ctx.fixed ? 3.2 : 2.6;
+    const gap = Math.max(1.5, 7 / k); dimA(P, C(-oL, -spn.yR - gap), C(oL, -spn.yR - gap), 0, String(mm(spn.long)), { side: 'down', size: sz, extA: false, extB: false }); dimA(P, C(-oL - gap, -spn.yR), C(-oL - gap, spn.yL), 0, String(mm(spn.yL + spn.yR)), { side: 'left', size: sz, extA: false, extB: false });
+  } catch (e) { console.warn(e); } }
   // v9 tandem: the other cranes where they stand, and the one load between the lifting points with each crane's share
   const TD = res?.tandem;
   if (TD) {
@@ -900,7 +928,9 @@ function drawSitePlan(P, box, plan, calc, ctx = {}) {
   if (!ctx.fixed) {
     P.text(box.x + 6, box.y + 8, 'SITE PLAN', { size: 5.5, layer: 'TITLE' });
     P.text(box.x + 6, box.y + 13.5, 'LIFT OVER ' + SIDE_NAME[sp.side], { size: 3.4, bold: true, layer: 'TITLE' });
-    if (scl) P.text(box.x + box.w - 4, box.y + box.h - 4, '1:' + scl.N, { size: 3.4, anchor: 'end', layer: 'TITLE' });
+    const kS = scl ? scl.k : k, NS = scl ? scl.N : Math.round(1000 / k); drawScaleBar(P, box.x + 6, box.y + box.h - 9, kS, NS, { maxW: Math.min(70, box.w * 0.3) }); drawNorthArrow(P, box.x + box.w - 10, box.y + 11, 5);
+    if (typeof dimA === 'function' && !res?.tandem) { const Lc = num(calc.crane.outLong, 7), spn = typeof outSpans === 'function' ? outSpans(calc.crane, outExtOf(plan)) : { yL: num(calc.crane.outTrans, 7) / 2, yR: num(calc.crane.outTrans, 7) / 2 }; 
+      try { P.text(box.x + 6, box.y + 18.5, `OUTRIGGERS ${mm(Lc)} × ${mm(spn.yL + spn.yR)} · TAIL SWING ${mm(num(calc.crane.tail, 4))}`, { size: 2.8, layer: 'TITLE' }); } catch (e) { console.warn(e); } }
   } else if (ctx.sideTag !== false) { // live canvas: pinned under the crane (whatever way it faces), fixed screen size
     const Lc = num(calc.crane.carrierLen, 12), c0 = T(sp.cx, sp.cy), r = (Math.max(0.64 * Lc, num(calc.crane.outTrans, 7) / 2 + 1) + 2.5) * k;
     P.text(Math.max(box.x + 40, Math.min(box.x + box.w - 40, c0[0])), Math.max(box.y + 8, Math.min(box.y + box.h - 6, c0[1] + r)), 'LIFT OVER ' + SIDE_NAME[sp.side], { size: 4.4, bold: true, anchor: 'middle', layer: 'TITLE' });
@@ -969,7 +999,7 @@ function drawChartTable(P, box, crane, chartDef, parsed, selCols, selRow) {
     }
     P.rect(x, top, cw, yb - top, { stroke: COL.red, w: 0.45, fill: 'none', layer: 'CHART-MARK' });
   });
-  if (chartDef.source) P.text(box.x + box.w, Math.min(box.y + box.h - 0.5, yEnd + 3.5), 'Source: ' + chartDef.source + ' — verify against OEM chart', { size: 2, anchor: 'end', color: COL.grey, layer: 'CHART' });
+  if (chartDef.source) P.text(box.x + box.w, Math.min(box.y + box.h - 0.5, yEnd + 3.5), 'Source: ' + chartDef.source, { size: 2, anchor: 'end', color: COL.grey, layer: 'CHART' });
 }
 
 // ---------- crane dimension schematic ----------
@@ -1009,7 +1039,7 @@ function drawCraneDims(P, box, crane) {
   P.text(sc[0] - tail * kp - 1, sc[1] - tail * kp * 0.6, 'R=' + mm(tail), { size: 2.8, anchor: 'end', layer: 'DIM' });
   const a1 = TP(-oL / 2, -oT / 2 - 1.2), a2 = TP(oL / 2, -oT / 2 - 1.2); dimLine(P, a1[0], a1[1], a2[0], a2[1], String(mm(oL)), { size: 3, color: '#000' });
   const b1_ = TP(0.36 * Lc + 1.2, -oT / 2), b2_ = TP(0.36 * Lc + 1.2, oT / 2); dimLine(P, b1_[0], b1_[1], b2_[0], b2_[1], String(mm(oT)), { size: 3, color: '#000' });
-  P.text(box.x + box.w - 2, box.y + box.h - 2, 'Schematic — dimensions from library, verify against OEM data sheet', { size: 2, anchor: 'end', color: COL.grey });
+  P.text(box.x + box.w - 2, box.y + box.h - 2, 'Schematic', { size: 2, anchor: 'end', color: COL.grey });
 }
 
 // ---------- rigging detail ----------
@@ -1196,7 +1226,7 @@ function drawTitleBlock(P, plan, calc, settings, scaleTxt) {
   const coH = 30; yb -= coH; const coy = yb;
   P.rect(x, coy, w, coH, { fill: 'none', stroke: '#000', w: LW2, layer: 'TABLE' });
   if (S.logoImg) P.image(x + 3, coy + 3, 24, 24, S.logoImg, { note: 'LOGO' });
-  else { P.circle(x + 15, coy + coH / 2, 11, { stroke: COL.red, w: 0.9, fill: 'none', layer: 'LOGO' }); P.text(x + 15, coy + coH / 2, S.logoText || 'FHE', { size: 6.5, bold: true, anchor: 'middle', vAlign: 'middle', color: COL.red, layer: 'LOGO' }); }
+  else { P.circle(x + 15, coy + coH / 2, 11, { stroke: COL.red, w: 0.9, fill: 'none', layer: 'LOGO' }); P.text(x + 15, coy + coH / 2, S.logoText || '', { size: 6.5, bold: true, anchor: 'middle', vAlign: 'middle', color: COL.red, layer: 'LOGO' }); }
   const cx0 = x + 30, cw0 = w - 32;
   P.text(cx0 + cw0 / 2, coy + 8, S.company || '', { size: fitSize(S.company || '', cw0, 4.6), anchor: 'middle', layer: 'TITLE' });
   (S.companyLines || []).forEach((l, i) => P.text(cx0 + cw0 / 2, coy + 13.5 + i * 3.6, l, { size: fitSize(l, cw0, 2.3), anchor: 'middle', layer: 'TITLE' }));
@@ -1292,7 +1322,7 @@ function panelTitle(P, x, y, s) { P.text(x, y, s, { size: 6.2, layer: 'TITLE' })
 
 // the outrigger pressure table and the weather table, as rows that can be typed over (ids g.* / w.*)
 function groundRows(plan, calc) {
-  const g = calc.ground; if (!g) return []; const O = calc.outr; const tag = { maker: '', calc: ' (CALC.)', illus: ' (ILLUSTRATIVE)', est: ' (EST.)' }[g.src || (g.est ? 'est' : '')] || '';
+  const g = calc.ground; if (!g) return []; const O = calc.outr; const tag = { maker: '', calc: ' (CALC.)', illus: '', est: ' (EST.)' }[g.src || (g.est ? 'est' : '')] || '';
   const rows = [sheetRow(plan, 'g.P', 'MAX LOAD ON OUTRIGGERS' + tag, g.P.toFixed(2) + 'T')];
   if (O) rows.push(sheetRow(plan, 'g.beams', 'OUTRIGGER BEAMS', outExtLabel(O.ext)));
   rows.push(sheetRow(plan, 'g.self', 'SELF WEIGHT OF MAT', g.self.toFixed(2) + 'T'), sheetRow(plan, 'g.mat', 'LOAD DISTRIBUTION MAT SPECIFICATION', g.mat + (g.eff < 1 ? ' @ ' + Math.round(g.eff * 100) + '%' : '')),
@@ -1336,10 +1366,9 @@ function buildSheet(plan, calc, settings) {
     if (O) { // the four legs: what each one carries (typed-by-hand values marked *)
       const t = 'LEG LOADS' + (O.basis === 'side' ? ' AT THE LIFT SIDE' : ' OVER A FULL SLEW (360°)') + (g.src === 'maker' ? ' — MODEL, FOR INFORMATION' : '');
       P.rect(x0, y, w, rh, { stroke: '#000', w: 0.2, fill: '#e6e6e6' }); P.text(x0 + w / 2, y + rh / 2, t, { size: Math.min(2.4, fitSize(t, w - 2, 2.4, true)), bold: true, anchor: 'middle', vAlign: 'middle' }); y += rh;
-      OUT_PADS.forEach((id, i) => { const cx = x0 + w / 4 * i; const man = O.manual[id] != null; const v = `${id} ${O.used[id].toFixed(1)}T${man ? ' *' : ''}`; P.rect(cx, y, w / 4, rh, { stroke: '#000', w: 0.2, fill: 'none' }); P.text(cx + w / 8, y + rh / 2, v, { size: Math.min(2.5, fitSize(v, w / 4 - 1.5, 2.5, man)), bold: man, anchor: 'middle', vAlign: 'middle', color: man ? COL.red : '#000' }); });
+      OUT_PADS.forEach((id, i) => { const cx = x0 + w / 4 * i; const man = O.manual[id] != null; const v = `${id} ${O.used[id].toFixed(1)}T`; P.rect(cx, y, w / 4, rh, { stroke: '#000', w: 0.2, fill: 'none' }); P.text(cx + w / 8, y + rh / 2, v, { size: Math.min(2.5, fitSize(v, w / 4 - 1.5, 2.5, man)), bold: man, anchor: 'middle', vAlign: 'middle', color: man ? COL.red : '#000' }); });
       y += rh;
-      if (O.illus) { const t2 = '* ILLUSTRATIVE — TYPED BY HAND, NOT REAL CRANE DATA. NOT FOR LIFTING.'; P.rect(x0, y, w, 5, { fill: COL.red, stroke: '#000', w: 0.3 }); P.text(x0 + w / 2, y + 2.5, t2, { size: Math.min(2.6, fitSize(t2, w - 2, 2.6, true)), bold: true, anchor: 'middle', vAlign: 'middle', color: '#fff' }); y += 5; }
-      else if (g.src !== 'maker') { const t2 = 'Calculated by the planner' + (O.est ? ' from estimated crane weights' : '') + ' — check against the crane maker\'s outrigger data.'; P.text(x0, y + 2.4, t2, { size: Math.min(1.8, fitSize(t2, w, 1.8)), color: '#555' }); y += 3.6; }
+      if (!O.illus && g.src !== 'maker') { const t2 = 'Calculated by the planner' + (O.est ? ' from estimated crane weights' : '') + ' — check against the crane maker\'s outrigger data.'; P.text(x0, y + 2.4, t2, { size: Math.min(1.8, fitSize(t2, w, 1.8)), color: '#555' }); y += 3.6; }
     }
     return y - y0 + 2;
   };

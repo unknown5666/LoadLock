@@ -30,9 +30,13 @@ function dutyGroup(crane, r) {
   const row = (title, sub, inner) => `<div class="it stack"><span class="lb"><b>${h(title)}</b>${sub ? `<small>${sub}</small>` : ''}</span><div class="chips" style="margin-top:8px">${inner}</div></div>`;
   const capTxt = r?.cap != null ? `${fmt(r.cap, 1)} t` : '—';
   const srcShort = (t) => { t = String(t || '').replace(/^.*\//, ''); const m = /^(.*?p\.\s?[\d,–-]+)/.exec(t); t = m ? m[1] : t; return t.length > 96 ? t.slice(0, 94) + '…' : t; };
+  const uTone = r?.util == null ? '' : r.util > 90 ? 'r' : r.util >= 75 ? 'a' : 'g';
+  const uBar = r?.cap != null ? `<div class="duty-util ${uTone}"><span><b>${fmt(r.design ?? r.total, 2)} t</b> on the hook (load + hook block + rigging${r.contOn ? ' + margin' : ''})</span><span class="pc num">${fmt(r.util, 1)}%</span><i style="width:${Math.min(100, r.util)}%"></i></div>${r.util > 100 ? '<p class="duty-over" role="alert">Over the chart capacity. This lift should not go ahead as planned.</p>' : ''}` : '';
   let out = `<div class="duty-card ${r?.cap == null ? 'none' : ''}"><div class="dc-l"><span class="k">Crane can lift here</span><span class="v num">${capTxt}</span><span class="s">${r?.cap == null && r?.capInfo?.why ? h(r.capInfo.why) : `at ${fmt(r?.R, 1)} m reach · boom ${fmt(L, 1)} m`}</span></div>
-    <div class="dc-r"><span class="k">Chart in use</span><b>${ch ? h(chartShort(ch).replace(/\s*·\s*UNVERIFIED$/, '')) : 'None for this set-up'}</b><small>${ch ? h(srcShort(ch.source)) + (ch.verify ? ' · <span class="w">check against the maker</span>' : '') : h(r?.dutyWhy || r?.capInfo?.why || '')}</small></div></div>`;
+    <div class="dc-r"><span class="k">Chart in use</span><b>${ch ? h(chartShort(ch).replace(/\s*·\s*UNVERIFIED$/, '')) : 'None for this set-up'}</b><small>${ch ? h(srcShort(ch.source))  : h(r?.dutyWhy || r?.capInfo?.why || '')}</small></div></div>`;
   let rows = '';
+  const su = planSetup(p); const hasSu = (x) => (crane.charts || []).some(c => chartSetup(c) === x);
+  rows += row('Outriggers', hasSu(su) ? '' : 'Chart not loaded for this set-up', [['full', 'Full'], ['half', 'Half'], ['retracted', 'Retracted'], ['tyres', 'On tyres']].map(([v, l]) => chip('dutySetup', v, l + (hasSu(v) ? '' : ' · no chart'), su === v)).join(''));
   const cws = op.cwts; if (cws.length) rows += row('Counterweight', fitted != null ? `${fmt(fitted, 1)} t on the crane${cws.includes(fitted) ? '' : ' — the chart for the next lighter counterweight is used'}` : 'Pick what is fitted', cws.map(v => chip('dutyCwt', v, fmt(v, 1) + ' t', fitted != null && Math.abs(v - fitted) < 1e-6)).join(''));
   const bal = dutyBallasts(p, crane, L, r?.R);
   if (bal.length > 1) { const here = bal.filter(b => b.cap != null); const cur = bal.find(b => b.on);
@@ -45,9 +49,10 @@ function dutyGroup(crane, r) {
     if (op.jibLs.length) rows += row('Jib length', '', op.jibLs.map(v => chip('dutyJibL', v, fmt(v, 1) + ' m', Math.abs(v - num(at.jibLen)) < 0.06)).join(''));
     if (op.cols.length) rows += row(want.kind === 'fixedjib' ? 'Jib offset' : 'Main boom angle', want.kind === 'fixedjib' ? 'How far the jib is bent down from the boom line' : 'The main boom stays at this angle; the jib luffs', op.cols.map(v => chip('dutyCol', v, fmt(v, 0) + '°', Math.abs(v - (want.kind === 'fixedjib' ? num(at.offset) : num(at.boomAngle))) < 0.06)).join(''));
   } else if (want.kind !== 'main') rows += Fx.num('attach.jibLen', 'Jib length', 'm') + (want.kind === 'fixedjib' ? Fx.num('attach.offset', 'Offset', '°') : Fx.num('attach.boomAngle', 'Main boom angle', '°')) + Fx.num('attach.swl', 'Jib can lift (from the maker\'s chart)', 't', { ph: 'type it' });
-  out += `<div class="list" style="margin-top:12px">${rows || Fx.ro('Nothing to set on this crane', '')}</div>`;
+  out += uBar + `<div class="list" style="margin-top:12px">${rows || Fx.ro('Nothing to set on this crane', '')}</div>`;
   return grp('Set-up on the crane', out, { raw: true, foot: 'Change anything here and the app picks the maker\'s chart for it — the safe load changes with the boom, the counterweight, Y-guying and the jib.' });
 }
+SA_EXTRA.dutySetup = (d) => { const p = state.plan, v = d.v; p.outSetup = v === 'retracted' || v === 'tyres' ? v : ''; if (v === 'half') p.outExt = { left: 'half', right: 'half' }; else if (v === 'full') p.outExt = { left: 'full', right: 'full' }; applyDuty(); };
 SA_EXTRA.dutyBal = (d) => { state.plan.chartIdx = +d.v; applyDuty(); };
 SA_EXTRA.dutyCwt = (d) => { state.plan.cwt = num(d.v); applyDuty(); };
 SA_EXTRA.dutyJib = (d) => { const k = d.v; if (k === 'none') { const at = state.plan.attach || {}; if (at.type === 'fly') accToggle(at.ext ? 'extension' : 'flyjib', false); else if (at.type === 'luff') accToggle('luffing', false); } else accToggle(k === 'fly' ? 'flyjib' : 'luffing', true); };

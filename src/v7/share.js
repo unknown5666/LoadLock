@@ -18,6 +18,20 @@ const shareClock = (d) => d.toLocaleTimeString('en-GB', { hour: '2-digit', minut
 
 // ---------- locked PDFs: they open and print, but cannot be copied from or edited ----------
 function shareRandomPw() { const a = new Uint8Array(16); try { crypto.getRandomValues(a); } catch { for (let i = 0; i < 16; i++) a[i] = Math.floor(Math.random() * 256); } return [...a].map(x => x.toString(16).padStart(2, '0')).join(''); }
+// v11.1: no trace of the software in the file: jsPDF always writes its name as the Producer, so the finished bytes are rewritten (same length, xref stays valid)
+function pdfStripProducer(ab) {
+  const u = new Uint8Array(ab); const key = '/Producer ('; const k = [...key].map(c => c.charCodeAt(0));
+  for (let i = 0; i < u.length - k.length; i++) { let m = true; for (let j = 0; j < k.length; j++) if (u[i + j] !== k[j]) { m = false; break; } if (!m) continue;
+    let e = i + k.length; while (e < u.length && !(u[e] === 41 && u[e - 1] !== 92)) e++; for (let q = i + k.length; q < e; q++) u[q] = 32; u[i + k.length] = 41; u[e] = 32; break; }
+  return u;
+}
+function pdfCleanOutput(doc) {
+  const raw = doc.output.bind(doc);
+  doc.output = function (type, opt) {
+    if (type === 'blob' || type === 'arraybuffer') { const u = pdfStripProducer(raw('arraybuffer')); return type === 'blob' ? new Blob([u], { type: 'application/pdf' }) : u.buffer; }
+    return raw(type, opt);
+  };
+}
 function pdfNew(o = {}) {
   const J = window.jspdf && window.jspdf.jsPDF; if (!J) throw new Error('PDF library did not load');
   const { locked, ...rest } = o; const opt = { orientation: 'portrait', unit: 'mm', format: 'a4', compress: true, ...rest };
@@ -26,6 +40,7 @@ function pdfNew(o = {}) {
     try { doc = new J({ ...opt, encryption: { userPassword: '', ownerPassword: shareRandomPw(), userPermissions: ['print'] } }); doc.__locked = true; } catch (e) { console.warn('PDF lock not available', e); doc = null; }
   }
   if (!doc) { doc = new J(opt); doc.__locked = false; }
+  pdfCleanOutput(doc);
   if (typeof PDF_FONTS !== 'undefined') {
     doc.addFileToVFS('LiberationSans-Regular.ttf', PDF_FONTS.regular); doc.addFont('LiberationSans-Regular.ttf', 'Arial', 'normal');
     doc.addFileToVFS('LiberationSans-Bold.ttf', PDF_FONTS.bold); doc.addFont('LiberationSans-Bold.ttf', 'Arial', 'bold');
@@ -38,20 +53,9 @@ const pdfSafe = (s) => String(s == null ? '' : s).replace(/[\u2013\u2014]/g, '-'
 function pdfFinish(doc, o = {}) {
   const title = pdfSafe(o.title || (typeof fileBase === 'function' ? fileBase() : 'Lifting plan')); const docNo = pdfSafe(o.docNo || (typeof sheetDocNo === 'function' ? sheetDocNo() : 'FHE'));
   const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const unit = `FHE \u00b7 ${docNo} \u00b7 controlled copy \u00b7 ${date}`;
+  const S0 = settingsEff(); const unit = `${pdfSafe(S0.company || '')}${S0.company ? ' \u00b7 ' : ''}${docNo} \u00b7 controlled copy \u00b7 ${date}`;
   const n = doc.getNumberOfPages();
-  try {
-    doc.setFont(typeof PDF_FONTS !== 'undefined' ? 'Arial' : 'helvetica', 'normal'); doc.setTextColor(188, 190, 196);
-    for (let i = 1; i <= n; i++) {
-      doc.setPage(i); const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
-      const big = W > 400, k = big ? W / 841 : 1; // drawing sheets (A3, A1) have their frame close to the edge: the line sits just inside it, at the bottom only
-      doc.setFontSize(3.4 * k); const gap = '      '; const uw = doc.getTextWidth(unit + gap);
-      const reps = Math.max(1, Math.floor((W - 8) / uw)); const line = Array(reps).fill(unit).join(gap);
-      doc.text(line, W / 2, H - 3 * k, { align: 'center' }); if (!big) doc.text(line, W / 2, 4.1, { align: 'center' });
-    }
-    doc.setPage(n);
-  } catch (e) { console.warn('watermark skipped', e); }
-  doc.setProperties({ title, subject: pdfSafe(o.subject || 'Crane lifting plan'), author: 'Friendship Hall Est', keywords: docNo, creator: 'FHE Lift Planner ' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '') });
+  doc.setProperties({ title, subject: pdfSafe(o.subject || 'Crane lifting plan'), author: pdfSafe(typeof profileOf === 'function' ? profileOf().name : ''), keywords: docNo });
   return doc;
 }
 

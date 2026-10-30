@@ -81,7 +81,7 @@ ok(E.chartFam({ config: 'HASSL' }).superlift && !E.chartFam({ config: 'HA' }).su
 }
 // --- library jib charts (LIB_JIBS, read from the PDFs by pipeline/library/extract/gen_jibs.py) ---
 {
-  for (const id of ['stc500', 'stc750', 'ztc1000v', 'ac100']) { const c = C(id); const js = c.charts.filter(ch => ch.kind === 'fixedjib'); ok(js.length >= 2 && js.every(ch => ch.verify && E.getChart(ch)?.cols.length), `${id}: ${js.length} jib charts load and parse`); }
+  for (const id of ['stc500', 'stc750', 'ztc1000v', 'ac100']) { const c = C(id); const js = c.charts.filter(ch => ch.kind === 'fixedjib'); ok(js.length >= 2 && js.every(ch => ch.sourceRaw && E.getChart(ch)?.cols.length), `${id}: ${js.length} jib charts load and parse`); }
   // STC500: jib 9.2 m on the 43 m boom, rows by main-boom angle — at 75° the table says 3000 kg at 0°
   const c = C('stc500'); const p = base('stc500', { attach: { type: 'fly', jibLen: 9.2, offset: 0 } }); let d = apply(p, c, 43);
   const ch = c.charts[d.chartIdx]; ok(ch && ch.rowsBy === 'angle' && ch.jibLen === 9.2 && E.jibMainL(ch) === 43, 'STC500 fly jib → the 9.2 m angle chart on 43 m: ' + (ch && ch.name));
@@ -100,7 +100,7 @@ ok(E.chartFam({ config: 'HASSL' }).superlift && !E.chartFam({ config: 'HA' }).su
 }
 // --- LTM1650: Liebherr max tables split per VarioBallast set-up (gen_ltm1650.py) ---
 {
-  const c = C('ltm1650'); ok(c.charts.length >= 8 && c.charts.every(ch => ch.verify && ch.ballastR > 0), `LTM1650 has ${c.charts.length} charts now, one per ballast set-up`);
+  const c = C('ltm1650'); ok(c.charts.length >= 8 && c.charts.every(ch => ch.sourceRaw && ch.ballastR > 0), `LTM1650 has ${c.charts.length} charts now, one per ballast set-up`);
   const p = base('ltm1650', { cwt: 155 }); let d = apply(p, c, 51); const ch = c.charts[d.chartIdx]; ok(ch && ch.config === 'T3' && ch.cwt === 155, 'LTM1650 155 t → ' + (ch && ch.name));
   const r = E.computeLoad(p, c, load({ R: 20, w: 30 }), S); ok(r.cap === 63.5 || r.cap != null, 'LTM1650 51 m at 20 m reads the table: ' + r.cap + ' t (page 27: 63.5 t, 155 t at 6.4 m)');
   p.acc.yguy = true; d = apply(p, c, 51); const ry = E.computeLoad(p, c, load({ R: 20, w: 30 }), S); ok(c.charts[d.chartIdx].config === 'T3Y', 'Y-guying on → the T3Y chart: ' + c.charts[d.chartIdx].name);
